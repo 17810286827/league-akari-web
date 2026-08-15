@@ -1,29 +1,29 @@
 <script setup lang="ts">
 /**
  * 左侧边栏：队列筛选区 + 总览统计区 + 英雄点数区 + 最近队友区 + 最近对手区
- * 队列筛选与分页通过 v-model 与父组件同步；"查看更多"为占位跳转
+ * 队列筛选（真实 queueId）与分页通过 v-model 与父组件同步；数据均来自父组件聚合结果
  */
 import { championIconUrl } from '@/utils/icon-url'
 
-import { queueFilterOptions } from './mockData'
+import { QUEUE_OPTIONS } from './adapter'
 import type { ChampionPoint, GameStatsData, OverviewStats, RecentPlayer } from './types'
 
-// 页面数据（props 注入）
-defineProps<{ data: GameStatsData }>()
+// 页面数据（props 注入）与后端总条数（分页"N项"显示）；具名引用供模板函数使用
+const props = defineProps<{ data: GameStatsData; total: number }>()
 
-// 队列筛选（下拉框）与当前页（分页控件）
-const queue = defineModel<string>('queue', { default: '所有模式' })
+// 队列筛选（下拉框，值为后端 queueId，null 为所有模式）与当前页（分页控件）
+const queue = defineModel<number | null>('queue', { default: null })
 const page = defineModel<number>('page', { default: 1 })
 
 // 事件：查看更多（英雄点数占位跳转）
 const emit = defineEmits<{ viewMore: [] }>()
 
-/** 每页条数（参考图固定 20） */
+/** 每页条数（契约固定 20） */
 const PAGE_SIZE = 20
 
-/** 总览统计字段配置：标签 + 取值函数 + 是否百分比 */
+/** 总览统计字段配置：标签 + 取值函数 + 是否百分比；Akari Score 无数据源时显示 '-' */
 const overviewItems: { label: string; value: (o: OverviewStats) => string; percent?: boolean }[] = [
-  { label: 'Akari Score', value: (o) => String(o.akariScore) },
+  { label: 'Akari Score', value: (o) => (o.akariScore === null ? '-' : String(o.akariScore)) },
   { label: '平均KDA', value: (o) => o.avgKda.toFixed(2) },
   { label: '参团率', value: (o) => `${o.participation}%`, percent: true },
   { label: '伤害比', value: (o) => `${o.damageShare}%`, percent: true },
@@ -37,6 +37,16 @@ const overviewItems: { label: string; value: (o: OverviewStats) => string; perce
 function formatPoints(points: number): string {
   return points.toLocaleString()
 }
+
+/** 判断是否还能翻下一页：当前页已满且未到总条数 */
+function hasNextPage(): boolean {
+  return page.value * PAGE_SIZE < props.total
+}
+
+/** 判断是否还能翻上一页 */
+function hasPrevPage(): boolean {
+  return page.value > 1
+}
 </script>
 
 <template>
@@ -45,15 +55,15 @@ function formatPoints(points: number): string {
     <section class="panel">
       <div class="filter-row">
         <select v-model="queue" class="queue-select">
-          <option v-for="option in queueFilterOptions" :key="option" :value="option">
-            {{ option }}
+          <option v-for="option in QUEUE_OPTIONS" :key="option.label" :value="option.queueId">
+            {{ option.label }}
           </option>
         </select>
-        <!-- 分页控件：条数 + 左右箭头 -->
+        <!-- 分页控件：后端总条数 + 左右箭头 -->
         <div class="pager">
-          <span class="pager-count">{{ data.games.length }}项</span>
-          <button type="button" class="pager-btn" :disabled="page <= 1" @click="page -= 1">‹</button>
-          <button type="button" class="pager-btn" :disabled="page * PAGE_SIZE >= data.games.length" @click="page += 1">›</button>
+          <span class="pager-count">{{ total }}项</span>
+          <button type="button" class="pager-btn" :disabled="!hasPrevPage()" @click="page -= 1">‹</button>
+          <button type="button" class="pager-btn" :disabled="!hasNextPage()" @click="page += 1">›</button>
         </div>
       </div>
       <button type="button" class="filter-btn">页内筛选</button>
@@ -70,8 +80,8 @@ function formatPoints(points: number): string {
           </p>
         </div>
       </div>
-      <!-- 阵容分布：常用英雄头像小网格 -->
-      <div class="lineup">
+      <!-- 阵容分布：常用英雄头像小网格（top5，无数据时不渲染） -->
+      <div v-if="data.overview.lineupChampionIds.length > 0" class="lineup">
         <img
           v-for="championId in data.overview.lineupChampionIds"
           :key="championId"
@@ -82,13 +92,13 @@ function formatPoints(points: number): string {
       </div>
     </section>
 
-    <!-- 三、英雄点数区 -->
+    <!-- 三、英雄点数区（当前无数据源：展示空态"暂无数据"） -->
     <section class="panel">
       <div class="panel-header">
         <h3 class="panel-title">英雄点数</h3>
         <button type="button" class="more-btn" @click="emit('viewMore')">查看更多</button>
       </div>
-      <ul class="champion-list">
+      <ul v-if="data.championPoints.length > 0" class="champion-list">
         <li v-for="champion in data.championPoints" :key="champion.championId" class="champion-item">
           <img
             :src="championIconUrl(champion.championId)"
@@ -102,12 +112,13 @@ function formatPoints(points: number): string {
           <p class="champion-points">{{ formatPoints(champion.points) }}点</p>
         </li>
       </ul>
+      <p v-else class="empty-tip">暂无数据</p>
     </section>
 
-    <!-- 四、最近队友区 -->
+    <!-- 四、最近队友区（从本页对局 teammates 聚合） -->
     <section class="panel">
       <h3 class="panel-title">最近队友</h3>
-      <ul class="recent-list">
+      <ul v-if="data.recentTeammates.length > 0" class="recent-list">
         <li v-for="player in data.recentTeammates" :key="player.puuid" class="recent-item">
           <img :src="championIconUrl(player.championId)" :alt="player.name" class="recent-avatar" />
           <div class="recent-info">
@@ -116,12 +127,13 @@ function formatPoints(points: number): string {
           </div>
         </li>
       </ul>
+      <p v-else class="empty-tip">暂无数据</p>
     </section>
 
-    <!-- 五、最近对手区 -->
+    <!-- 五、最近对手区（从已展开的详情聚合，随展开对局增多而完善） -->
     <section class="panel">
       <h3 class="panel-title">最近对手</h3>
-      <ul class="recent-list">
+      <ul v-if="data.recentOpponents.length > 0" class="recent-list">
         <li v-for="player in data.recentOpponents" :key="player.puuid" class="recent-item">
           <img :src="championIconUrl(player.championId)" :alt="player.name" class="recent-avatar" />
           <div class="recent-info">
@@ -130,6 +142,7 @@ function formatPoints(points: number): string {
           </div>
         </li>
       </ul>
+      <p v-else class="empty-tip">暂无数据</p>
     </section>
   </aside>
 </template>
@@ -163,6 +176,14 @@ function formatPoints(points: number): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* 无数据空态提示 */
+.empty-tip {
+  padding: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* 一、队列筛选 */

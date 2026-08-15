@@ -22,6 +22,66 @@ export interface MatchSummary {
   winnerTeamId: number | null
   /** 当前用户在该对局中的 PUUID，用于标记“自我” */
   selfPuuid: string
+  /** 本玩家在该局的个人战绩（契约新增；后端未升级完成期间可能为 null，展示侧需兜底） */
+  self: MatchSelf | null
+  /** self 所在队伍的聚合（契约新增；同上可能为 null） */
+  teamTotals: MatchTeamTotals | null
+  /** 同队队友摘要列表（契约新增，固定 4 人） */
+  teammates: MatchTeammate[]
+}
+
+/** 本玩家（selfPuuid）在该局的个人战绩快照（后端从 stats_json 解析而来） */
+export interface MatchSelf {
+  /** 使用的英雄 ID */
+  championId: number
+  /** 召唤师名称（含 #tag，如 "ZZXOOV#qyq"） */
+  summonerName: string
+  /** 击杀数 */
+  kills: number
+  /** 死亡数 */
+  deaths: number
+  /** 助攻数 */
+  assists: number
+  /** 本玩家是否获胜 */
+  win: boolean
+  /** 对英雄造成的总伤害 */
+  totalDamage: number
+  /** 承受的总伤害 */
+  totalDamageTaken: number
+  /** 获得的金币 */
+  goldEarned: number
+  /** 补刀数（小兵 + 野怪） */
+  cs: number
+  /** 最大连杀数，用于"四杀"标记 */
+  largestMultiKill: number
+  /** 推塔数，用于"拆塔"标记 */
+  turretKills: number
+  /** 是否以投降结束（stats_json 字段） */
+  gameEndedInSurrender: boolean
+}
+
+/** self 所在队伍的聚合数据（同队 5 人求和） */
+export interface MatchTeamTotals {
+  /** 全队总击杀 */
+  kills: number
+  /** 全队总经济 */
+  gold: number
+  /** 全队对英雄总伤害 */
+  damage: number
+  /** 全队总承伤 */
+  damageTaken: number
+}
+
+/** 同队队友摘要（除 self 外其余 4 人，用于最近队友/对手聚合与卡片队友展示） */
+export interface MatchTeammate {
+  /** 玩家 PUUID */
+  puuid: string
+  /** 召唤师名称（含 #tag） */
+  summonerName: string
+  /** 本局英雄 ID */
+  championId: number
+  /** 是否获胜（同队一致） */
+  win: boolean
 }
 
 /** 通用分页响应结构：后端所有分页接口的统一返回格式 */

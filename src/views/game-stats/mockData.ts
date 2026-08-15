@@ -89,7 +89,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000201,
     result: 'victory',
-    queueMode: '极地大乱斗',
+    queueId: 450,
     championId: HERO.AHRI,
     kills: 19,
     deaths: 7,
@@ -114,7 +114,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000202,
     result: 'defeat',
-    queueMode: '单双排位',
+    queueId: 420,
     championId: HERO.YASUO,
     kills: 8,
     deaths: 11,
@@ -136,7 +136,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000203,
     result: 'surrender',
-    queueMode: '灵活排位',
+    queueId: 440,
     championId: HERO.LEE_SIN,
     kills: 6,
     deaths: 9,
@@ -161,7 +161,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000204,
     result: 'victory',
-    queueMode: '单双排位',
+    queueId: 420,
     championId: HERO.BRAND,
     kills: 14,
     deaths: 5,
@@ -183,7 +183,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000205,
     result: 'defeat',
-    queueMode: '极地大乱斗',
+    queueId: 450,
     championId: HERO.EZREAL,
     kills: 11,
     deaths: 10,
@@ -205,7 +205,7 @@ const games: GameCard[] = [
   {
     gameId: 9200000206,
     result: 'victory',
-    queueMode: '灵活排位',
+    queueId: 440,
     championId: HERO.AHRI,
     kills: 12,
     deaths: 3,

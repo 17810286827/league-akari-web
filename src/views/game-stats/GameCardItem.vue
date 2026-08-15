@@ -12,6 +12,8 @@ defineProps<{
   game: GameCard
   /** 是否展开详情 */
   expanded: boolean
+  /** 详情是否正在懒加载（首次展开时由父组件发起请求） */
+  detailLoading?: boolean
 }>()
 
 // 点击卡片切换展开状态
@@ -72,25 +74,30 @@ const TAG_META: Record<string, string> = {
         </span>
       </div>
 
-      <!-- 队友列表：头像 + 昵称 + 常用英雄 -->
+      <!-- 队友列表：头像 + 昵称 + 本局英雄 -->
       <div class="teammates">
         <div v-for="teammate in game.teammates" :key="teammate.puuid" class="teammate">
           <img :src="championIconUrl(teammate.championId)" :alt="teammate.name" class="teammate-avatar" />
           <div class="teammate-info">
             <p class="teammate-name">{{ teammate.name }}</p>
-            <p class="teammate-main">常用 {{ teammate.mainChampionId }}</p>
+            <!-- 常用英雄为可选副展示：无数据源时不渲染 -->
+            <p v-if="teammate.mainChampionId" class="teammate-main">常用 {{ teammate.mainChampionId }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 展开详情：蓝队 / 红队表格（动画过渡） -->
+    <!-- 展开详情：蓝队 / 红队表格（动画过渡）；详情由父组件懒加载后注入 -->
     <div class="detail-wrap" :class="{ 'detail-open': expanded }">
       <div class="detail-inner">
-        <div v-if="expanded" class="detail-grid">
+        <div v-if="expanded && game.detail" class="detail-grid">
           <TeamDetailTable :team="game.detail.blue" />
           <TeamDetailTable :team="game.detail.red" />
         </div>
+        <!-- 详情未就绪：显示加载中或失败占位 -->
+        <p v-else-if="expanded" class="detail-placeholder">
+          {{ detailLoading ? '详情加载中...' : '暂无详情数据' }}
+        </p>
       </div>
     </div>
   </article>
@@ -278,6 +285,14 @@ const TAG_META: Record<string, string> = {
 
 .detail-inner {
   padding: 0 16px 14px;
+}
+
+/* 详情占位：加载中 / 无数据提示 */
+.detail-placeholder {
+  padding: 16px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* 蓝红双队表格并排（窄屏堆叠） */

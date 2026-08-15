@@ -18,8 +18,8 @@ export interface RankSection {
 
 /** 总览统计区字段 */
 export interface OverviewStats {
-  /** Akari Score 综合评分 */
-  akariScore: number
+  /** Akari Score 综合评分（当前无数据源，恒为 null，界面显示 '-'） */
+  akariScore: number | null
   /** 平均 KDA 比率 */
   avgKda: number
   /** 参团率百分比 */
@@ -36,7 +36,7 @@ export interface OverviewStats {
   wins: number
   /** 负场 */
   losses: number
-  /** 阵容分布：常用英雄 ID 列表（头像小网格） */
+  /** 阵容分布：常用英雄 ID 列表（头像小网格，取出现次数前 5） */
   lineupChampionIds: number[]
 }
 
@@ -76,16 +76,16 @@ export interface GameTag {
   label: string
 }
 
-/** 战绩卡片的队友项（头像 + 昵称 + 常用英雄） */
+/** 战绩卡片的队友项（头像 + 昵称 + 本局英雄） */
 export interface GameTeammate {
   /** 玩家 puuid */
   puuid: string
-  /** 昵称 */
+  /** 昵称（不含 #tag） */
   name: string
-  /** 头像英雄 ID */
+  /** 本局英雄 ID（头像展示） */
   championId: number
-  /** 常用英雄 ID（副展示） */
-  mainChampionId: number
+  /** 常用英雄 ID（副展示；当前无数据源，可能缺失） */
+  mainChampionId?: number
 }
 
 /** 展开详情的单名玩家 */
@@ -140,10 +140,10 @@ export interface GameDetail {
 export interface GameCard {
   /** 对局 ID */
   gameId: number
+  /** 队列 ID（如 420 单排 / 440 灵活 / 450 大乱斗，用于队列筛选） */
+  queueId: number
   /** 结果：胜利 / 失败 / 投降 */
   result: GameResult
-  /** 队列模式（用于筛选），如 所有模式 / 单双排位 / 灵活排位 / 极地大乱斗 */
-  queueMode: string
   /** 本玩家英雄 ID */
   championId: number
   /** 击杀 */
@@ -166,8 +166,8 @@ export interface GameCard {
   tags: GameTag[]
   /** 队友列表 */
   teammates: GameTeammate[]
-  /** 展开详情的双队数据 */
-  detail: GameDetail
+  /** 展开详情的双队数据（懒加载：点击卡片后由父组件注入，未加载时为 null） */
+  detail: GameDetail | null
 }
 
 /** 战绩分析页面数据根对象 */
