@@ -1,0 +1,29 @@
+/* Tailwind CSS 4 入口：引入框架并定义 OP.GG 风格的主题色板 */
+@import 'tailwindcss';
+
+/* 主题令牌：与 src/styles/opgg.css 的 CSS 变量保持同一套视觉语言 */
+@theme {
+  /* 页面背景：深蓝黑 */
+  --color-base: #0d1220;
+  /* 卡片背景 */
+  --color-surface: #161d30;
+  /* 卡片悬浮/高亮 */
+  --color-surface-hover: #1b2440;
+  /* 主文本 */
+  --color-ink: #e6e9f2;
+  /* 次要文本 */
+  --color-ink-muted: #8b93a7;
+  /* 胜利蓝 */
+  --color-win: #4b7be5;
+  /* 失败红 */
+  --color-loss: #e03e52;
+  /* LOL 金色点缀（等级、徽章） */
+  --color-gold: #c8aa6e;
+  /* 细分割线 */
+  --color-hairline: rgba(139, 147, 167, 0.16);
+}
+
+/* 数字等宽，保证 KDA/统计列对齐 */
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
