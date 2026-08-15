@@ -1,7 +1,7 @@
 // 路由配置：对局列表、对局详情、玩家详情三个页面
 import { createRouter, createWebHistory } from 'vue-router'
 
-import MatchDetailView from '@/views/MatchDetailView.vue'
+import MatchDetailView from '@/views/match-detail/MatchDetailView.vue'
 import MatchListView from '@/views/MatchListView.vue'
 import PlayerProfileView from '@/views/player-profile/PlayerProfileView.vue'
 
