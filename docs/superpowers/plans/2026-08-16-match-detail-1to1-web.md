@@ -109,7 +109,7 @@ describe('match-card-i18n', () => {
   it('未知 key 回显 key 本身（不崩溃）', () => {
     expect(t('match-card.not-exist-key')).toBe('match-card.not-exist-key')
   })
-  it('支持 {name} 占位符插值', () => {
+  it('支持 {{name}} 占位符插值（i18next 语法，组件照搬后原样工作）', () => {
     expect(t('match-card.hello', { name: 'Akari' })).toBe('你好 Akari')
   })
 })
@@ -131,15 +131,15 @@ describe('match-card-i18n', () => {
  */
 const zh: Record<string, string> = {
   'match-card.win': '胜利',
-  'match-card.hello': '你好 {name}'
+  'match-card.hello': '你好 {{name}}'
   // 后续任务按组件 t() 调用逐步补充，缺失 key 回显本身
 }
 
-/** 按 key 取中文文案；缺失回显 key；支持 {name} 插值 */
+/** 按 key 取中文文案；缺失回显 key；支持 i18next 的 {{name}} 插值语法 */
 export function t(key: string, params?: Record<string, string | number>): string {
   const template = zh[key] ?? key
   if (!params) return template
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? `{${name}}`))
+  return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(params[name] ?? `{{${name}}}`))
 }
 ```
 
