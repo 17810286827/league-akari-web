@@ -10,7 +10,7 @@ import axios from 'axios'
 const logger = createLogger('HTTP')
 
 /** 后端地址：本机运行默认 localhost:8080，可用 VITE_API_BASE_URL 覆盖 */
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081'
 
 // 创建 axios 实例：固定 baseURL，10 秒超时防止请求长时间挂起
 const http = axios.create({ baseURL, timeout: 10000 })

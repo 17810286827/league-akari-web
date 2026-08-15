@@ -11,6 +11,6 @@ export default defineConfig({
   },
   server: {
     // 开发服务器端口：固定 5173，便于本地调试
-    port: 5173
+    port: 5177
   }
 })
