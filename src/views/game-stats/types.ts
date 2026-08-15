@@ -106,6 +106,8 @@ export interface DetailPlayer {
   damagePerMin: number
   /** 出装（6 件物品 ID） */
   items: number[]
+  /** 召唤师技能（2 个技能 ID，如 32 海克斯闪现） */
+  summonerSpells: number[]
   /** 输出占比百分比（进度条） */
   damagePercent: number
   /** 承伤占比百分比（进度条） */

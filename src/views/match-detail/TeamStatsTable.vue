@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 
 import { championIconUrl } from '@/utils/icon-url'
 
-import ItemIcon from './ItemIcon.vue'
+import ItemIcon from '@/components/widgets/ItemIcon.vue'
 import type { PlayerRow, TeamView } from './adapter'
 
 const props = defineProps<{ team: TeamView }>()

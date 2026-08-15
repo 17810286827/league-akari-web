@@ -65,18 +65,18 @@ const recentOpponents: RecentPlayer[] = [
 function makeDetail(seed: number): GameCard['detail'] {
   const base = seed % 10 + 1
   const bluePlayers = [
-    { name: '手裂鬼子', championId: HERO.AATROX, kills: 5 + base, deaths: 3, assists: 8, gold: 12500, damagePerMin: 620, items: [6691, 3078, 3814, 3031, 1052, 3364], damagePercent: 26, damageTakenPercent: 24 },
-    { name: '夜风', championId: HERO.LULU, kills: 2, deaths: 2, assists: 12, gold: 9800, damagePerMin: 310, items: [3097, 3190, 3222, 3504, 1052, 3364], damagePercent: 11, damageTakenPercent: 9 },
-    { name: '星野', championId: HERO.KAISA, kills: 8, deaths: 4, assists: 6, gold: 14200, damagePerMin: 780, items: [6672, 3078, 3046, 3026, 1052, 3364], damagePercent: 31, damageTakenPercent: 12 },
-    { name: '阿澈', championId: HERO.JINX, kills: 7, deaths: 3, assists: 5, gold: 13600, damagePerMin: 720, items: [6694, 3094, 3031, 3026, 1052, 3364], damagePercent: 22, damageTakenPercent: 10 },
-    { name: 'ZZXOOV', championId: HERO.AHRI, kills: 9, deaths: 2, assists: 10, gold: 14800, damagePerMin: 810, items: [6653, 3157, 3020, 3089, 3135, 3364], damagePercent: 27, damageTakenPercent: 14 }
+    { name: '手裂鬼子', championId: HERO.AATROX, kills: 5 + base, deaths: 3, assists: 8, gold: 12500, damagePerMin: 620, items: [6691, 3078, 3814, 3031, 1052, 3364], damagePercent: 26, damageTakenPercent: 24, summonerSpells: [4, 12] },
+    { name: '夜风', championId: HERO.LULU, kills: 2, deaths: 2, assists: 12, gold: 9800, damagePerMin: 310, items: [3097, 3190, 3222, 3504, 1052, 3364], damagePercent: 11, damageTakenPercent: 9, summonerSpells: [4, 12] },
+    { name: '星野', championId: HERO.KAISA, kills: 8, deaths: 4, assists: 6, gold: 14200, damagePerMin: 780, items: [6672, 3078, 3046, 3026, 1052, 3364], damagePercent: 31, damageTakenPercent: 12, summonerSpells: [4, 12] },
+    { name: '阿澈', championId: HERO.JINX, kills: 7, deaths: 3, assists: 5, gold: 13600, damagePerMin: 720, items: [6694, 3094, 3031, 3026, 1052, 3364], damagePercent: 22, damageTakenPercent: 10, summonerSpells: [4, 12] },
+    { name: 'ZZXOOV', championId: HERO.AHRI, kills: 9, deaths: 2, assists: 10, gold: 14800, damagePerMin: 810, items: [6653, 3157, 3020, 3089, 3135, 3364], damagePercent: 27, damageTakenPercent: 14, summonerSpells: [4, 12] }
   ]
   const redPlayers = [
-    { name: '鼠鼠我a', championId: HERO.THRESH, kills: 1, deaths: 9, assists: 7, gold: 8600, damagePerMin: 210, items: [3097, 3190, 3110, 3222, 1052, 3364], damagePercent: 8, damageTakenPercent: 26 },
-    { name: '辣个蓝人', championId: HERO.LEE_SIN, kills: 5, deaths: 6, assists: 4, gold: 10200, damagePerMin: 430, items: [6691, 3071, 3814, 1052, 1052, 3364], damagePercent: 18, damageTakenPercent: 21 },
-    { name: '风间', championId: HERO.YASUO, kills: 6, deaths: 7, assists: 3, gold: 10800, damagePerMin: 520, items: [6672, 3078, 3046, 1052, 1052, 3364], damagePercent: 24, damageTakenPercent: 17 },
-    { name: '夜雨声烦', championId: HERO.EZREAL, kills: 4, deaths: 5, assists: 6, gold: 11500, damagePerMin: 590, items: [6692, 3139, 3158, 3072, 1052, 3364], damagePercent: 26, damageTakenPercent: 12 },
-    { name: '花名未闻', championId: HERO.BRAND, kills: 3, deaths: 8, assists: 9, gold: 9400, damagePerMin: 480, items: [6655, 3157, 3020, 3089, 1052, 3364], damagePercent: 22, damageTakenPercent: 15 }
+    { name: '鼠鼠我a', championId: HERO.THRESH, kills: 1, deaths: 9, assists: 7, gold: 8600, damagePerMin: 210, items: [3097, 3190, 3110, 3222, 1052, 3364], damagePercent: 8, damageTakenPercent: 26, summonerSpells: [4, 12] },
+    { name: '辣个蓝人', championId: HERO.LEE_SIN, kills: 5, deaths: 6, assists: 4, gold: 10200, damagePerMin: 430, items: [6691, 3071, 3814, 1052, 1052, 3364], damagePercent: 18, damageTakenPercent: 21, summonerSpells: [4, 12] },
+    { name: '风间', championId: HERO.YASUO, kills: 6, deaths: 7, assists: 3, gold: 10800, damagePerMin: 520, items: [6672, 3078, 3046, 1052, 1052, 3364], damagePercent: 24, damageTakenPercent: 17, summonerSpells: [4, 12] },
+    { name: '夜雨声烦', championId: HERO.EZREAL, kills: 4, deaths: 5, assists: 6, gold: 11500, damagePerMin: 590, items: [6692, 3139, 3158, 3072, 1052, 3364], damagePercent: 26, damageTakenPercent: 12, summonerSpells: [4, 12] },
+    { name: '花名未闻', championId: HERO.BRAND, kills: 3, deaths: 8, assists: 9, gold: 9400, damagePerMin: 480, items: [6655, 3157, 3020, 3089, 1052, 3364], damagePercent: 22, damageTakenPercent: 15, summonerSpells: [4, 12] }
   ]
   return {
     blue: { side: 'blue', totalKills: 31, totalDeaths: 14, totalAssists: 41, totalGold: 64900, towers: 11, players: bluePlayers },

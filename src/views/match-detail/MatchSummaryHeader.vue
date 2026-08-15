@@ -6,7 +6,7 @@ import { computed } from 'vue'
 
 import { championIconUrl } from '@/utils/icon-url'
 
-import ItemIcon from './ItemIcon.vue'
+import ItemIcon from '@/components/widgets/ItemIcon.vue'
 import type { MatchSummaryView } from './adapter'
 
 const props = defineProps<{ summary: MatchSummaryView }>()
@@ -51,7 +51,7 @@ const itemSlots = computed(() => {
         />
         <!-- 装备 6 槽 -->
         <div class="grid grid-cols-3 gap-1">
-          <ItemIcon v-for="(itemId, index) in itemSlots" :key="`${itemId}-${index}`" :item-id="itemId" />
+          <ItemIcon v-for="(itemId, index) in itemSlots" :key="`${itemId}-${index}`" :item-id="itemId" :size="32" />
         </div>
       </div>
 

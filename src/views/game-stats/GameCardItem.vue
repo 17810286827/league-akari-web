@@ -87,10 +87,11 @@ const TAG_META: Record<string, string> = {
       </div>
     </div>
 
-    <!-- 展开详情：蓝队 / 红队表格（动画过渡）；详情由父组件懒加载后注入 -->
+    <!-- 展开详情：蓝队 / 红队表格（grid-rows 高度过渡动画）
+         内容常驻渲染（缓存后），折叠时由 0fr 行高 + overflow hidden 隐藏，保证展开/收起高度一致 -->
     <div class="detail-wrap" :class="{ 'detail-open': expanded }">
       <div class="detail-inner">
-        <div v-if="expanded && game.detail" class="detail-grid">
+        <div v-if="game.detail" class="detail-grid">
           <TeamDetailTable :team="game.detail.blue" />
           <TeamDetailTable :team="game.detail.red" />
         </div>
@@ -272,18 +273,21 @@ const TAG_META: Record<string, string> = {
   color: var(--text-muted);
 }
 
-/* 展开详情：高度过渡动画 */
+/* 展开详情：grid 行高过渡动画（0fr → 1fr），结束状态高度精确一致 */
 .detail-wrap {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
 }
 
 .detail-open {
-  max-height: 1200px;
+  grid-template-rows: 1fr;
 }
 
+/* 内容容器：min-height 0 允许 grid 行高收缩；overflow hidden 裁剪隐藏 */
 .detail-inner {
+  min-height: 0;
+  overflow: hidden;
   padding: 0 16px 14px;
 }
 

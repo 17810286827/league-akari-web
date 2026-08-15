@@ -183,6 +183,8 @@ function buildTeamDetail(
       damagePerMin: duration > 0 ? Math.round(damage / (duration / 60)) : 0,
       // 出装从 items JSON 解析（过滤 0 空槽，避免渲染无效图标），非法 JSON 时为空数组
       items: parseIdArray(p.items).filter((itemId) => itemId > 0),
+      // 召唤师技能从 summonerSpells JSON 解析（如 [32, 4] 海克斯闪现+闪现），缺失时为空数组
+      summonerSpells: parseIdArray(p.summonerSpells),
       damagePercent: percentOf(damage, teamDamage),
       damageTakenPercent: percentOf(damageTaken, teamDamageTaken)
     }

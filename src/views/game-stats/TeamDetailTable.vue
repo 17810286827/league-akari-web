@@ -1,12 +1,25 @@
 <script setup lang="ts">
 /**
- * 单局详情的队伍数据表：队伍汇总行（总KDA/经济/推塔）+ 5 名玩家明细（KDA/经济/每分钟输出/装备/输出承伤进度条）
+ * 单局详情的队伍数据表：队伍汇总行（总KDA/经济/推塔）+ 5 名玩家明细
+ * 玩家行：头像昵称 / KDA / 经济 / 每分钟输出 / 召唤师技能 / 出装 6 格 / 输出承伤进度条
+ * 技能与装备图标均走 game-resource（CommunityDragon game-data JSON，对齐主仓库机制）
  */
-import { championIconUrl, itemIconUrl } from '@/utils/icon-url'
+import ItemIcon from '@/components/widgets/ItemIcon.vue'
+import SummonerSpellDisplay from '@/components/widgets/SummonerSpellDisplay.vue'
+import { championIconUrl } from '@/utils/icon-url'
 
 import type { TeamDetail } from './types'
 
 const props = defineProps<{ team: TeamDetail }>()
+
+/** 出装 6 槽：不足 6 件用 0 补位（模板渲染空槽占位） */
+function slotsOf(items: number[]): number[] {
+  const slots = [...items]
+  while (slots.length < 6) {
+    slots.push(0)
+  }
+  return slots.slice(0, 6)
+}
 </script>
 
 <template>
@@ -42,14 +55,22 @@ const props = defineProps<{ team: TeamDetail }>()
       <div class="player-cell player-cell-gold">{{ player.gold.toLocaleString() }}</div>
       <!-- 每分钟输出 -->
       <div class="player-cell player-cell-dpm">{{ player.damagePerMin }}</div>
-      <!-- 装备 6 格 -->
+      <!-- 召唤师技能（对齐主仓库 SummonerSpellDisplay：图标 + 名称/冷却/描述） -->
+      <div class="player-cell player-cell-spells">
+        <SummonerSpellDisplay
+          v-for="(spellId, index) in player.summonerSpells"
+          :key="`${spellId}-${index}`"
+          :spell-id="spellId"
+          :size="18"
+        />
+      </div>
+      <!-- 出装 6 格（对齐主仓库 game-resource 机制：图标 + 名称/价格/描述；含空槽占位） -->
       <div class="player-cell player-cell-items">
-        <img
-          v-for="(itemId, index) in player.items"
+        <ItemIcon
+          v-for="(itemId, index) in slotsOf(player.items)"
           :key="`${itemId}-${index}`"
-          :src="itemIconUrl(itemId)"
-          :alt="`装备 ${itemId}`"
-          class="item-icon"
+          :item-id="itemId"
+          :size="20"
         />
       </div>
       <!-- 输出/承伤进度条 -->
@@ -80,10 +101,10 @@ const props = defineProps<{ team: TeamDetail }>()
 </template>
 
 <style lang="scss" scoped>
-/* 队伍表格：汇总行 + 玩家行，固定列 */
+/* 队伍表格：汇总行 + 玩家行，固定列；最小宽度保证 7 列不被压缩裁剪 */
 .team-table {
   flex: 1;
-  min-width: 0;
+  min-width: 360px;
   border-radius: var(--radius);
   overflow: hidden;
 }
@@ -123,10 +144,10 @@ const props = defineProps<{ team: TeamDetail }>()
   color: var(--text-muted);
 }
 
-/* 玩家行：网格固定列 */
+/* 玩家行：网格固定列（名字/KDA/经济/每分钟输出/技能/出装/进度条） */
 .player-row {
   display: grid;
-  grid-template-columns: 1.4fr 0.8fr 0.7fr 0.8fr 1.5fr 1.6fr;
+  grid-template-columns: 1.3fr 0.8fr 0.7fr 0.7fr 0.5fr 2fr 1.5fr;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
@@ -169,16 +190,18 @@ const props = defineProps<{ team: TeamDetail }>()
   font-variant-numeric: tabular-nums;
 }
 
+/* 召唤师技能列：图标横向排列 */
+.player-cell-spells {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+/* 出装列：6 格可换行，避免溢出被裁剪 */
 .player-cell-items {
   display: flex;
   gap: 2px;
-}
-
-.item-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .player-cell-bars {
