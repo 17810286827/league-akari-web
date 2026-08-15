@@ -93,10 +93,11 @@ onMounted(async () => {
         <n-descriptions-item label="地区">{{ detail.region }}</n-descriptions-item>
       </n-descriptions>
 
-      <!-- 双方队伍玩家卡片 -->
+      <!-- 双方队伍玩家卡片：按队伍分组逐队渲染，获胜方卡片高亮 -->
       <div v-for="team in teams" :key="team.teamId" class="team-block">
         <!-- 队伍标题：100 为蓝方，200 为红方 -->
         <h3>{{ team.teamId === 100 ? '蓝方' : '红方' }}</h3>
+        <!-- 玩家卡片网格：同一队伍的玩家卡片在此排布 -->
         <div class="player-grid">
           <!-- 玩家卡片：获胜方玩家带 winner 高亮样式 -->
           <div
@@ -106,6 +107,7 @@ onMounted(async () => {
             :class="{ winner: p.win }"
           >
             <div class="player-name">{{ p.summonerName }}</div>
+            <!-- KDA 行：击杀/死亡/助攻，来自参与者表字段 -->
             <div class="player-kda">KDA {{ p.kills }} / {{ p.deaths }} / {{ p.assists }}</div>
             <!-- 战斗统计行：字段缺失时显示 -，来自 stats_json 解析 -->
             <div class="player-stats">
@@ -148,6 +150,11 @@ onMounted(async () => {
 /* 玩家名：加粗展示，突出身份 */
 .player-name {
   font-weight: 600;
+}
+
+/* KDA 行：常规字号，位于玩家名下方 */
+.player-kda {
+  margin-top: 4px;
 }
 
 /* 战斗统计行：次要文字颜色，弱于 KDA 的视觉层级 */
