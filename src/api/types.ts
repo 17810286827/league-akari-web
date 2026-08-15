@@ -64,10 +64,10 @@ export interface MatchParticipant {
   goldEarned: number
   /** 补刀数（小兵 + 野怪） */
   cs: number
-  /** 出装物品 ID 列表，可能为 null */
-  items: number[] | null
-  /** 召唤师技能 ID 列表，可能为 null */
-  summonerSpells: number[] | null
+  /** 出装（后端为 JSON 字符串，如 "[6653,3078]"，展示时解析） */
+  items: string | null
+  /** 召唤师技能（后端为 JSON 字符串，如 "[4,12]"） */
+  summonerSpells: string | null
   /** stats 全量快照（JSON 字符串，由后端原样存储） */
   statsJson: string | null
 }

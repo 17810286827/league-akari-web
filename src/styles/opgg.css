@@ -1,0 +1,56 @@
+/* ============================================================
+ * OP.GG 风格设计令牌与全局暗色主题
+ *
+ * 设计方向（用户指定，精确遵循）：仿 OP.GG 战绩站——
+ * 深蓝黑背景 + 卡片流布局；胜利蓝 / 失败红区分胜负；
+ * LOL 金色点缀用于等级/徽章等签名元素；
+ * 数字使用等宽数字保证列对齐；信息密度高但视觉有序。
+ * ============================================================ */
+
+/* 设计令牌：全部颜色在此集中定义，组件内只允许引用变量 */
+:root {
+  --bg-base: #0d1220;        /* 页面背景：深蓝黑 */
+  --bg-card: #161d30;        /* 卡片背景 */
+  --bg-card-hover: #1b2440;  /* 卡片悬浮 */
+  --bg-win: rgba(75, 123, 229, 0.12);   /* 胜利行底色 */
+  --bg-loss: rgba(224, 62, 82, 0.12);   /* 失败行底色 */
+  --text-primary: #e6e9f2;   /* 主文本 */
+  --text-secondary: #8b93a7; /* 次要文本 */
+  --win-color: #4b7be5;      /* 胜利蓝 */
+  --loss-color: #e03e52;     /* 失败红 */
+  --gold-accent: #c8aa6e;    /* LOL 金色点缀（等级/徽章） */
+  --border-subtle: rgba(139, 147, 167, 0.16);
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+/* KDA 等数字用等宽数字，保证列对齐 */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* 统一盒模型：避免组件内联样式与全局默认值冲突 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 键盘焦点可见：非鼠标操作时高亮金色描边，方便键盘用户定位 */
+:focus-visible {
+  outline: 2px solid var(--gold-accent);
+  outline-offset: 2px;
+}
+
+/* 尊重系统"减少动态效果"偏好：关闭过渡与动画，避免闪烁 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
