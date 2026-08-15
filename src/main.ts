@@ -1,3 +1,4 @@
+// 应用入口：负责创建 Vue 应用实例并挂载路由
 import { createApp } from 'vue'
 
 import App from './App.vue'
