@@ -1,5 +1,9 @@
 <!-- CDN 图片组件：替换原版 LcuImage（akari:// 协议），LCU 资源路径经 resolveAssetUrl 转 CDN URL -->
 <script setup lang="ts">
+/**
+ * 组件用途：替代原版 LcuImage（akari:// 协议），
+ * 后续照搬组件统一用它加载 CDN 图片
+ */
 import { computed } from 'vue'
 
 import { resolveAssetUrl } from '@/utils/game-resource'
