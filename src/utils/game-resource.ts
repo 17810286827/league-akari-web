@@ -105,6 +105,7 @@ async function fetchGameDataJson<T>(file: string): Promise<T> {
 /** 拉取任意 JSON（无语言降级），用于 gtimg 等外部数据源 */
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
+  // 非 2xx 一律抛错，由调用方决定降级或放弃本次展示
   if (!response.ok) {
     throw new Error(`请求失败: ${url} (${response.status})`)
   }
@@ -213,6 +214,8 @@ export async function spellDisplay(spellId: number): Promise<SpellDisplayResourc
 
 /** 未知物品展示资源空壳（name 为空串，消费方据此判空） */
 function emptyItemDisplay(id: number): ItemDisplayResource {
+  // 空壳判空约定：未知物品 name 为空串，消费方（如 ItemIcon.vue）据此隐藏价格与描述
+  // 价格字段置 0，避免模板在字段缺失时渲染出 "undefined 金币"
   return { id, name: '', iconUrl: '', descriptionHtml: '', price: 0, totalPrice: 0 }
 }
 
@@ -224,18 +227,21 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
   try {
     const items = await loadItems()
     const item = items.get(itemId)
+    // 仅以 name 判空：iconPath/from/priceTotal 等字段缺失由可选链兜底（老数据兼容）
     if (!item?.name) {
       return emptyItemDisplay(itemId)
     }
     return {
       id: item.id,
       name: item.name,
+      // iconPath 缺失时 resolveAssetUrl 返回 null，最终兜底为空串
       iconUrl: resolveAssetUrl(item.iconPath ?? '') ?? '',
       descriptionHtml: item.description ?? '',
       price: item.price,
       // 总价（priceTotal 字段名与 CDragon 对齐；totalPrice 保留给既有消费方）
       priceTotal: item.priceTotal,
-      totalPrice: item.priceTotal,
+      // totalPrice 为必填展示字段：priceTotal 缺失时补 0，避免渲染 "undefined 金币"
+      totalPrice: item.priceTotal ?? 0,
       // 合成组件 ID（合成路径）
       from: item.from
     }
@@ -354,6 +360,7 @@ function loadAugments(): Promise<Map<number, Augment>> {
         return map
       })
       .catch((error) => {
+        // 失败后清空缓存 Promise，允许下次调用重新发起请求
         augmentsPromise = null
         logger.error('海克斯强化数据加载失败', error)
         throw error
@@ -372,6 +379,7 @@ function loadAugmentDescriptions(): Promise<Map<number, GtimgAugment>> {
         return map
       })
       .catch((error) => {
+        // 失败后清空缓存 Promise，允许下次调用重新发起请求
         augmentDescriptionsPromise = null
         logger.error('海克斯强化中文描述加载失败', error)
         throw error
@@ -385,24 +393,30 @@ function loadAugmentDescriptions(): Promise<Map<number, GtimgAugment>> {
  * 互不阻塞，任一数据源成功即可组装展示；两者都未命中返回空壳（name 为空串）
  */
 export async function augmentDisplay(augmentId: number): Promise<AugmentDisplayResource> {
+  // 双数据源并行拉取、互不阻塞：CDragon 提供名称/图标，gtimg 提供中文描述/稀有度
   const [cdragonResult, gtimgResult] = await Promise.allSettled([
     loadAugments(),
     loadAugmentDescriptions()
   ])
+  // allSettled 保证单个数据源失败（如 CDragon 网络抖动）不影响另一侧组装展示
   const cdragonAugment =
     cdragonResult.status === 'fulfilled' ? cdragonResult.value.get(augmentId) : undefined
   const gtimgAugment =
     gtimgResult.status === 'fulfilled' ? gtimgResult.value.get(augmentId) : undefined
   if (!cdragonAugment && !gtimgAugment) {
+    // 两个数据源均未命中：返回空壳（name 为空串），调用方据此渲染占位
     return { name: '', iconUrl: '' }
   }
   return {
     // 中文名优先 gtimg（中文兜底），其次 CDragon 翻译名
     name: gtimgAugment?.name || cdragonAugment?.nameTRA || cdragonAugment?.name || '',
+    // 图标优先 CDragon 小图标路径（CDN 解析），CDragon 缺失时退回 gtimg 图标直链
     iconUrl: cdragonAugment
       ? (resolveAssetUrl(cdragonAugment.augmentSmallIconPath ?? cdragonAugment.iconPath ?? '') ?? '')
       : (gtimgAugment?.iconUrl ?? ''),
+    // 稀有度以 gtimg 的 level 为准，缺失时退回 CDragon 的 rarity 字段
     rarity: gtimgAugment?.rarity || cdragonAugment?.rarity,
+    // 中文描述仅 gtimg 提供（desc 优先，tooltip 兜底，含 HTML 标签）
     descriptionHtml: gtimgAugment?.description
   }
 }
@@ -446,6 +460,7 @@ let perkstylesPromise: Promise<Map<number, Perkstyle>> | null = null
 /** 加载符文表（仅首次调用发起网络请求） */
 function loadPerks(): Promise<Map<number, Perk>> {
   if (!perksPromise) {
+    // 复用 game-data 拉取链路：zh_cn 优先，失败自动降级 default
     perksPromise = fetchGameDataJson<unknown>('perks.json')
       .then((payload) => {
         const map = toIdMap<Perk>(payload, 'data')
@@ -453,6 +468,7 @@ function loadPerks(): Promise<Map<number, Perk>> {
         return map
       })
       .catch((error) => {
+        // 失败后清空缓存 Promise，允许下次调用重新发起请求
         perksPromise = null
         logger.error('符文数据加载失败', error)
         throw error
@@ -464,6 +480,7 @@ function loadPerks(): Promise<Map<number, Perk>> {
 /** 加载符文页样式表（仅首次调用发起网络请求；真实结构为 { styles: [...] }） */
 function loadPerkstyles(): Promise<Map<number, Perkstyle>> {
   if (!perkstylesPromise) {
+    // 解析时优先取 styles 子字段，其次兼容 { data: [...] } 外壳形状
     perkstylesPromise = fetchGameDataJson<unknown>('perkstyles.json')
       .then((payload) => {
         const map = toIdMap<Perkstyle>(payload, 'styles', 'data')
@@ -471,6 +488,7 @@ function loadPerkstyles(): Promise<Map<number, Perkstyle>> {
         return map
       })
       .catch((error) => {
+        // 失败后清空缓存 Promise，允许下次调用重新发起请求
         perkstylesPromise = null
         logger.error('符文页样式数据加载失败', error)
         throw error
@@ -484,11 +502,13 @@ export async function perkDisplay(perkId: number): Promise<PerkDisplayResource> 
   try {
     const perks = await loadPerks()
     const perk = perks.get(perkId)
+    // 未命中或字段不完整（老数据）：返回空壳，消费方据此渲染占位
     if (!perk?.name || !perk.iconPath) {
       return { name: '', iconUrl: '' }
     }
     return {
       name: perk.name,
+      // iconPath 缺失时 resolveAssetUrl 返回 null，最终兜底为空串
       iconUrl: resolveAssetUrl(perk.iconPath) ?? '',
       // 描述优先取 longDesc（填充数值的 HTML），兼容 description/tooltip 字段形状
       descriptionHtml: perk.longDesc ?? perk.description ?? perk.tooltip
@@ -503,11 +523,13 @@ export async function perkstyleDisplay(styleId: number): Promise<PerkstyleDispla
   try {
     const styles = await loadPerkstyles()
     const style = styles.get(styleId)
+    // 未命中或字段不完整：返回空壳，消费方据此渲染占位
     if (!style?.name || !style.iconPath) {
       return { name: '', iconUrl: '' }
     }
     return {
       name: style.name,
+      // 样式图标同样经 resolveAssetUrl 转为 CDN 地址（缺失时为空串）
       iconUrl: resolveAssetUrl(style.iconPath) ?? ''
     }
   } catch {
