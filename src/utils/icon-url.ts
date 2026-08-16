@@ -25,6 +25,18 @@ export function itemIconUrl(itemId: number): string {
 }
 
 /**
+ * 召唤师头像 CDN 地址（Data Dragon，与出装同源）
+ * @param profileIconId 召唤师头像 ID（statsJson 的 profileIcon），如 948
+ * @returns 头像 PNG 完整地址；ID 非法时返回空串（消费方按占位处理）
+ */
+export function profileIconUrl(profileIconId?: number | null): string {
+  if (!profileIconId || profileIconId <= 0) {
+    return ''
+  }
+  return `https://ddragon.leagueoflegends.com/cdn/${DD_DRAGON_VERSION}/img/profileicon/${profileIconId}.png`
+}
+
+/**
  * 出装图标 CDN 降级地址（与主源同源，保留函数签名供错误降级逻辑使用）
  * @param itemId 物品 ID，如 6653
  * @returns 图标 PNG 完整地址

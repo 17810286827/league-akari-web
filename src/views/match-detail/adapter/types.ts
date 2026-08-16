@@ -89,6 +89,8 @@ export interface MatchCardParticipant {
   perks: MatchCardParticipantPerks
   /** 对局结束等级（champLevel） */
   level: number
+  /** 召唤师账号等级（summonerLevel，对局内玩家账号等级；缺失为 0） */
+  summonerLevel: number
   kills: number
   deaths: number
   assists: number

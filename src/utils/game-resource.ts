@@ -5,6 +5,7 @@
  * - 描述：技能/物品 JSON 的 description 字段（与主仓库 SummonerSpellDisplay 展示一致）
  */
 import { createLogger } from '@/utils/logger'
+import { itemIconUrl } from '@/utils/icon-url'
 
 const logger = createLogger('GameResource')
 
@@ -246,8 +247,8 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
     return {
       id: item.id,
       name: item.name,
-      // iconPath 缺失时 resolveAssetUrl 返回 null，最终兜底为空串
-      iconUrl: resolveAssetUrl(item.iconPath ?? '') ?? '',
+      // 图标走 Data Dragon（CDragon 的 items icons2d 路径已失效 404，主源见 icon-url.ts）
+      iconUrl: itemIconUrl(item.id),
       descriptionHtml: item.description ?? '',
       price: item.price,
       // 总价（priceTotal 字段名与 CDragon 对齐；totalPrice 保留给既有消费方）
@@ -255,7 +256,7 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
       // totalPrice 为必填展示字段：priceTotal 缺失时补 0，避免渲染 "undefined 金币"
       totalPrice: item.priceTotal ?? 0,
       // 合成组件（合成路径）：CDragon 老版本数据的 to 字段可能为数字 0（无去向），统一归一为数组；
-      // 图标/名称取自 items 记录（组件 id 无法推导文件名，必须用记录的 iconPath）
+      // 图标统一走 Data Dragon（组件 id 可直接推导文件名）
       from: toComponents(items, item.from),
       // 升级合成去向（与 from 同源，主仓库 items.display 亦返回）
       to: toComponents(items, item.to)
@@ -267,7 +268,7 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
 
 /**
  * 把合成路径的组件 ID 数组转换为组件资源列表：
- * 从 items 记录取名称与图标路径（CDragon 图标文件名含物品 slug，仅凭 id 无法推导）；
+ * 从 items 记录取名称，图标统一走 Data Dragon（CDragon 的 items 路径已失效 404）；
  * 组件 id 以查询键为准（键值对象形状的记录不含 id 字段）
  */
 function toComponents(items: Map<number, Item>, ids: unknown): ItemComponentResource[] {
@@ -277,7 +278,7 @@ function toComponents(items: Map<number, Item>, ids: unknown): ItemComponentReso
     const id = Number(rawId)
     const item = Number.isFinite(id) ? items.get(id) : undefined
     if (item?.name) {
-      result.push({ id, name: item.name, iconPath: item.iconPath ?? '' })
+      result.push({ id, name: item.name, iconPath: itemIconUrl(id) })
     }
   }
   return result

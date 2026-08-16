@@ -402,6 +402,8 @@ function mapParticipant(
     spells,
     perks: toPerks(stats),
     level: num(stats.champLevel),
+    // 召唤师等级（statsJson 的 summonerLevel，账号等级；缺失为 0）
+    summonerLevel: num(stats.summonerLevel),
     kills,
     deaths,
     assists,
