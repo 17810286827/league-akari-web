@@ -43,19 +43,26 @@ const emit = defineEmits<{ refresh: [] }>()
 
 <style lang="scss" scoped>
 /* 顶部导航：深色底 + 左右分栏 */
+/* 顶部导航：近黑底 + 签名霓虹渐变光带（电竞终端）；
+   三栏 grid：左空位 / 段位板块水平居中 / 右侧刷新按钮 */
 .top-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 12px 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* 签名元素：底部 2px 紫→玫红渐变光带，页面唯一的渐变装饰 */
+  box-shadow:
+    inset 0 -2px 0 0 linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.65), rgba(244, 63, 94, 0.4), transparent),
+    0 1px 12px rgba(124, 58, 237, 0.08);
 }
 
-/* 段位板块：图标 + 文字竖排 */
+/* 段位板块：第二轨道（auto）→ 页面水平居中 */
 .rank-sections {
   display: flex;
   gap: 28px;
+  grid-column: 2;
 }
 
 .rank-section {
@@ -64,7 +71,7 @@ const emit = defineEmits<{ refresh: [] }>()
   gap: 10px;
 }
 
-/* 段位图标：圆形灰底 + 未定级灰色 */
+/* 段位图标：紫调环形（conic 渐变描边），未定级灰色星形 */
 .rank-icon {
   display: flex;
   align-items: center;
@@ -73,13 +80,16 @@ const emit = defineEmits<{ refresh: [] }>()
   height: 44px;
   border-radius: 50%;
   background: var(--surface-hover);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 0 12px rgba(124, 58, 237, 0.25);
 }
 
 .rank-icon-svg {
   width: 26px;
   height: 26px;
-  fill: var(--text-muted);
-  opacity: 0.6;
+  fill: var(--primary-2);
+  opacity: 0.85;
 }
 
 .rank-info {
@@ -88,23 +98,23 @@ const emit = defineEmits<{ refresh: [] }>()
 }
 
 .rank-queue {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text);
 }
 
 .rank-tier {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted);
 }
 
 .rank-highest {
-  font-size: 11px;
+  font-size: 15px;
   color: var(--text-muted);
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
-/* 刷新按钮：hover 提亮 */
+/* 刷新按钮：第三轨道（1fr）右对齐 + hover 紫调提亮 */
 .refresh-btn {
   display: flex;
   align-items: center;
@@ -113,10 +123,14 @@ const emit = defineEmits<{ refresh: [] }>()
   height: 34px;
   border-radius: var(--radius);
   background: var(--surface-hover);
-  transition: background-color 0.15s;
+  border: 1px solid var(--border);
+  grid-column: 3;
+  justify-self: end;
+  transition: background-color 0.15s, border-color 0.15s;
 
   &:hover {
     background: var(--surface-active);
+    border-color: var(--border-strong);
   }
 }
 

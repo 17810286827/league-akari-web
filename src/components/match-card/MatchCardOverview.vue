@@ -1,21 +1,22 @@
 <template>
   <div
     v-if="participant && team"
-    class="transition-width @container relative box-border flex h-29 w-full overflow-hidden rounded border border-solid bg-neutral-100/95 select-none dark:bg-neutral-950"
+    class="overview-card glass-card transition-width @container relative box-border flex h-[150px] w-full overflow-hidden rounded-xl border border-solid select-none"
     :class="cardBorderClass"
+    @click="$emit('toggle-expand')"
   >
     <!-- main content -->
-    <div class="z-1 flex min-w-0 flex-1 gap-2 px-4 py-1">
+    <div class="z-1 flex min-w-0 flex-1 gap-2.5 px-4 py-1.5">
       <!-- stats content -->
-      <div class="z-2 my-1 flex min-w-0 flex-1 flex-col justify-between">
+      <div class="z-2 my-1.5 flex min-w-0 flex-1 flex-col justify-between">
         <!-- 上半部分：英雄头像 + stats line -->
-        <div class="flex h-12 gap-2">
+        <div class="flex h-14 gap-3">
           <!-- champion icon -->
           <div class="flex w-17.5 shrink-0 items-center">
             <div class="relative" :class="{ contents: !shouldShowCrown && !participant.position }">
               <ChampionIcon
                 :champion-id="participant.championId"
-                class="relative -left-0.5 box-border size-11 rounded-lg border-2 border-solid"
+                class="champion-glow relative -left-0.5 box-border size-11 rounded-lg border-2 border-solid"
                 :class="{
                   'border-blue-600/80 dark:border-blue-300/80': winStyleType === 'win',
                   'border-red-600/80 dark:border-red-300/80': winStyleType === 'loss',
@@ -33,14 +34,14 @@
                 </NIcon>
               </div>
 
-              <!-- position -->
+              <!-- position：无效位置（Invalid 等）不显示，避免回退成"全部位置"星形图标 -->
               <div
-                v-if="participant.position"
+                v-if="participant.position && participant.position.toLowerCase() !== 'invalid'"
                 class="absolute right-0 bottom-0 rounded-sm bg-black/60 p-0.5 dark:bg-black/80"
               >
                 <PositionIcon
                   :position="participant.position"
-                  class="text-5 block! text-white/80"
+                  class="text-[23px] block! text-white/80"
                 />
               </div>
             </div>
@@ -55,14 +56,14 @@
                 v-if="displayParts.spells && (participant.spells[0] || participant.spells[1])"
                 class="flex flex-col gap-0.5"
               >
-                <SummonerSpellDisplay :spell-id="participant.spells[0]" :size="20" />
-                <SummonerSpellDisplay :spell-id="participant.spells[1]" :size="20" />
+                <SummonerSpellDisplay :spell-id="participant.spells[0]" :size="23" />
+                <SummonerSpellDisplay :spell-id="participant.spells[1]" :size="23" />
               </div>
 
               <!-- runes / styles -->
               <div v-if="displayParts.runes && perks" class="flex flex-col gap-0.5">
-                <PerkDisplay :perk-id="perks.primaryPerkId" :size="20" />
-                <PerkstyleDisplay :perkstyle-id="perks.subPerkStyleId" :size="20" />
+                <PerkDisplay :perk-id="perks.primaryPerkId" :size="23" />
+                <PerkstyleDisplay :perkstyle-id="perks.subPerkStyleId" :size="23" />
               </div>
             </div>
 
@@ -72,7 +73,7 @@
                 v-for="(augment, index) of participant.augments"
                 :key="index"
                 :augment-id="augment ?? undefined"
-                :size="20"
+                :size="23"
               />
             </div>
 
@@ -80,28 +81,28 @@
             <div class="w-0"></div>
 
             <!-- KDA + DMG -->
-            <NPopover :delay="300">
+            <NPopover :delay="300" :content-style="{ maxWidth: '420px' }">
               <template #trigger>
                 <div class="flex gap-2">
                   <!-- KDA -->
                   <div class="min-w-22">
                     <div class="flex items-center justify-center gap-0.5">
-                      <div class="text-base font-bold text-black dark:text-white">
+                      <div class="text-[21px] font-bold text-black dark:text-white">
                         {{ participant.kills }}
                       </div>
-                      <div class="mx-px text-xs text-black/60 dark:text-white/60">/</div>
-                      <div class="text-base font-bold text-red-600 dark:text-red-300">
+                      <div class="mx-px text-sm text-black/60 dark:text-white/60">/</div>
+                      <div class="text-[21px] font-bold text-red-600 dark:text-red-300">
                         {{ participant.deaths }}
                       </div>
-                      <div class="mx-px text-xs text-black/60 dark:text-white/60">/</div>
-                      <div class="text-base font-bold text-black dark:text-white">
+                      <div class="mx-px text-sm text-black/60 dark:text-white/60">/</div>
+                      <div class="text-[21px] font-bold text-black dark:text-white">
                         {{ participant.assists }}
                       </div>
                     </div>
 
                     <!-- KDA value -->
                     <div
-                      class="flex justify-center text-xs text-yellow-700 dark:text-yellow-200"
+                      class="flex justify-center text-[16px] text-yellow-700 dark:text-yellow-200"
                       v-if="
                         participant.deaths === 0 &&
                         (participant.kills > 0 || participant.assists > 0)
@@ -112,33 +113,31 @@
                     </div>
 
                     <div class="flex justify-center gap-1" v-else>
-                      <div class="text-xs text-black/80 dark:text-white/80">
+                      <div class="text-[16px] text-black/80 dark:text-white/80">
                         {{ participant.kda.toFixed(2) }}
                       </div>
-                      <div class="text-xs text-black/80 dark:text-white/80">
+                      <div class="text-[16px] text-black/80 dark:text-white/80">
                         ({{ (participant.killParticipation * 100).toFixed(0) }}%)
                       </div>
                     </div>
                   </div>
 
-                  <!-- dmg -->
-                  <div class="min-w-22">
-                    <div class="text-center text-base font-bold">
-                      {{
-                        (
-                          (participant.totalDamageDealtToChampions /
-                            (teams.teamStatMap[participant.teamIdentifier]
-                              .totalDamageDealtToChampions || 1)) *
-                          100
-                        ).toFixed(0)
-                      }}%
-                    </div>
+          <!-- dmg -->
+          <div class="min-w-22">
+            <div class="text-center text-[20px] font-bold">
+              {{ dmgPercentage }}%
+            </div>
+
+            <!-- 玻璃终端签名：伤害占比荧光渐变数据条 -->
+            <div class="dmg-bar">
+              <div class="dmg-bar-fill" :style="{ width: `${dmgPercentage}%` }"></div>
+            </div>
 
                     <div class="flex justify-center gap-1">
-                      <div class="text-xs text-black/80 dark:text-white/80">
+                      <div class="text-[16px] text-black/80 dark:text-white/80">
                         {{ formatExtremeNumber(participant.totalDamageDealtToChampions) }}
                       </div>
-                      <div class="text-xs text-black/60 dark:text-white/60">
+                      <div class="text-[16px] text-black/60 dark:text-white/60">
                         {{ t('matchCard.overview.damage') }}
                       </div>
                     </div>
@@ -146,18 +145,18 @@
 
                   <!-- cs -->
                   <div class="hidden min-w-22 @min-[700px]:block" v-if="displayParts.cs">
-                    <div class="text-center text-base font-bold">
+                    <div class="text-center text-[21px] font-bold">
                       {{ formatExtremeNumber(participant.cs) }}
-                      <span class="text-[11px] font-normal text-black/60 dark:text-white/60">{{
+                      <span class="text-[14px] font-normal text-black/60 dark:text-white/60">{{
                         t('matchCard.overview.cs')
                       }}</span>
                     </div>
 
                     <div class="flex justify-center gap-1">
-                      <div class="text-xs text-black/80 dark:text-white/80">
+                      <div class="text-[16px] text-black/80 dark:text-white/80">
                         {{ (participant.cs / (basicInfo.gameDuration / 60)).toFixed(1) }}
                       </div>
-                      <div class="text-xs text-black/60 dark:text-white/60">
+                      <div class="text-[16px] text-black/60 dark:text-white/60">
                         {{ t('matchCard.overview.csPerMin') }}
                       </div>
                     </div>
@@ -170,7 +169,7 @@
         </div>
 
         <!-- 下半部分：胜利结果 + tags -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           <!-- result -->
           <div class="min-w-17.5 shrink-0">
             <div
@@ -198,14 +197,14 @@
               v-for="item of participant.items.slice(0, 6)"
               :key="item"
               :item-id="item"
-              :size="20"
+              :size="23"
             />
 
-            <ItemDisplay :item-id="participant.items[6]" :size="20" is-trinket />
+            <ItemDisplay :item-id="participant.items[6]" :size="23" is-trinket />
             <ItemDisplay
               v-if="participant.roleBoundItem"
               :item-id="participant.roleBoundItem"
-              :size="20"
+              :size="23"
             />
           </div>
 
@@ -216,7 +215,7 @@
         </div>
 
         <!-- 统计图标行（web 扩展：击杀/承伤/治疗/视野/金币/补刀/推塔/插眼，图标 + 紧凑数值） -->
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-black/70 dark:text-white/70">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] text-black/80 dark:text-white/85">
           <span class="flex items-center gap-0.5">
             <span aria-hidden="true">⚔️</span>{{ participant.kills }}
           </span>
@@ -246,31 +245,31 @@
         <!-- info line -->
         <div class="flex">
           <!-- queue name -->
-          <div class="text-xs text-black dark:text-white/80">
+          <div class="text-[16px] text-black dark:text-white/85">
             {{ resources.queues.name(basicInfo.queueId) }}
           </div>
-          <div class="mx-1 text-xs text-black/40 dark:text-white/40">·</div>
+          <div class="mx-1 text-[16px] text-black/40 dark:text-white/40">·</div>
 
           <!-- duration hh:mm:ss (pad 0) -->
           <!-- advanced: from -> to -->
-          <div class="text-xs text-black/80 dark:text-white/60">
+          <div class="text-[16px] text-black/80 dark:text-white/70">
             {{ formatSeconds(basicInfo.gameDuration) }}
           </div>
-          <div class="mx-1 text-xs text-black/60 dark:text-white/40">·</div>
+          <div class="mx-1 text-[16px] text-black/60 dark:text-white/40">·</div>
 
           <!-- should show the specific time if hover -->
-          <div class="text-xs text-black/80 dark:text-white/60" :title="gameCreationTitle">
+          <div class="text-[16px] text-black/80 dark:text-white/70" :title="gameCreationTitle">
             {{ formattedRelativeTime }}
           </div>
-          <div class="mx-1 text-xs text-black/60 dark:text-white/40">·</div>
-          <div class="flex-1 truncate text-xs text-black/80 dark:text-white/60">
+          <div class="mx-1 text-[16px] text-black/60 dark:text-white/40">·</div>
+          <div class="flex-1 truncate text-[16px] text-black/80 dark:text-white/70">
             {{ mapName }}
           </div>
         </div>
       </div>
 
       <!-- player list (5x5 team only) -->
-      <div v-if="basicInfo.isTwoTeam" class="z-2 my-1 flex w-42 max-w-42 gap-2">
+      <div v-if="basicInfo.isTwoTeam" class="z-2 my-1.5 flex w-42 max-w-42 gap-2">
         <!-- teams -->
         <div
           v-for="team of twoTeams"
@@ -302,7 +301,7 @@
                     'font-bold text-black/90 dark:text-white/90': player.puuid === puuid,
                     'text-black/80 dark:text-white/80': player.puuid !== puuid
                   }"
-                  @click="navigateToSummonerByPuuid(player.puuid)"
+                  @click.stop="navigateToSummonerByPuuid(player.puuid)"
                   @mousedown="handleMouseDown"
                   @mouseup="handleMouseUp($event, player.puuid)"
                 >
@@ -326,7 +325,7 @@
 
       <div
         v-else-if="basicInfo.isCherrySubteam && !isThreePlayerCherryMode"
-        class="z-2 my-1 grid w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-2 gap-x-2"
+        class="z-2 my-1.5 grid w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-2 gap-x-2"
       >
         <!-- teams -->
         <div
@@ -365,7 +364,7 @@
                     'font-bold text-black/90 dark:text-white/90': player.puuid === puuid,
                     'text-black/80 dark:text-white/80': player.puuid !== puuid
                   }"
-                  @click="navigateToSummonerByPuuid(player.puuid)"
+                  @click.stop="navigateToSummonerByPuuid(player.puuid)"
                   @mousedown="handleMouseDown"
                   @mouseup="handleMouseUp($event, player.puuid)"
                 >
@@ -406,7 +405,7 @@
             <template #trigger>
               <div
                 class="relative cursor-pointer transition-[filter] hover:brightness-110"
-                @click="navigateToSummonerByPuuid(player.puuid)"
+                @click.stop="navigateToSummonerByPuuid(player.puuid)"
                 @mousedown="handleMouseDown"
                 @mouseup="handleMouseUp($event, player.puuid)"
               >
@@ -435,9 +434,9 @@
       </div>
     </div>
 
-    <!-- right-end expand icon -->
+    <!-- right-end expand icon：.stop 防止冒泡到根元素的 toggle-expand（重复触发收起） -->
     <div
-      @click="$emit('toggle-expand')"
+      @click.stop="$emit('toggle-expand')"
       class="z-1 flex w-8 cursor-pointer items-center justify-center border-t-0 border-r-0 border-b-0 border-l border-solid border-l-black/10 bg-white/20 transition-colors hover:bg-black/5 active:bg-black/5 dark:border-l-white/10 dark:bg-white/5 hover:dark:bg-white/10 active:dark:bg-white/5"
     >
       <NIcon
@@ -447,6 +446,16 @@
         <ArrowBackIosFilled />
       </NIcon>
     </div>
+
+    <!-- 签名元素：左缘胜负色带（电竞终端设计，3px 语义色条） -->
+    <div
+      class="result-stripe absolute top-0 left-0 z-0 h-full w-1"
+      :class="{
+        'bg-blue-500/90 dark:bg-blue-400/80': winStyleType === 'win',
+        'bg-red-500/90 dark:bg-red-500/80': winStyleType === 'loss',
+        'bg-gray-500/70 dark:bg-gray-400/60': winStyleType === 'neutral'
+      }"
+    />
 
     <!-- shadow for win / loss -->
     <div
@@ -601,6 +610,15 @@ const mapName = computed(() => {
 
 const winStyleType = useWinResultStyleType()
 const cardBorderClass = useCardBorderClass()
+
+/** 伤害占比（0-100，四舍五入）：玻璃终端荧光数据条与百分比文字共用 */
+const dmgPercentage = computed(() => {
+  const teamTotal = teams.value.teamStatMap[participant.value!.teamIdentifier]
+    .totalDamageDealtToChampions
+  return Math.round(
+    (participant.value!.totalDamageDealtToChampions / (teamTotal || 1)) * 100
+  )
+})
 
 const formattedRelativeTime = ref('')
 const gameCreationTitle = computed(() => {

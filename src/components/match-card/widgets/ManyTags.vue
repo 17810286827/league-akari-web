@@ -134,9 +134,15 @@ useResizeObserver(() => [containerEl.value, ...(tagsEl.value || [])], recalcOver
 <style scoped>
 @reference '../../../styles/tailwind.css';
 
-@layer components {
-  .tag {
-    @apply relative shrink-0 rounded-xl px-2 py-0.5 text-xs;
-  }
+/* 标签：显式 padding（4px 上下 / 10px 左右）+ 紧凑行高。
+   不用 @layer 包裹（scoped 无层样式优先级最高，避免被 preflight 的 padding:0 覆盖），
+   保证 15px 文字背景完全包裹 */
+.tag {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-size: 15px;
+  line-height: 1.2;
 }
 </style>

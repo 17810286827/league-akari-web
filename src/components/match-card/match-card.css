@@ -33,3 +33,51 @@
 [data-theme-id]:not([data-theme-id='light']):not([data-theme-id='dark']) .shadow-remake {
   background-color: var(--la-match-neutral-solid);
 }
+
+/* 电竞终端签名：对局卡片 hover 霓虹紫光晕（呼应左缘胜负色带与导航渐变光带） */
+.overview-card {
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.overview-card:hover {
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.45),
+    0 0 18px rgba(124, 58, 237, 0.12);
+}
+
+/* 玻璃终端（方案 3）：半透明毛玻璃卡片，透出页面背景的微紫光晕；
+   底色不透明度 0.88 + blur 8px：保留玻璃质感同时保证文字对比度 */
+.glass-card {
+  background: rgba(18, 16, 28, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(124, 58, 237, 0.28);
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.14);
+}
+
+/* 伤害占比荧光渐变数据条（玻璃终端签名：霓虹紫→玫红，发光） */
+.dmg-bar {
+  height: 3px;
+  margin: 3px auto 0;
+  width: 72%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.dmg-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #7c3aed, #f43f5e);
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.5);
+  transition: width 0.3s ease;
+}
+
+/* 英雄头像霓虹紫光晕（玻璃终端签名） */
+.champion-glow {
+  box-shadow:
+    0 0 0 2px rgba(124, 58, 237, 0.35),
+    0 0 14px rgba(124, 58, 237, 0.4);
+}

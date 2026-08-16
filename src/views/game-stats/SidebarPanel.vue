@@ -21,14 +21,40 @@ const emit = defineEmits<{ viewMore: [] }>()
 /** 每页条数（契约固定 20） */
 const PAGE_SIZE = 20
 
-/** 总览统计字段配置：标签 + 取值函数 + 是否百分比；Akari Score 无数据源时显示 '-' */
-const overviewItems: { label: string; value: (o: OverviewStats) => string; percent?: boolean }[] = [
+/** 总览统计字段配置：标签 + 取值函数 + 是否百分比；百分比项渲染 mini 渐变进度条 */
+const overviewItems: {
+  label: string
+  value: (o: OverviewStats) => string
+  percent?: boolean
+  /** 进度条数值（0-100），仅百分比项使用 */
+  progress?: (o: OverviewStats) => number
+}[] = [
   { label: 'Akari Score', value: (o) => (o.akariScore === null ? '-' : String(o.akariScore)) },
   { label: '平均KDA', value: (o) => o.avgKda.toFixed(2) },
-  { label: '参团率', value: (o) => `${o.participation}%`, percent: true },
-  { label: '伤害比', value: (o) => `${o.damageShare}%`, percent: true },
-  { label: '承伤比', value: (o) => `${o.damageTakenShare}%`, percent: true },
-  { label: '经济比', value: (o) => `${o.goldShare}%`, percent: true },
+  {
+    label: '参团率',
+    value: (o) => `${o.participation}%`,
+    percent: true,
+    progress: (o) => o.participation
+  },
+  {
+    label: '伤害比',
+    value: (o) => `${o.damageShare}%`,
+    percent: true,
+    progress: (o) => o.damageShare
+  },
+  {
+    label: '承伤比',
+    value: (o) => `${o.damageTakenShare}%`,
+    percent: true,
+    progress: (o) => o.damageTakenShare
+  },
+  {
+    label: '经济比',
+    value: (o) => `${o.goldShare}%`,
+    percent: true,
+    progress: (o) => o.goldShare
+  },
   { label: '补刀/分', value: (o) => o.csPerMin.toFixed(1) },
   { label: '胜负', value: (o) => `${o.wins}胜${o.losses}负` }
 ]
@@ -75,6 +101,12 @@ function hasPrevPage(): boolean {
       <div class="overview-grid">
         <div v-for="item in overviewItems" :key="item.label" class="overview-item">
           <p class="overview-label">{{ item.label }}</p>
+          <!-- 百分比项：紫→亮紫渐变 mini 进度条（数据可视化） -->
+          <template v-if="item.progress">
+            <div class="mini-bar">
+              <div class="mini-bar-fill" :style="{ width: `${item.progress(data.overview)}%` }"></div>
+            </div>
+          </template>
           <p class="overview-value" :class="{ 'overview-value-accent': item.percent }">
             {{ item.value(data.overview) }}
           </p>
@@ -157,17 +189,26 @@ function hasPrevPage(): boolean {
   padding: 12px;
 }
 
-/* 通用面板卡片 */
+/* 通用面板卡片：紫调描边，hover 提亮 */
 .panel {
   padding: 12px;
   border-radius: var(--radius);
   background: var(--surface);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  transition: border-color 0.15s, background-color 0.15s;
+
+  &:hover {
+    border-color: var(--border-strong);
+  }
 }
 
+/* 面板标题：左侧 3px 霓虹紫标记（签名元素延伸） */
 .panel-title {
   margin-bottom: 10px;
-  font-size: 14px;
+  padding-left: 8px;
+  border-left: 3px solid var(--primary);
+  font-size: 18px;
   font-weight: 700;
   color: var(--text);
 }
@@ -182,7 +223,7 @@ function hasPrevPage(): boolean {
 .empty-tip {
   padding: 10px 0;
   text-align: center;
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-muted);
 }
 
@@ -201,7 +242,7 @@ function hasPrevPage(): boolean {
   border: 1px solid var(--border);
   background: var(--surface-hover);
   color: var(--text);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .pager {
@@ -211,7 +252,7 @@ function hasPrevPage(): boolean {
 }
 
 .pager-count {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-muted);
 }
 
@@ -239,7 +280,7 @@ function hasPrevPage(): boolean {
   border-radius: var(--radius);
   background: var(--surface-hover);
   color: var(--text);
-  font-size: 13px;
+  font-size: 16px;
   transition: background-color 0.15s;
 
   &:hover {
@@ -259,19 +300,37 @@ function hasPrevPage(): boolean {
 }
 
 .overview-label {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
-.overview-value {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
+/* mini 进度条：紫→亮紫渐变（数据可视化，百分比项专用） */
+.mini-bar {
+  height: 3px;
+  margin: 4px auto 2px;
+  width: 80%;
+  border-radius: 2px;
+  background: var(--surface-active);
+  overflow: hidden;
 }
 
-/* 百分比字段用蓝色强调 */
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  transition: width 0.3s ease;
+}
+
+.overview-value {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 百分比字段用霓虹紫强调 */
 .overview-value-accent {
-  color: var(--win);
+  color: var(--primary-2);
 }
 
 .lineup {
@@ -289,7 +348,7 @@ function hasPrevPage(): boolean {
 
 /* 三、英雄点数 */
 .more-btn {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--win);
 
   &:hover {
@@ -320,17 +379,17 @@ function hasPrevPage(): boolean {
 }
 
 .champion-name {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text);
 }
 
 .champion-level {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
 .champion-points {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--gold);
   font-weight: 600;
 }
@@ -355,17 +414,17 @@ function hasPrevPage(): boolean {
 }
 
 .recent-name {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text);
 }
 
 .recent-tag {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
 .recent-record {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 </style>

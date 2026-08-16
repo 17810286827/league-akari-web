@@ -5,29 +5,42 @@
    配合 main.ts 给 <html> 加 .dark 强制深色，与 naive-ui darkTheme 一致 */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 主题令牌：与 src/styles/opgg.css 的 CSS 变量保持同一套视觉语言 */
+/* 主题令牌：与 src/styles/opgg.css 的 CSS 变量保持同一套视觉语言（电竞终端：近黑底 + 霓虹紫） */
 @theme {
-  /* 页面背景：纯黑 */
-  --color-base: #000000;
+  /* 页面背景：近黑（非纯黑，保留层次） */
+  --color-base: #09090b;
   /* 卡片背景 */
-  --color-surface: #101014;
+  --color-surface: #0e0e13;
   /* 卡片悬浮/高亮 */
-  --color-surface-hover: #1a1a20;
-  /* 主文本 */
-  --color-ink: #e6e9f2;
-  /* 次要文本 */
-  --color-ink-muted: #8b93a7;
+  --color-surface-hover: #16151d;
+  /* 主文本（提亮增强对比） */
+  --color-ink: #f4f2fa;
+  /* 次要文本（提亮一档，对比度 ~7:1） */
+  --color-ink-muted: #a6acbf;
   /* 胜利蓝 */
   --color-win: #4b7be5;
   /* 失败红 */
   --color-loss: #e03e52;
   /* LOL 金色点缀（等级、徽章） */
   --color-gold: #c8aa6e;
+  /* 主色：霓虹紫（签名光带/进度条） */
+  --color-primary: #7c3aed;
+  /* 主色亮端（渐变终点） */
+  --color-primary-2: #a78bfa;
+  /* 强调色：玫红（关键数值/操作） */
+  --color-accent: #f43f5e;
   /* 细分割线 */
   --color-hairline: rgba(139, 147, 167, 0.16);
+  /* 紫调描边 */
+  --color-border-violet: #2e2440;
 }
 
 /* 数字等宽，保证 KDA/统计列对齐 */
 @utility tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* 电竞终端数字字体：Russo One（仅拉丁数字/英文，中文自动回退系统字体） */
+@utility font-display {
+  font-family: 'Russo One', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }

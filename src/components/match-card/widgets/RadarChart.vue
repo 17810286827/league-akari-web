@@ -1,6 +1,10 @@
 <template>
-  <div class="h-80 w-80">
-    <Radar :data="data" :options="options" />
+  <!-- 玻璃终端背景（与列表卡片一致）+ 内边距；shrink-0 防止被 popover flex 压缩，
+       容器加宽让 16px 标签不溢出边框 -->
+  <div class="glass-card w-[356px] shrink-0 rounded-xl p-3">
+    <div class="h-80 w-80">
+      <Radar :data="data" :options="options" />
+    </div>
   </div>
 </template>
 
@@ -51,21 +55,22 @@ const chartColors = computed(() => {
   if (isDark.value) {
     return {
       player: {
-        background: 'rgba(248,113,113,0.18)',
-        border: 'rgba(252,165,165,0.95)',
-        point: '#f87171'
+        background: 'rgba(124,58,237,0.20)',
+        border: 'rgba(167,139,250,0.95)',
+        point: '#a78bfa'
       },
       team: {
         background: 'rgba(148,163,184,0.18)',
         border: 'rgba(203,213,225,0.95)',
         point: '#cbd5f1'
       },
-      legend: '#e2e8f0',
-      label: '#f1f5f9',
-      grid: 'rgba(226,232,240,0.30)',
-      angle: 'rgba(226,232,240,0.36)',
-      tooltipBg: 'rgba(15,23,42,0.92)',
-      tooltipBorder: 'rgba(148,163,184,0.4)',
+      legend: '#f4f2fa',
+      label: '#f4f2fa',
+      // 网格/轴线提亮紫调（与主题一致，替代原灰白）
+      grid: 'rgba(167,139,250,0.28)',
+      angle: 'rgba(167,139,250,0.34)',
+      tooltipBg: 'rgba(18,16,28,0.92)',
+      tooltipBorder: 'rgba(124,58,237,0.4)',
       tooltipTitle: '#f8fafc',
       tooltipBody: '#e2e8f0'
     }
@@ -73,9 +78,9 @@ const chartColors = computed(() => {
 
   return {
     player: {
-      background: 'rgba(255,99,132,0.16)',
-      border: 'rgba(220,38,38,0.95)',
-      point: '#ef4444'
+      background: 'rgba(124,58,237,0.16)',
+      border: 'rgba(124,58,237,0.95)',
+      point: '#7c3aed'
     },
     team: {
       background: 'rgba(148,163,184,0.18)',
@@ -87,7 +92,7 @@ const chartColors = computed(() => {
     grid: 'rgba(15,23,42,0.18)',
     angle: 'rgba(15,23,42,0.24)',
     tooltipBg: 'rgba(255,255,255,0.94)',
-    tooltipBorder: 'rgba(148,163,184,0.5)',
+    tooltipBorder: 'rgba(124,58,237,0.5)',
     tooltipTitle: '#111827',
     tooltipBody: '#1f2937'
   }
@@ -285,8 +290,8 @@ const options = computed<ChartOptions<'radar'>>(() => ({
       angleLines: { color: chartColors.value.angle, lineWidth: 1.5 },
       pointLabels: {
         color: chartColors.value.label,
-        // 标签内嵌数值（伤害/补刀/KDA 等），放大加粗保证可读
-        font: { size: 13, weight: 600 }
+        // 标签内嵌数值（伤害/补刀/KDA 等），放大加粗保证可读（与列表字号体系一致）
+        font: { size: 16, weight: 600 }
       }
     }
   },
@@ -297,7 +302,7 @@ const options = computed<ChartOptions<'radar'>>(() => ({
     legend: {
       labels: {
         color: chartColors.value.legend,
-        font: { size: 13, weight: 500 }
+        font: { size: 16, weight: 500 }
       }
     },
     tooltip: {

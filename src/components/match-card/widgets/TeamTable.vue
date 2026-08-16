@@ -124,14 +124,15 @@
       v-for="participant in teamParticipants"
       :key="participant.puuid"
       :class="{
-        'bg-black/5 bg-clip-padding dark:bg-white/5': participant.puuid === puuid
+        // self 行：霓虹紫高亮（电竞终端，区别于胜负底色）
+        'bg-violet-500/10 bg-clip-padding dark:bg-violet-500/10': participant.puuid === puuid
       }"
       class="box-border flex h-12 items-center border-t border-r-0 border-b-0 border-l-0 border-solid border-t-black/5 px-2 py-1 dark:border-t-white/5"
     >
       <!-- name line -->
       <div class="flex min-w-0 flex-1 items-center gap-1">
         <!-- left champion icon -->
-        <NPopover placement="right">
+        <NPopover placement="right" :content-style="{ maxWidth: '420px' }">
           <template #trigger>
             <div class="relative size-8 cursor-pointer">
               <ChampionIcon :champion-id="participant.championId" class="size-full!" round />
