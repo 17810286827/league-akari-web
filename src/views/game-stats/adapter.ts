@@ -109,6 +109,21 @@ function lightToMatchParticipant(light: MatchParticipantLight): MatchParticipant
       perkSubStyle: light.perks.perkSubStyle
     }
   }
+  // 折叠卡统计行字段（后端 ParticipantLight 扩展后提供；缺失不写，适配层兜底 0）
+  const statFields: Array<[string, number | null | undefined]> = [
+    ['totalDamageTaken', light.totalDamageTaken],
+    ['totalHeal', light.totalHeal],
+    ['visionScore', light.visionScore],
+    ['goldEarned', light.goldEarned],
+    ['totalMinionsKilled', light.cs],
+    ['turretKills', light.turretKills],
+    ['wardsPlaced', light.wardsPlaced]
+  ]
+  for (const [key, value] of statFields) {
+    if (typeof value === 'number') {
+      stats[key] = value
+    }
+  }
 
   return {
     // 占位主键：toParticipants 不使用 id/matchId（participantId 从 statsJson 读，缺失补 0）

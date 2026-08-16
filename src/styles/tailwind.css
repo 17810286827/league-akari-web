@@ -1,14 +1,18 @@
 /* Tailwind CSS 4 入口：引入框架并定义 OP.GG 风格的主题色板 */
 @import 'tailwindcss';
 
+/* dark 变体改为 class 模式：默认 media 查询在构建中未生成规则（卡片浅底白字看不清），
+   配合 main.ts 给 <html> 加 .dark 强制深色，与 naive-ui darkTheme 一致 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* 主题令牌：与 src/styles/opgg.css 的 CSS 变量保持同一套视觉语言 */
 @theme {
-  /* 页面背景：深蓝黑 */
-  --color-base: #0d1220;
+  /* 页面背景：纯黑 */
+  --color-base: #000000;
   /* 卡片背景 */
-  --color-surface: #161d30;
+  --color-surface: #101014;
   /* 卡片悬浮/高亮 */
-  --color-surface-hover: #1b2440;
+  --color-surface-hover: #1a1a20;
   /* 主文本 */
   --color-ink: #e6e9f2;
   /* 次要文本 */

@@ -130,6 +130,8 @@ export interface ParticipantStatsJson {
   // 治疗/视野/控制
   totalHeal?: number
   visionScore?: number
+  wardsPlaced?: number
+  turretKills?: number
   timeCCingOthers?: number
   // 投降
   gameEndedInEarlySurrender?: boolean
@@ -436,6 +438,9 @@ function mapParticipant(
     totalDamageToTowers: num(stats.damageDealtToTurrets),
     totalHeal: num(stats.totalHeal),
     visionScore: num(stats.visionScore),
+    // 插眼/推塔：折叠卡统计行使用（LCU/SGP 字段名一致）
+    wardsPlaced: num(stats.wardsPlaced),
+    turretKills: num(stats.turretKills),
     timeCCingOthers: num(stats.timeCCingOthers),
     // challenges 数据仅 SGP 提供，LCU 缺省 null
     soloKills: stats.challenges?.soloKills ?? null,

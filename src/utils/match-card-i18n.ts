@@ -28,6 +28,14 @@ const zh: Record<string, string> = {
   'matchCard.overview.damage': '伤害',
   'matchCard.overview.cs': '补兵',
   'matchCard.overview.csPerMin': '/ 分钟',
+  // 折叠卡统计图标行（web 扩展，悬浮 title 文案）
+  'matchCard.overview.stats.damageTaken': '承伤',
+  'matchCard.overview.stats.heal': '治疗量',
+  'matchCard.overview.stats.vision': '视野得分',
+  'matchCard.overview.stats.gold': '获得金币',
+  'matchCard.overview.stats.cs': '补刀数',
+  'matchCard.overview.stats.turret': '推塔数',
+  'matchCard.overview.stats.ward': '插眼数',
   // 队伍名（common.yaml teams 段；text.ts useTeamName 消费）
   'teams.TEAM-100': '蓝队',
   'teams.TEAM-200': '红队',

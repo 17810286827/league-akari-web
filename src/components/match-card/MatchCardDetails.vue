@@ -1,7 +1,7 @@
 <template>
   <!-- expanded details -->
   <div
-    class="transition-width @container relative mt-1 box-border w-full overflow-hidden rounded border border-solid bg-neutral-100/95 p-2 dark:bg-neutral-900/95"
+    class="transition-width @container relative mt-1 box-border w-full overflow-hidden rounded border border-solid bg-neutral-100/95 p-2 dark:bg-neutral-950"
     :class="cardBorderClass"
   >
     <!-- header -->

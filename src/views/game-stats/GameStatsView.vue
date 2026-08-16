@@ -266,19 +266,19 @@ onMounted(() => {
 </template>
 
 <style lang="scss">
-/* 深色主题变量（League Akari 风格：近 #1e1e1e 背景） */
+/* 深色主题变量（League Akari 风格：纯黑背景 + 深黑卡片，与全局 tailwind 令牌一致） */
 .game-stats {
-  --bg: #1e1e1e;
-  --surface: #262626;
-  --surface-hover: #2e2e2e;
-  --surface-active: #3a3a3a;
-  --border: #3a3a3a;
-  --text: #f0f0f0;
-  --text-muted: #9a9a9a;
-  --win: #3b82f6;
-  --loss: #ef4444;
+  --bg: #000000;
+  --surface: #101014;
+  --surface-hover: #1a1a20;
+  --surface-active: #24242c;
+  --border: #2a2a32;
+  --text: #e6e9f2;
+  --text-muted: #8b93a7;
+  --win: #4b7be5;
+  --loss: #e03e52;
   --surrender: #6b7280;
-  --gold: #f59e0b;
+  --gold: #c8aa6e;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 
@@ -294,6 +294,9 @@ onMounted(() => {
 .body {
   display: flex;
   align-items: flex-start;
+  /* 居中布局：与详情页 max-w-6xl（1152px）一致，宽屏两侧留白 */
+  max-width: 1152px;
+  margin: 0 auto;
 }
 
 /* 侧栏折叠按钮：小屏可见，宽屏隐藏 */

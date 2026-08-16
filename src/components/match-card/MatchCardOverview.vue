@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="participant && team"
-    class="transition-width @container relative box-border flex h-29 w-full overflow-hidden rounded border border-solid bg-neutral-100/95 select-none dark:bg-neutral-900/95"
+    class="transition-width @container relative box-border flex h-29 w-full overflow-hidden rounded border border-solid bg-neutral-100/95 select-none dark:bg-neutral-950"
     :class="cardBorderClass"
   >
     <!-- main content -->
@@ -213,6 +213,34 @@
           <div class="min-w-0 flex-1">
             <ManyTags />
           </div>
+        </div>
+
+        <!-- 统计图标行（web 扩展：击杀/承伤/治疗/视野/金币/补刀/推塔/插眼，图标 + 紧凑数值） -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-black/70 dark:text-white/70">
+          <span class="flex items-center gap-0.5">
+            <span aria-hidden="true">⚔️</span>{{ participant.kills }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.damageTaken')">
+            <span aria-hidden="true">🛡️</span>{{ formatExtremeNumber(participant.totalDamageTaken) }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.heal')">
+            <span aria-hidden="true">❤️</span>{{ formatExtremeNumber(participant.totalHeal) }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.vision')">
+            <span aria-hidden="true">👁️</span>{{ participant.visionScore }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.gold')">
+            <span aria-hidden="true">💰</span>{{ formatExtremeNumber(participant.goldEarned) }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.cs')">
+            <span aria-hidden="true">🗡️</span>{{ participant.cs }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.turret')">
+            <span aria-hidden="true">🏰</span>{{ participant.turretKills }}
+          </span>
+          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.ward')">
+            <span aria-hidden="true">✨</span>{{ participant.wardsPlaced }}
+          </span>
         </div>
 
         <!-- info line -->

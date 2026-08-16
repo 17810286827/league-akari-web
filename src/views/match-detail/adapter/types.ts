@@ -128,6 +128,10 @@ export interface MatchCardParticipant {
   totalDamageToTowers: number
   totalHeal: number
   visionScore: number
+  /** 插眼数（stats.wardsPlaced） */
+  wardsPlaced: number
+  /** 推塔数（stats.turretKills） */
+  turretKills: number
   timeCCingOthers: number
   /** 单杀数（challenges 字段，LCU 无该数据为 null） */
   soloKills: number | null
