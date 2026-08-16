@@ -246,10 +246,10 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
       priceTotal: item.priceTotal,
       // totalPrice 为必填展示字段：priceTotal 缺失时补 0，避免渲染 "undefined 金币"
       totalPrice: item.priceTotal ?? 0,
-      // 合成组件 ID（合成路径）
-      from: item.from,
+      // 合成组件 ID（合成路径）：CDragon 老版本数据的 to 字段可能为数字 0（无去向），统一归一为数组
+      from: Array.isArray(item.from) ? item.from : [],
       // 升级合成去向 ID（与 from 同源，主仓库 items.display 亦返回）
-      to: item.to
+      to: Array.isArray(item.to) ? item.to : []
     }
   } catch {
     return emptyItemDisplay(itemId)
@@ -299,8 +299,9 @@ let augmentDescriptionsPromise: Promise<Map<number, GtimgAugment>> | null = null
 
 /**
  * 把 gtimg kiwi_augments.json 解析为 id → 规范化记录 的 Map：
- * 真实数据为数组（augmentID/name_cn/desc/level/large_Icon），
- * 兼容 { data: { '30': {...} } } 键值对象形状（测试/兼容场景）
+ * 真实数据可能为数组（augmentID/name_cn/desc/tooltip/level）或
+ * 键值对象（键为数组索引，augmentID 在记录内），两种形状都优先取记录内 augmentID；
+ * 兼容 { data: {...} } 对象外壳
  */
 function toGtimgAugmentMap(payload: unknown): Map<number, GtimgAugment> {
   const map = new Map<number, GtimgAugment>()
@@ -317,7 +318,9 @@ function toGtimgAugmentMap(payload: unknown): Map<number, GtimgAugment> {
     map.set(id, {
       id,
       name: String(record.name_cn ?? record.name ?? record.name_en ?? ''),
-      description: String(record.desc ?? record.description ?? record.tooltip ?? ''),
+      // tooltip 为占位符（{{xx}}/@xx@）替换后的干净文本，优先展示；
+      // desc 供游戏内动态替换、含占位符，仅作兜底（如 tooltip 缺失）
+      description: String(record.tooltip ?? record.desc ?? record.description ?? ''),
       rarity:
         typeof record.level === 'string'
           ? record.level
@@ -333,7 +336,7 @@ function toGtimgAugmentMap(payload: unknown): Map<number, GtimgAugment> {
     })
   }
   if (Array.isArray(source)) {
-    // 数组形状：真实 gtimg 数据使用 augmentID 字段
+    // 数组形状：记录自带 augmentID 字段
     for (const raw of source) {
       const record = raw as Record<string, unknown>
       const id = typeof record.augmentID === 'number' ? record.augmentID : record.id
@@ -342,11 +345,13 @@ function toGtimgAugmentMap(payload: unknown): Map<number, GtimgAugment> {
       }
     }
   } else if (source && typeof source === 'object') {
-    // 键值对象形状：键名即 id
+    // 键值对象形状：键可能是数组索引而非强化 ID，优先取记录内 augmentID（真实 kiwi 数据形态）
     for (const [key, record] of Object.entries(source as Record<string, unknown>)) {
-      const id = Number(key)
-      if (Number.isFinite(id) && record && typeof record === 'object') {
-        push(id, record as Record<string, unknown>)
+      if (!record || typeof record !== 'object') continue
+      const rec = record as Record<string, unknown>
+      const id = typeof rec.augmentID === 'number' ? rec.augmentID : Number(key)
+      if (Number.isFinite(id)) {
+        push(id, rec)
       }
     }
   }

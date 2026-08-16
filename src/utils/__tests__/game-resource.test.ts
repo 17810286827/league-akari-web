@@ -100,3 +100,52 @@ describe('game-resource 扩展', () => {
     expect(display.iconUrl).toContain('adapt_small.png')
   })
 })
+
+describe('修复回归：海克斯占位符与装备合成路径', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ data: [] }))))
+
+  it('gtimg 键值对象形状（键为索引、augmentID 在记录内）：按 augmentID 命中且取 tooltip 干净文本', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([{ id: 1077, nameTRA: '虹吸', augmentSmallIconPath: '/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SoulSiphon_small.png', rarity: 'kGold' }])
+    )
+    // 真实 kiwi 数据形态：顶层键是数组索引（'12'），augmentID 在记录内；desc 带占位符、tooltip 干净
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({
+        '12': { augmentID: 1077, name_cn: '灵魂虹吸', desc: '获得<crit>@CritChance*100@%暴击几率</crit>和<lifeSteal>@HealPercentage*100@%生命偷取</lifeSteal>。', tooltip: '获得暴击几率和作用于暴击的生命偷取。', level: 'kGold', large_Icon: 'https://game.gtimg.cn/images/lol/act/img/rune/soulsiphon_large.png' }
+      })
+    )
+    const display = await fresh.augmentDisplay(1077)
+    // 名称取 gtimg name_cn（完整中文名），而非 CDragon nameTRA
+    expect(display.name).toBe('灵魂虹吸')
+    // 描述取 tooltip（无占位符的干净文本），不泄漏 {{xx}}/@xx@ 占位符
+    expect(display.descriptionHtml).toBe('获得暴击几率和作用于暴击的生命偷取。')
+    expect(display.descriptionHtml).not.toContain('@')
+  })
+
+  it('tooltip 缺失时回退 desc（不崩溃）', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok([{ id: 1022, nameTRA: '灵巧', augmentSmallIconPath: '/x.png', rarity: 'kSilver' }]))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ '12': { augmentID: 1022, name_cn: '灵巧', desc: '获得@AttackSpeed*100@%攻击速度。', level: 'kSilver' } })
+    )
+    const display = await fresh.augmentDisplay(1022)
+    expect(display.name).toBe('灵巧')
+    expect(display.rarity).toBe('kSilver')
+    // desc 含占位符但可展示（tooltip 缺失时的兜底语义）
+    expect(display.descriptionHtml).toContain('攻击速度')
+  })
+
+  it('itemDisplay 的 to 字段为数字 0（CDragon 老格式）时归一为空数组，不抛错', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ data: { '3089': { name: '灭世者的死亡之帽', from: [1058, 1058], to: 0, priceTotal: 3600, price: 1200, iconPath: '/x.png' } } })
+    )
+    const display = await fresh.itemDisplay(3089)
+    expect(display.from).toEqual([1058, 1058])
+    expect(display.to).toEqual([])
+  })
+})
