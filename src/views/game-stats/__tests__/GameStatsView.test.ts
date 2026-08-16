@@ -13,7 +13,7 @@ import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 
-import { getMatchDetail, getMatchTimeline, listMatches } from '@/api/matches'
+import { getMatchDetail, listMatches } from '@/api/matches'
 import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
@@ -45,11 +45,10 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
   }
 })
 
-// mock API 层：三个接口由各用例经 beforeEach 注入返回值
+// mock API 层：接口由各用例经 beforeEach 注入返回值（时间线接口已不再调用）
 vi.mock('@/api/matches', () => ({
   listMatches: vi.fn(),
-  getMatchDetail: vi.fn(),
-  getMatchTimeline: vi.fn()
+  getMatchDetail: vi.fn()
 }))
 
 /**
@@ -180,9 +179,6 @@ const detailFixture = {
   ]
 }
 
-/** 时间线帧（结构透传 unknown，任意形状即可） */
-const timelineFrames = [{ frameNumber: 1 }, { frameNumber: 2 }]
-
 /** 挂载 GameStatsView：NConfigProvider + NMessageProvider 包裹（naive-ui 依赖），图表打桩 */
 function mountView() {
   // 返回挂载结果：各用例按需 await flushPromises 等待列表/详情接口 resolve
@@ -208,8 +204,6 @@ describe('GameStatsView', () => {
     } satisfies PageResponse<MatchSummary>)
     // 详情：真实 MatchDetail（LCU fixture），与轻量摘要同一 gameId=123
     vi.mocked(getMatchDetail).mockResolvedValue(detailFixture)
-    // 时间线：两帧透传（结构 unknown，任意形状即可）
-    vi.mocked(getMatchTimeline).mockResolvedValue(timelineFrames)
   })
 
   it('列表加载后渲染折叠卡（轻量参与者 KDA/玩家行/装备图标），未触发详情请求', async () => {
@@ -231,31 +225,28 @@ describe('GameStatsView', () => {
     expect(wrapper.text()).toContain('总览统计')
     expect(wrapper.find('.queue-select').exists()).toBe(true)
 
-    // 折叠态未触发任何详情请求，也不渲染展开卡片（懒加载生效）
+    // 折叠态未触发详情请求，也不渲染展开卡片（懒加载生效）
     expect(getMatchDetail).not.toHaveBeenCalled()
-    expect(getMatchTimeline).not.toHaveBeenCalled()
     // 展开态卡片（MatchCard）与详情面板均未挂载
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
   })
 
-  it('点击折叠卡展开：并行懒加载详情+时间线，渲染 MatchCard 展开态', async () => {
+  it('点击折叠卡展开：懒加载详情，渲染 MatchCard 展开态', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // 点击折叠卡 → 通知父组件按 gameId 懒加载（详情与时间线并行请求）
+    // 点击折叠卡 → 通知父组件按 gameId 懒加载详情（时间线接口已移除，不再请求）
     await wrapper.find('.collapsed').trigger('click')
     expect(getMatchDetail).toHaveBeenCalledWith(123)
-    expect(getMatchTimeline).toHaveBeenCalledWith(123)
 
-    // 详情就绪后切换为 MatchCard 展开态：时间线归一化注入 details
+    // 详情就绪后切换为 MatchCard 展开态（details 恒 null：总览面板无时间线消费）
     await flushPromises()
     const card = wrapper.findComponent(MatchCard)
     expect(card.exists()).toBe(true)
     expect(card.props('isExpanded')).toBe(true)
-    expect(card.props('details')).toEqual({ frames: timelineFrames })
-    // 展开面板 Tab 渲染（真实详情数据源为 lcu，无"构建"Tab）
-    expect(wrapper.text()).toContain('总览')
-    expect(wrapper.text()).toContain('详尽表格')
+    expect(card.props('details')).toBeNull()
+    // 展开面板精简为"总览"（队伍表格）：无 Tab 切换，直接渲染 TeamTable
+    expect(wrapper.text()).toContain('KDA')
   })
 
   it('展开后收起（卡片内箭头）再展开：命中缓存不重复请求', async () => {
@@ -274,13 +265,12 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
     expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
 
-    // 再次点击展开：详情已缓存，不再请求后端（两个接口均只调用一次）
+    // 再次点击展开：详情已缓存，不再请求后端（接口仅调用一次）
     await wrapper.find('.collapsed').trigger('click')
     await flushPromises()
     // 展开态由缓存数据渲染，接口调用次数不增加
     expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
     expect(getMatchDetail).toHaveBeenCalledTimes(1)
-    expect(getMatchTimeline).toHaveBeenCalledTimes(1)
   })
 
   it('详情接口失败：收起卡片并提示错误，不渲染展开态', async () => {
@@ -322,9 +312,9 @@ describe('GameStatsView', () => {
     expect(wrapper.findAll('.collapsed')).toHaveLength(2)
     await wrapper.findAll('.collapsed')[0].trigger('click')
     await flushPromises()
-    // A 展开态详情未就绪：展示占位文案，列表只剩 B 一张折叠卡
-    expect(wrapper.text()).toContain('详情加载中...')
-    await wrapper.find('.collapsed').trigger('click')
+    // A 展开态详情未就绪：保留原折叠卡（不切加载占位），列表仍为两张折叠卡
+    expect(wrapper.findAll('.collapsed')).toHaveLength(2)
+    await wrapper.findAll('.collapsed')[1].trigger('click')
     await flushPromises()
     // B 详情已就绪：渲染的是 B 的展开态卡片（summary.gameId=456，非 A），loading 已复位
     const card = wrapper.findComponent(MatchCard)
@@ -342,27 +332,5 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
     expect(wrapper.findComponent(MatchCard).props('loadingDetails')).toBe(false)
     expect(document.body.textContent).toBe(bodyTextBeforeReject)
-  })
-
-  it('时间线接口失败仅 warn 不阻塞展开（时间线注入 null，卡片正常渲染）', async () => {
-    // 时间线失败（如 500）：展开态仍以详情数据渲染，时间线 Tab 展示空态
-    vi.mocked(getMatchTimeline).mockRejectedValue(new Error('timeline 500'))
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const wrapper = mountView()
-    await flushPromises()
-
-    // 点击折叠卡展开：详情成功、时间线失败，两者互不阻塞
-    await wrapper.find('.collapsed').trigger('click')
-    await flushPromises()
-
-    // 详情不受时间线失败影响：展开卡片正常渲染，details 保持 null（时间线 Tab 空态）
-    const card = wrapper.findComponent(MatchCard)
-    expect(card.exists()).toBe(true)
-    expect(card.props('details')).toBeNull()
-    // 仅 warn 日志（不弹错误消息），与详情页口径一致
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to load match timeline'),
-      expect.anything()
-    )
   })
 })

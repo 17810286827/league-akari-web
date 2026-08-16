@@ -61,25 +61,27 @@ const expandedModel = computed({
 
 <template>
   <article class="game-card">
-    <!-- 折叠态：原版折叠卡（点击整卡展开；箭头点击冒泡至整卡，不重复触发） -->
-    <div v-if="!expanded" class="collapsed" @click="emit('toggle', game.summary.gameId)">
+    <!--
+      折叠卡：未展开或详情加载中均显示原卡片（加载中保留原信息，不切加载占位，
+      避免点击后卡片闪烁；详情就绪后 v-else 无缝切换为展开态）
+    -->
+    <div
+      v-if="!expanded || !game.detail"
+      class="collapsed"
+      @click="emit('toggle', game.summary.gameId)"
+    >
       <MatchCardOverview />
     </div>
 
-    <!-- 展开态：详情（+时间线）加载完成 → 原版 MatchCard 展开态（卡片内箭头收起联动父组件） -->
+    <!-- 展开态：详情（已缓存）加载完成 → 原版 MatchCard 展开态（卡片内点击/箭头收起联动父组件） -->
     <MatchCard
-      v-else-if="game.detail"
+      v-else
       :summary="game.detail"
       :details="game.details"
       :puuid="game.summary.selfPuuid"
       v-model:is-expanded="expandedModel"
       :loading-details="detailLoading"
     />
-
-    <!-- 展开态加载中：详情就绪前不渲染详情面板，展示占位 -->
-    <p v-else class="detail-placeholder">
-      {{ detailLoading ? '详情加载中...' : '暂无详情数据' }}
-    </p>
   </article>
 </template>
 
@@ -98,18 +100,5 @@ const expandedModel = computed({
   &:hover {
     background: var(--surface);
   }
-}
-
-/* 展开态加载中占位：高度与折叠卡（h-29 = 116px）一致，避免首次展开时
-   116px → 60px 占位 → 详情就绪后 734px 的两次高度突变造成卡片跳动 */
-.detail-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 116px;
-  font-size: 13px;
-  color: var(--text-muted);
-  border-radius: var(--radius);
-  background: var(--surface);
 }
 </style>

@@ -9,10 +9,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
 
-import { getMatchDetail, getMatchTimeline, listMatches } from '@/api/matches'
+import { getMatchDetail, listMatches } from '@/api/matches'
 import type { MatchDetail, MatchSummary } from '@/api/types'
-import { toMatchCardFrames } from '@/views/match-detail/adapter/match-card-timeline'
-import type { MatchCardGameDetails } from '@/views/match-detail/adapter/types'
 import { createLogger } from '@/utils/logger'
 
 import { computeOverview, computeRecentOpponents, computeRecentTeammates } from './adapter'
@@ -48,10 +46,9 @@ const expandedGameId = ref<number | null>(null)
 // 侧栏折叠态：小屏默认收起，由折叠按钮切换
 const sidebarCollapsed = ref(false)
 
-/** 详情懒加载缓存项：真实详情 + 时间线（失败为 null），避免重复请求 */
+/** 详情懒加载缓存项：真实详情（时间线 Tab 已移除，不再加载 /timeline） */
 interface DetailCacheEntry {
   detail: MatchDetail
-  details: MatchCardGameDetails | null
 }
 
 // 详情懒加载：转换结果缓存（避免重复请求）与原始详情列表（供最近对手聚合）
@@ -76,7 +73,7 @@ const games = computed<GameListItem[]>(() =>
     .map((summary) => ({
       summary,
       detail: detailCache.value.get(summary.gameId)?.detail ?? null,
-      details: detailCache.value.get(summary.gameId)?.details ?? null
+      details: null
     }))
 )
 
@@ -124,8 +121,8 @@ async function loadMatches(): Promise<void> {
 
 /**
  * 点击卡片：展开/收起该局详情
- * 首次展开时并行懒加载 getMatchDetail + getMatchTimeline（任一失败互不阻塞，与详情页口径一致），
- * 转换结果缓存复用；详情失败则收起并提示，时间线失败仅 warn（时间线 Tab 空态）
+ * 首次展开时懒加载 getMatchDetail（展开详情已精简为"总览"，时间线 Tab 移除，
+ * 不再请求 /timeline 接口），转换结果缓存复用；详情失败则收起并提示
  */
 async function toggleGame(gameId: number): Promise<void> {
   // 已展开的对局再次点击 → 收起
@@ -141,41 +138,26 @@ async function toggleGame(gameId: number): Promise<void> {
   }
   detailLoading.value = true
   try {
-    // 详情与时间线并行加载：详情失败收起并提示；时间线失败仅 warn，不阻塞展开
-    // 与详情页（MatchDetailView）的 allSettled 口径一致，避免单一接口故障拖垮整卡
-    const [detailResult, timelineResult] = await Promise.allSettled([
-      getMatchDetail(gameId),
-      getMatchTimeline(gameId)
-    ])
+    const detail = await getMatchDetail(gameId)
     // 归属校验：await 期间用户可能已切换展开目标（点 A 后立即点 B），
     // 过期响应不得再改动展开状态（误收起新目标）或复位新目标的 loading
     if (expandedGameId.value !== gameId) {
       return
     }
+    // 写入缓存：折叠卡/展开态共用，收起再展开零请求
+    detailCache.value.set(gameId, { detail })
+    // 记录原始详情，供"最近对手"聚合逐步完善
+    loadedDetails.value = [...loadedDetails.value, detail]
+    logger.info('Loaded match detail', { gameId })
+  } catch (error) {
     // 详情失败：展开态无数据可展示，收起卡片并弹出错误提示
-    if (detailResult.status === 'rejected') {
-      logger.error('Failed to load match detail', { gameId, error: detailResult.reason })
-      message.error(`对局 ${gameId} 详情加载失败`)
-      expandedGameId.value = null
-      // 本请求仍是当前展开目标：失败收起的同时复位 loading（finally 归属校验此时已不满足）
-      detailLoading.value = false
+    if (expandedGameId.value !== gameId) {
       return
     }
-    // 时间线失败：仅记录 warn（时间线 Tab 显示空态），不阻塞卡片展开
-    if (timelineResult.status === 'rejected') {
-      logger.warn('Failed to load match timeline', { gameId, error: timelineResult.reason })
-    }
-    // 详情与时间线归一化后写入缓存：折叠卡/展开态共用，收起再展开零请求
-    detailCache.value.set(gameId, {
-      detail: detailResult.value,
-      details:
-        timelineResult.status === 'fulfilled'
-          ? { frames: toMatchCardFrames(timelineResult.value) }
-          : null
-    })
-    // 记录原始详情，供"最近对手"聚合逐步完善
-    loadedDetails.value = [...loadedDetails.value, detailResult.value]
-    logger.info('Loaded match detail', { gameId })
+    logger.error('Failed to load match detail', { gameId, error })
+    message.error(`对局 ${gameId} 详情加载失败`)
+    expandedGameId.value = null
+    detailLoading.value = false
   } finally {
     // 归属校验：仅当本请求仍是当前展开目标时复位 loading（过期请求不得复位新目标的 loading）
     if (expandedGameId.value === gameId) {
@@ -266,24 +248,31 @@ onMounted(() => {
 </template>
 
 <style lang="scss">
-/* 深色主题变量（League Akari 风格：纯黑背景 + 深黑卡片，与全局 tailwind 令牌一致） */
+/* 电竞终端主题变量（用户选定 B 方案：近黑底 + 霓虹紫主色 + 玫红强调，
+   与全局 tailwind/opgg 令牌一致） */
 .game-stats {
-  --bg: #000000;
-  --surface: #101014;
-  --surface-hover: #1a1a20;
-  --surface-active: #24242c;
-  --border: #2a2a32;
-  --text: #e6e9f2;
-  --text-muted: #8b93a7;
+  --bg: #09090b;
+  --surface: #0e0e13;
+  --surface-hover: #16151d;
+  --surface-active: #1d1c26;
+  --border: #2e2440;
+  --border-strong: #3e2f5c;
+  --text: #f4f2fa;
+  --text-muted: #a6acbf;
+  --primary: #7c3aed;
+  --primary-2: #a78bfa;
+  --accent: #f43f5e;
   --win: #4b7be5;
   --loss: #e03e52;
-  --surrender: #6b7280;
   --gold: #c8aa6e;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 
   min-height: 100vh;
-  background: var(--bg);
+  /* 近黑底 + 顶部微紫光晕（夜晚竞技场氛围，不抢数据内容） */
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(124, 58, 237, 0.14), transparent 65%),
+    var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
@@ -322,11 +311,11 @@ onMounted(() => {
   padding: 12px;
 }
 
-/* 列表容器：折叠卡纵向排列，卡片间距 10px */
+/* 列表容器：折叠卡纵向排列，卡片间距 14px（卡片加高后保持呼吸感） */
 .game-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 /* 空态提示：加载失败错误信息或无数据占位文案 */
