@@ -3,6 +3,7 @@
     v-if="participant && team"
     class="overview-card glass-card transition-width @container relative box-border flex h-[150px] w-full overflow-hidden rounded-xl border border-solid select-none"
     :class="cardBorderClass"
+    :style="winLossBackground"
     @click="$emit('toggle-expand')"
   >
     <!-- main content -->
@@ -476,23 +477,13 @@
       </NIcon>
     </div>
 
-    <!-- 签名元素：左缘胜负色带（电竞终端设计，3px 语义色条） -->
+    <!-- 签名元素：左缘胜负色带（淡绿终端设计，3px 语义色条） -->
     <div
       class="result-stripe absolute top-0 left-0 z-0 h-full w-1"
       :class="{
         'bg-blue-500/90 dark:bg-blue-400/80': winStyleType === 'win',
         'bg-red-500/90 dark:bg-red-500/80': winStyleType === 'loss',
         'bg-gray-500/70 dark:bg-gray-400/60': winStyleType === 'neutral'
-      }"
-    />
-
-    <!-- shadow for win / loss -->
-    <div
-      class="absolute top-0 left-0 z-0 h-full w-full"
-      :class="{
-        'shadow-win': winStyleType === 'win',
-        'shadow-loss': winStyleType === 'loss',
-        'shadow-remake': winStyleType === 'neutral'
       }"
     />
   </div>
@@ -639,6 +630,27 @@ const mapName = computed(() => {
 
 const winStyleType = useWinResultStyleType()
 const cardBorderClass = useCardBorderClass()
+
+/**
+ * 胜负背景微染（替代原 absolute 遮罩层）：
+ * 原 shadow-win/loss 为全卡独立半透明合成层，快速滚动时 GPU 重绘有概率闪烁成
+ * 明显的红/蓝遮罩；改为把胜负微染直接合成进玻璃背景（background 多层叠加），
+ * 与卡片同层绘制，彻底消除闪烁
+ */
+const winLossBackground = computed(() => {
+  // 玻璃底 + 中心柔和绿光晕（与 glass-card 一致，inline 覆盖以叠加胜负微染）
+  const base =
+    'radial-gradient(circle at 50% 50%, rgba(74,222,128,0.10), transparent 62%), rgba(17,22,17,0.88)'
+  if (winStyleType.value === 'win') {
+    // 胜利：极淡蓝微染（保留胜负语义但不抢内容）
+    return { background: `linear-gradient(rgba(75,123,229,0.05), rgba(75,123,229,0.05)), ${base}` }
+  }
+  if (winStyleType.value === 'loss') {
+    // 失败：极淡红微染
+    return { background: `linear-gradient(rgba(224,62,82,0.05), rgba(224,62,82,0.05)), ${base}` }
+  }
+  return { background: base }
+})
 
 /** 伤害占比（0-100，四舍五入）：玻璃终端荧光数据条与百分比文字共用 */
 const dmgPercentage = computed(() => {

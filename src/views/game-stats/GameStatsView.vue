@@ -29,6 +29,42 @@ const router = useRouter()
 /** 每页条数（分页控件可选 5/10/20，默认 20） */
 const pageSize = ref(20)
 
+/** 可选的每页条数（契约支持 5/10/20） */
+const PAGE_SIZE_OPTIONS = [5, 10, 20]
+
+/** 是否还能翻下一页：当前页已满且未到总条数（分页栏箭头禁用判定） */
+const hasNextPage = computed(() => page.value * pageSize.value < total.value)
+
+/** 总页数（至少 1 页，页码按钮渲染用） */
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+/**
+ * 页码列表：首尾页 + 当前页前后各 1 页，中间用省略号（'ellipsis'）占位。
+ * 如 20 页当前第 8 页 → [1, …, 7, 8, 9, …, 20]
+ */
+const pageItems = computed<(number | 'ellipsis')[]>(() => {
+  const pages: (number | 'ellipsis')[] = []
+  const last = totalPages.value
+  const current = page.value
+  for (let i = 1; i <= last; i++) {
+    if (i === 1 || i === last || Math.abs(i - current) <= 1) {
+      pages.push(i)
+    } else if (pages[pages.length - 1] !== 'ellipsis') {
+      pages.push('ellipsis')
+    }
+  }
+  return pages
+})
+
+/**
+ * 每页条数切换：回到第一页并立即重新查询
+ * （不能只靠 watch(page)——若当前已在第 1 页，page 赋值前后不变不触发 watcher）
+ */
+function handlePageSizeChange(): void {
+  page.value = 1
+  loadMatches()
+}
+
 /** 顶部段位板块：无数据源，保持"未定级"展示（契约第 5 节） */
 const rankSections: RankSection[] = [
   { queue: '单双排位', tier: '未定级', highestTier: '最高 未定级' },
@@ -306,8 +342,6 @@ watch(
           :data="sidebarData"
           :total="total"
           v-model:queue="activeQueueId"
-          v-model:page="page"
-          v-model:page-size="pageSize"
         />
       </div>
 
@@ -327,6 +361,47 @@ watch(
             <p v-if="!loading && games.length === 0" class="empty">
               {{ errorMsg || '该玩家暂无对局记录' }}
             </p>
+          </div>
+
+          <!-- 分页栏：位于战绩列表底部（每页条数 5/10/20 + 总条数 + 翻页箭头，切换即查询） -->
+          <div class="pagination" v-if="queryPlayer">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option v-for="size in PAGE_SIZE_OPTIONS" :key="size" :value="size">
+                {{ size }}条/页
+              </option>
+            </select>
+            <span class="pager-count">共 {{ total }} 场</span>
+            <button
+              type="button"
+              class="pager-btn"
+              :disabled="page <= 1"
+              @click="page -= 1"
+            >‹</button>
+            <button
+              type="button"
+              class="pager-btn"
+              :disabled="!hasNextPage"
+              @click="page += 1"
+            >›</button>
+
+            <!-- 页码跳转：1 2 3 …（当前页绿色高亮，点击直达对应页并立即查询） -->
+            <div class="page-numbers">
+              <template v-for="(item, index) in pageItems" :key="index">
+                <button
+                  v-if="item === 'ellipsis'"
+                  type="button"
+                  class="page-ellipsis"
+                  disabled
+                >…</button>
+                <button
+                  v-else
+                  type="button"
+                  class="page-num"
+                  :class="{ 'page-num-active': item === page }"
+                  @click="page = item"
+                >{{ item }}</button>
+              </template>
+            </div>
           </div>
         </n-spin>
       </main>
@@ -454,6 +529,93 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* 分页栏：列表底部居中（每页条数下拉 + 总条数 + 翻页箭头，淡绿终端风格） */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 0 6px;
+}
+
+.page-size-select {
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.pager-count {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.pager-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  &:hover:not(:disabled) {
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+/* 页码跳转：1 2 3 …（当前页绿色高亮） */
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-num {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+
+  &:hover:not(.page-num-active) {
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+  }
+}
+
+/* 当前页：柔和绿渐变高亮 */
+.page-num-active {
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  border-color: transparent;
+  color: #0b0f0c;
+  font-weight: 700;
+}
+
+.page-ellipsis {
+  min-width: 20px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: default;
 }
 
 /* 空态提示：加载失败错误信息或无数据占位文案 */

@@ -1,24 +1,19 @@
 <script setup lang="ts">
 /**
  * 左侧边栏：队列筛选区 + 总览统计区 + 最近队友区 + 最近对手区
- * 队列筛选（真实 queueId）与分页通过 v-model 与父组件同步；数据均来自父组件聚合结果
- * （召唤师查询已移至页面顶部居中搜索栏）
+ * 队列筛选（真实 queueId）与父组件同步；数据均来自父组件聚合结果
+ * （召唤师查询已移至页面顶部居中搜索栏，分页已移至战绩列表底部）
  */
 import { championIconUrl } from '@/utils/icon-url'
 
 import { QUEUE_OPTIONS } from './adapter'
 import type { GameStatsData, OverviewStats, RecentPlayer } from './types'
 
-// 页面数据（props 注入）与后端总条数（分页"N项"显示）；具名引用供模板函数使用
+// 页面数据（props 注入）与后端总条数；具名引用供模板函数使用
 const props = defineProps<{ data: GameStatsData; total: number }>()
 
-// 队列筛选（下拉框，值为后端 queueId，null 为所有模式）、当前页与每页条数（5/10/20）
+// 队列筛选（下拉框，值为后端 queueId，null 为所有模式）
 const queue = defineModel<number | null>('queue', { default: null })
-const page = defineModel<number>('page', { default: 1 })
-const pageSize = defineModel<number>('pageSize', { default: 20 })
-
-/** 可选的每页条数（契约支持 5/10/20） */
-const PAGE_SIZE_OPTIONS = [5, 10, 20]
 
 /** 总览统计字段配置：标签 + 取值函数 + 是否百分比；百分比项渲染 mini 渐变进度条 */
 const overviewItems: {
@@ -57,21 +52,11 @@ const overviewItems: {
   { label: '补刀/分', value: (o) => o.csPerMin.toFixed(1) },
   { label: '胜负', value: (o) => `${o.wins}胜${o.losses}负` }
 ]
-
-/** 判断是否还能翻下一页：当前页已满且未到总条数 */
-function hasNextPage(): boolean {
-  return page.value * pageSize.value < props.total
-}
-
-/** 判断是否还能翻上一页 */
-function hasPrevPage(): boolean {
-  return page.value > 1
-}
 </script>
 
 <template>
   <aside class="sidebar">
-    <!-- 一、队列筛选区 -->
+    <!-- 一、队列筛选区（分页已移至战绩列表底部） -->
     <section class="panel">
       <div class="filter-row">
         <select v-model="queue" class="queue-select">
@@ -79,15 +64,6 @@ function hasPrevPage(): boolean {
             {{ option.label }}
           </option>
         </select>
-        <!-- 分页控件：每页条数选择 + 后端总条数 + 左右箭头 -->
-        <div class="pager">
-          <select v-model="pageSize" class="page-size-select" @change="page = 1">
-            <option v-for="size in PAGE_SIZE_OPTIONS" :key="size" :value="size">{{ size }}</option>
-          </select>
-          <span class="pager-count">{{ total }}项</span>
-          <button type="button" class="pager-btn" :disabled="!hasPrevPage()" @click="page -= 1">‹</button>
-          <button type="button" class="pager-btn" :disabled="!hasNextPage()" @click="page += 1">›</button>
-        </div>
       </div>
       <button type="button" class="filter-btn">页内筛选</button>
     </section>
@@ -211,45 +187,6 @@ function hasPrevPage(): boolean {
   background: var(--surface-hover);
   color: var(--text);
   font-size: 16px;
-}
-
-.pager {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pager-count {
-  font-size: 15px;
-  color: var(--text-muted);
-}
-
-/* 每页条数选择：紧凑下拉，与队列筛选同款 */
-.page-size-select {
-  padding: 4px 6px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-hover);
-  color: var(--text);
-  font-size: 13px;
-}
-
-.pager-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius);
-  background: var(--surface-hover);
-  color: var(--text);
-  transition: background-color 0.15s;
-
-  &:hover:not(:disabled) {
-    background: var(--surface-active);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
 }
 
 .filter-btn {
