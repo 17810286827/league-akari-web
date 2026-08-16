@@ -36,6 +36,7 @@ const zh: Record<string, string> = {
   'matchCard.overview.stats.cs': '补刀数',
   'matchCard.overview.stats.turret': '推塔数',
   'matchCard.overview.stats.ward': '插眼数',
+  'matchCard.overview.dgeTip': '伤害转化率 = 对英雄伤害 ÷ 获得金币',
   // 队伍名（common.yaml teams 段；text.ts useTeamName 消费）
   'teams.TEAM-100': '蓝队',
   'teams.TEAM-200': '红队',

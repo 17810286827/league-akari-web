@@ -163,6 +163,43 @@
             </div>
           </div>
 
+          <!-- gold：经济占比，与伤害/承伤占比同风格（百分比 + 荧光数据条 + 数值） -->
+          <div class="min-w-22">
+            <div class="text-center text-[20px] font-bold">
+              {{ goldPercentage }}%
+            </div>
+
+            <div class="dmg-bar">
+              <div class="dmg-bar-fill" :style="{ width: `${goldPercentage}%` }"></div>
+            </div>
+
+            <div class="flex justify-center gap-1">
+              <div class="text-[16px] text-black/80 dark:text-white/80">
+                {{ formatExtremeNumber(participant.goldEarned) }}
+              </div>
+              <div class="text-[16px] text-black/60 dark:text-white/60">
+                {{ t('matchCard.overview.stats.gold') }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 伤转：伤害转化率（对英雄伤害 ÷ 金币），数据条 = 玩家/队均（队均 100% 基准） -->
+          <div class="min-w-22" :title="t('matchCard.overview.dgeTip')">
+            <div class="text-center text-[20px] font-bold tabular-nums">
+              {{ dge.toFixed(2) }}
+            </div>
+
+            <div class="dmg-bar">
+              <div class="dmg-bar-fill" :style="{ width: `${dgeRatio}%` }"></div>
+            </div>
+
+            <div class="flex justify-center gap-1">
+              <div class="text-[16px] text-black/60 dark:text-white/60">
+                {{ t('matchCard.tags.damageGoldEfficiency.teamLabel') }}
+              </div>
+            </div>
+          </div>
+
                   <!-- cs -->
                   <div class="hidden min-w-22 @min-[700px]:block" v-if="displayParts.cs">
                     <div class="text-center text-[21px] font-bold">
@@ -232,34 +269,6 @@
           <div class="min-w-0 flex-1">
             <ManyTags />
           </div>
-        </div>
-
-        <!-- 统计图标行（web 扩展：击杀/承伤/治疗/视野/金币/补刀/推塔/插眼，图标 + 紧凑数值） -->
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[16px] text-black/80 dark:text-white/85">
-          <span class="flex items-center gap-0.5">
-            <span aria-hidden="true">⚔️</span>{{ participant.kills }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.damageTaken')">
-            <span aria-hidden="true">🛡️</span>{{ formatExtremeNumber(participant.totalDamageTaken) }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.heal')">
-            <span aria-hidden="true">❤️</span>{{ formatExtremeNumber(participant.totalHeal) }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.vision')">
-            <span aria-hidden="true">👁️</span>{{ participant.visionScore }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.gold')">
-            <span aria-hidden="true">💰</span>{{ formatExtremeNumber(participant.goldEarned) }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.cs')">
-            <span aria-hidden="true">🗡️</span>{{ participant.cs }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.turret')">
-            <span aria-hidden="true">🏰</span>{{ participant.turretKills }}
-          </span>
-          <span class="flex items-center gap-0.5" :title="t('matchCard.overview.stats.ward')">
-            <span aria-hidden="true">✨</span>{{ participant.wardsPlaced }}
-          </span>
         </div>
 
         <!-- info line -->
@@ -500,7 +509,7 @@ import SummonerSpellDisplay from '@/components/widgets/SummonerSpellDisplay.vue'
 import { EMPTY_PUUID } from '@/utils/constants'
 import { useGameResourceProvider } from '@/utils/match-card-resource'
 import { t } from '@/utils/match-card-i18n'
-import { useNumberFormatter } from '@/utils/numbers'
+import { noZero, useNumberFormatter } from '@/utils/numbers'
 import { getCherryWinningTeamCount } from '@/views/match-detail/adapter/match-card-cherry'
 import { Crown, Robot } from '@vicons/fa'
 import { ArrowBackIosFilled } from '@vicons/material'
@@ -644,6 +653,26 @@ const dmgPercentage = computed(() => {
 const dmgTakenPercentage = computed(() => {
   const teamTotal = teams.value.teamStatMap[participant.value!.teamIdentifier].totalDamageTaken
   return Math.round((participant.value!.totalDamageTaken / (teamTotal || 1)) * 100)
+})
+
+/** 经济占比（0-100，四舍五入）：金币占队伍总收入比例，同伤害/承伤风格 */
+const goldPercentage = computed(() => {
+  const teamTotal = teams.value.teamStatMap[participant.value!.teamIdentifier].totalGoldEarned
+  return Math.round((participant.value!.goldEarned / (teamTotal || 1)) * 100)
+})
+
+/**
+ * 伤害转化率（伤转率）：对英雄总伤害 ÷ 获得金币（每 1 金币换来的伤害）
+ * 数据条宽度 = 玩家伤转率 / 队均伤转率（队均 = 100% 基准，上限截断）
+ */
+const dge = computed(() => {
+  return participant.value!.totalDamageDealtToChampions / noZero(participant.value!.goldEarned)
+})
+
+const dgeRatio = computed(() => {
+  const team = teams.value.teamStatMap[participant.value!.teamIdentifier]
+  const teamAvg = team.totalDamageDealtToChampions / noZero(team.totalGoldEarned)
+  return Math.min(100, Math.round((dge.value / noZero(teamAvg)) * 100))
 })
 
 const formattedRelativeTime = ref('')
