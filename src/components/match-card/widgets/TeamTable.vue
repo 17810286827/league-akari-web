@@ -225,12 +225,12 @@
       <template v-for="column in extraColumns" :key="column.name">
         <!-- kda -->
         <div v-if="column.name === 'kda'" :class="column.class">
-          <div class="text-xs">
+          <div class="text-[14px] tabular-nums">
             {{ participant.kills }}/{{ participant.deaths }}/{{ participant.assists }} ({{
               (participant.killParticipation * 100).toFixed(0)
             }}%)
           </div>
-          <div class="text-[11px] text-black/60 dark:text-white/60">
+          <div class="text-[13px] text-black/60 dark:text-white/60 tabular-nums">
             {{ participant.kda.toFixed(2) }} KDA
           </div>
         </div>
@@ -265,8 +265,8 @@
 
         <!-- cs -->
         <div v-else-if="column.name === 'cs'" :class="column.class">
-          <div class="text-xs">{{ participant.cs }} {{ t('matchCard.teamTable.cs') }}</div>
-          <div class="text-[11px] text-black/60 dark:text-white/60">
+          <div class="text-[14px] tabular-nums">{{ participant.cs }} {{ t('matchCard.teamTable.cs') }}</div>
+          <div class="text-[13px] text-black/60 dark:text-white/60 tabular-nums">
             {{ (participant.cs / (basicInfo.gameDuration / 60)).toFixed(1) }}
             {{ t('matchCard.teamTable.perMinuteSuffix') }}
           </div>
@@ -274,8 +274,8 @@
 
         <!-- gold -->
         <div v-else-if="column.name === 'gold'" :class="column.class">
-          <div class="text-xs">{{ (participant.goldEarned / 1000).toFixed(2) }}k</div>
-          <div class="text-[11px] text-black/60 dark:text-white/60">
+          <div class="text-[14px] tabular-nums">{{ (participant.goldEarned / 1000).toFixed(2) }}k</div>
+          <div class="text-[13px] text-black/60 dark:text-white/60 tabular-nums">
             {{ (participant.goldEarned / (basicInfo.gameDuration / 60)).toFixed(1) }}
             {{ t('matchCard.teamTable.perMinuteSuffix') }}
           </div>
@@ -344,31 +344,32 @@ const someoneHas6Augments = computed(() => {
 })
 
 const extraColumns = computed<ColumnConfig[]>(() => {
+  // 数字列统一 min-w 与 text-center（等宽数字由元素级 tabular-nums 保证列对齐）
   switch (basicInfo.value.gameMode) {
     case 'CHERRY':
       return [
-        { name: 'kda', class: 'min-w-[6.5rem] text-center' },
+        { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'augments', class: 'min-w-[7.5rem] flex gap-0.5 justify-center' },
-        { name: 'damage', class: 'min-w-32 flex gap-2 justify-center' },
-        { name: 'cs', class: 'hidden @[740px]:block min-w-[4.5rem] text-center' },
-        { name: 'gold', class: 'hidden @[700px]:block min-w-[4.5rem] text-xs text-center' },
+        { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
+        { name: 'cs', class: 'hidden @[740px]:block min-w-[5rem] text-center' },
+        { name: 'gold', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
         { name: 'items', class: 'w-40 flex gap-0.5 justify-center' }
       ]
     case 'KIWI':
       return [
-        { name: 'kda', class: 'min-w-[6.5rem] text-center' },
+        { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'augments', class: 'min-w-[7.25rem] flex gap-0.5 justify-center' },
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
-        { name: 'cs', class: 'hidden @[740px]:block min-w-[4.5rem] text-center' },
-        { name: 'gold', class: 'hidden @[700px]:block min-w-[4.5rem] text-xs text-center' },
+        { name: 'cs', class: 'hidden @[740px]:block min-w-[5rem] text-center' },
+        { name: 'gold', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
         { name: 'items', class: 'min-w-40 flex gap-0.5 justify-center' }
       ]
     default:
       return [
-        { name: 'kda', class: 'min-w-[6.5rem] text-center' },
-        { name: 'damage', class: 'min-w-32 flex gap-2 justify-center' },
-        { name: 'cs', class: 'hidden @[700px]:block w-[4.5rem] text-center' },
-        { name: 'gold', class: 'min-w-[4.5rem] text-xs text-center' },
+        { name: 'kda', class: 'min-w-[7rem] text-center' },
+        { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
+        { name: 'cs', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
+        { name: 'gold', class: 'min-w-[5rem] text-center' },
         {
           name: 'items',
           class: `${hasRoleBoundItems ? 'min-w-45' : 'min-w-40'} flex gap-0.5 justify-center`

@@ -133,15 +133,35 @@
               <div class="dmg-bar-fill" :style="{ width: `${dmgPercentage}%` }"></div>
             </div>
 
-                    <div class="flex justify-center gap-1">
-                      <div class="text-[16px] text-black/80 dark:text-white/80">
-                        {{ formatExtremeNumber(participant.totalDamageDealtToChampions) }}
-                      </div>
-                      <div class="text-[16px] text-black/60 dark:text-white/60">
-                        {{ t('matchCard.overview.damage') }}
-                      </div>
-                    </div>
-                  </div>
+            <div class="flex justify-center gap-1">
+              <div class="text-[16px] text-black/80 dark:text-white/80">
+                {{ formatExtremeNumber(participant.totalDamageDealtToChampions) }}
+              </div>
+              <div class="text-[16px] text-black/60 dark:text-white/60">
+                {{ t('matchCard.overview.damage') }}
+              </div>
+            </div>
+          </div>
+
+          <!-- dmg taken：承伤占比，与伤害占比同风格（百分比 + 荧光数据条 + 数值） -->
+          <div class="min-w-22">
+            <div class="text-center text-[20px] font-bold">
+              {{ dmgTakenPercentage }}%
+            </div>
+
+            <div class="dmg-bar">
+              <div class="dmg-bar-fill" :style="{ width: `${dmgTakenPercentage}%` }"></div>
+            </div>
+
+            <div class="flex justify-center gap-1">
+              <div class="text-[16px] text-black/80 dark:text-white/80">
+                {{ formatExtremeNumber(participant.totalDamageTaken) }}
+              </div>
+              <div class="text-[16px] text-black/60 dark:text-white/60">
+                {{ t('matchCard.overview.stats.damageTaken') }}
+              </div>
+            </div>
+          </div>
 
                   <!-- cs -->
                   <div class="hidden min-w-22 @min-[700px]:block" v-if="displayParts.cs">
@@ -618,6 +638,12 @@ const dmgPercentage = computed(() => {
   return Math.round(
     (participant.value!.totalDamageDealtToChampions / (teamTotal || 1)) * 100
   )
+})
+
+/** 承伤占比（0-100，四舍五入）：与伤害占比同风格展示（百分比 + 荧光数据条） */
+const dmgTakenPercentage = computed(() => {
+  const teamTotal = teams.value.teamStatMap[participant.value!.teamIdentifier].totalDamageTaken
+  return Math.round((participant.value!.totalDamageTaken / (teamTotal || 1)) * 100)
 })
 
 const formattedRelativeTime = ref('')
