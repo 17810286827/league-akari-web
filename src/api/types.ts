@@ -166,6 +166,13 @@ export interface MatchDetail {
   participants: MatchParticipant[]
 }
 
+/**
+ * 时间线帧：对局时间线数据的最小单元
+ * 结构尚未建模（任务 15 时间线全量适配时补充字段），当前以 unknown 透传，
+ * 由消费方（如 toMatchCardFrames）防御处理
+ */
+export type MatchTimelineFrame = unknown
+
 /** 从 stats_json 解析出的常用展示字段（可选，字段缺失不影响展示） */
 export interface ParsedStats {
   /** 对英雄造成的总伤害 */

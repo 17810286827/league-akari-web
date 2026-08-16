@@ -1,20 +1,22 @@
 <script setup lang="ts">
 /**
- * 对局详情页（三段式布局）：
- * 顶部摘要区（模式/时长/KDA/参与率/CS/评分/装备/队友）→ 中部队伍数据区（双队表格）→ 底部资源统计区
- * 数据来自后端接口（getMatchDetail），经 adapter 转换为展示结构
+ * 对局详情页（任务 13：MatchCard 展开态，替换旧三段式布局）：
+ * getMatchDetail 加载对局详情 → 作为 summary 传给 MatchCard（isExpanded=true），
+ * 卡片内部经适配层（toBasicInfo/toParticipants/toMatchCardTeams）组装 basicInfo/participants/teams；
+ * getMatchTimeline 并行加载时间线，成功后归一化为 details（{ frames }）注入时间线 Tab，
+ * 失败仅 warn 日志，不阻塞折叠卡展示（时间线 Tab 显示空态）
  */
 import { NEmpty, NSpin, useMessage } from 'naive-ui'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { getMatchDetail } from '@/api/matches'
+import { getMatchDetail, getMatchTimeline } from '@/api/matches'
+import type { MatchDetail } from '@/api/types'
+import MatchCard from '@/components/match-card/MatchCard.vue'
 import { createLogger } from '@/utils/logger'
 
-import { toMatchDetailView, type MatchDetailView } from './adapter'
-import MatchSummaryHeader from './MatchSummaryHeader.vue'
-import ResourceStatsBanner from './ResourceStatsBanner.vue'
-import TeamStatsTable from './TeamStatsTable.vue'
+import { toMatchCardFrames } from './adapter/match-card-timeline'
+import type { MatchCardGameDetails } from './adapter/types'
 
 const logger = createLogger('MatchDetail')
 const message = useMessage()
@@ -24,23 +26,39 @@ const route = useRoute()
 const gameId = Number(route.params.gameId)
 
 const loading = ref(false)
-const view = ref<MatchDetailView | null>(null)
-
-/** 队伍列表：蓝队（100）在前 */
-const teams = computed(() => view.value?.teams ?? [])
+/** 对局详情：加载成功后作为 MatchCard 的 summary 传入 */
+const summary = ref<MatchDetail | null>(null)
+/** 对局时间线（details）：加载成功后归一化为 { frames } 注入，失败保持 null（时间线 Tab 空态） */
+const details = ref<MatchCardGameDetails | null>(null)
 
 onMounted(async () => {
   loading.value = true
-  try {
-    const detail = await getMatchDetail(gameId)
-    view.value = toMatchDetailView(detail)
-    logger.info('Match detail loaded', { gameId, teams: detail.participants.length })
-  } catch (error) {
-    logger.error('Failed to load match detail', { gameId, error })
+
+  // 详情与时间线并行加载：任一失败互不阻塞（详情失败显示错误态，时间线失败仅 warn）
+  const [detailResult, timelineResult] = await Promise.allSettled([
+    getMatchDetail(gameId),
+    getMatchTimeline(gameId)
+  ])
+
+  if (detailResult.status === 'fulfilled') {
+    summary.value = detailResult.value
+    logger.info('Match detail loaded', {
+      gameId,
+      participants: detailResult.value.participants.length
+    })
+  } else {
+    logger.error('Failed to load match detail', { gameId, error: detailResult.reason })
     message.error('对局详情加载失败：对局不存在或后端未启动')
-  } finally {
-    loading.value = false
   }
+
+  if (timelineResult.status === 'fulfilled') {
+    details.value = { frames: toMatchCardFrames(timelineResult.value) }
+    logger.info('Match timeline loaded', { gameId, frames: timelineResult.value.length })
+  } else {
+    logger.warn('Failed to load match timeline', { gameId, error: timelineResult.reason })
+  }
+
+  loading.value = false
 })
 </script>
 
@@ -48,18 +66,14 @@ onMounted(async () => {
   <div class="min-h-screen bg-base text-ink">
     <main class="mx-auto max-w-6xl space-y-5 px-4 py-6 lg:px-8">
       <n-spin :show="loading">
-        <template v-if="view">
-          <!-- 一、顶部摘要区 -->
-          <MatchSummaryHeader :summary="view.summary" />
-
-          <!-- 二、中部队伍数据区：宽屏左右两列，窄屏垂直堆叠 -->
-          <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <TeamStatsTable v-for="team in teams" :key="team.teamId" :team="team" />
-          </div>
-
-          <!-- 三、底部资源统计区 -->
-          <ResourceStatsBanner :teams="teams" :resources="view.resources" />
-        </template>
+        <!-- 对局卡片：展开态展示详情面板（总览/详尽表格/符文/事件/时间线 Tab） -->
+        <MatchCard
+          v-if="summary"
+          :summary="summary"
+          :details="details"
+          :puuid="summary.selfPuuid"
+          is-expanded
+        />
 
         <!-- 加载失败空态 -->
         <n-empty v-else-if="!loading" description="对局不存在" />
