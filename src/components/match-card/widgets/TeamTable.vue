@@ -124,8 +124,8 @@
       v-for="participant in teamParticipants"
       :key="participant.puuid"
       :class="{
-        // self 行：霓虹紫高亮（电竞终端，区别于胜负底色）
-        'bg-violet-500/10 bg-clip-padding dark:bg-violet-500/10': participant.puuid === puuid
+        // self 行：柔和绿高亮（淡绿终端，区别于胜负底色）
+        'bg-green-500/10 bg-clip-padding dark:bg-green-500/10': participant.puuid === puuid
       }"
       class="box-border flex h-12 items-center border-t border-r-0 border-b-0 border-l-0 border-solid border-t-black/5 px-2 py-1 dark:border-t-white/5"
     >

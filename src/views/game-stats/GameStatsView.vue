@@ -335,20 +335,20 @@ watch(
 </template>
 
 <style lang="scss">
-/* 电竞终端主题变量（用户选定 B 方案：近黑底 + 霓虹紫主色 + 玫红强调，
+/* 淡绿终端主题变量（用户选定 B 方案：近黑底 + 柔和绿主色 + 柔和珊瑚强调，
    与全局 tailwind/opgg 令牌一致） */
 .game-stats {
-  --bg: #09090b;
-  --surface: #0e0e13;
-  --surface-hover: #16151d;
-  --surface-active: #1d1c26;
-  --border: #2e2440;
-  --border-strong: #3e2f5c;
-  --text: #f4f2fa;
-  --text-muted: #a6acbf;
-  --primary: #7c3aed;
-  --primary-2: #a78bfa;
-  --accent: #f43f5e;
+  --bg: #0b0f0c;
+  --surface: #111611;
+  --surface-hover: #18201a;
+  --surface-active: #1f2a22;
+  --border: #243127;
+  --border-strong: #33503c;
+  --text: #ecfdf5;
+  --text-muted: #9ca3af;
+  --primary: #4ade80;
+  --primary-2: #86efac;
+  --accent: #f87171;
   --win: #4b7be5;
   --loss: #e03e52;
   --gold: #c8aa6e;
@@ -356,9 +356,9 @@ watch(
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 
   min-height: 100vh;
-  /* 近黑底 + 顶部微紫光晕（夜晚竞技场氛围，不抢数据内容） */
+  /* 近黑底 + 顶部柔和绿光晕（夜晚竞技场氛围，不抢数据内容） */
   background:
-    radial-gradient(1200px 500px at 50% -10%, rgba(124, 58, 237, 0.14), transparent 65%),
+    radial-gradient(1200px 500px at 50% -10%, rgba(74, 222, 128, 0.14), transparent 65%),
     var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
@@ -366,7 +366,7 @@ watch(
 </style>
 
 <style lang="scss" scoped>
-/* 顶部查询栏：整行居中（搜索框 + 查询按钮，电竞终端风格） */
+/* 顶部查询栏：整行居中（搜索框 + 查询按钮，淡绿终端风格） */
 .top-search {
   display: flex;
   justify-content: center;
@@ -384,8 +384,8 @@ watch(
   padding: 10px 16px;
   font-size: 15px;
   border-radius: 10px;
-  border: 1px solid rgba(124, 58, 237, 0.35);
-  background: rgba(18, 16, 28, 0.85);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(17, 22, 17, 0.85);
   backdrop-filter: blur(8px);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -397,7 +397,7 @@ watch(
   &:focus {
     outline: none;
     border-color: var(--primary-2);
-    box-shadow: 0 0 14px rgba(124, 58, 237, 0.35);
+    box-shadow: 0 0 14px rgba(74, 222, 128, 0.35);
   }
 }
 
@@ -409,7 +409,7 @@ watch(
   border-radius: 10px;
   background: linear-gradient(90deg, var(--primary), var(--primary-2));
   color: #fff;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 16px rgba(74, 222, 128, 0.3);
   transition: filter 0.15s;
 
   &:hover {

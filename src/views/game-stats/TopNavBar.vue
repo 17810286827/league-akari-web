@@ -66,7 +66,7 @@ const emit = defineEmits<{ refresh: [] }>()
 </template>
 
 <style lang="scss" scoped>
-/* 顶部导航：近黑底 + 签名霓虹渐变光带（电竞终端）；
+/* 顶部导航：近黑底 + 签名柔和绿渐变光带（淡绿终端）；
    限宽 1400px 与页面主体对齐（左侧玩家信息/段位与侧栏左对齐）；
    三栏 grid：左玩家信息 / 段位板块居中 / 右侧刷新按钮 */
 .top-nav {
@@ -80,8 +80,8 @@ const emit = defineEmits<{ refresh: [] }>()
   border-bottom: 1px solid var(--border);
   /* 签名元素：底部 2px 紫→玫红渐变光带，页面唯一的渐变装饰 */
   box-shadow:
-    inset 0 -2px 0 0 linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.65), rgba(244, 63, 94, 0.4), transparent),
-    0 1px 12px rgba(124, 58, 237, 0.08);
+    inset 0 -2px 0 0 linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.65), rgba(244, 63, 94, 0.4), transparent),
+    0 1px 12px rgba(74, 222, 128, 0.08);
 }
 
 /* 左侧玩家信息：头像 + 昵称/等级竖排，第一轨道左对齐 */
@@ -97,8 +97,8 @@ const emit = defineEmits<{ refresh: [] }>()
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid rgba(124, 58, 237, 0.45);
-  box-shadow: 0 0 12px rgba(124, 58, 237, 0.3);
+  border: 2px solid rgba(74, 222, 128, 0.45);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.3);
   flex-shrink: 0;
 }
 
@@ -140,7 +140,7 @@ const emit = defineEmits<{ refresh: [] }>()
   gap: 10px;
 }
 
-/* 段位图标：紫调环形（conic 渐变描边），未定级灰色星形 */
+/* 段位图标：绿调环形（conic 渐变描边），未定级灰色星形 */
 .rank-icon {
   display: flex;
   align-items: center;
@@ -151,7 +151,7 @@ const emit = defineEmits<{ refresh: [] }>()
   background: var(--surface-hover);
   box-shadow:
     inset 0 0 0 1px var(--border),
-    0 0 12px rgba(124, 58, 237, 0.25);
+    0 0 12px rgba(74, 222, 128, 0.25);
 }
 
 .rank-icon-svg {
@@ -183,7 +183,7 @@ const emit = defineEmits<{ refresh: [] }>()
   opacity: 0.85;
 }
 
-/* 刷新按钮：第三轨道（1fr）右对齐 + hover 紫调提亮 */
+/* 刷新按钮：第三轨道（1fr）右对齐 + hover 绿调提亮 */
 .refresh-btn {
   display: flex;
   align-items: center;

@@ -1,5 +1,5 @@
 <template>
-  <!-- 霓虹能量雷达图：玻璃终端背景 + 中心紫光晕 + 内边距；shrink-0 防止被 popover flex 压缩，
+  <!-- 淡绿能量雷达图：玻璃终端背景 + 中心绿光晕 + 内边距；shrink-0 防止被 popover flex 压缩，
        画布加宽让轴外标签（数值/差值/轴名三行）不溢出 -->
   <div class="glass-card radar-glow w-[384px] shrink-0 rounded-xl p-2">
     <div class="h-[340px] w-[340px]">
@@ -236,7 +236,7 @@ const radarValueLabelsPlugin = {
       const pos = rScale.getPointPosition(i, maxDist + 18)
       // 玩家数值：大字加粗
       ctx.font = '600 17px "Russo One", Consolas, sans-serif'
-      ctx.fillStyle = '#f4f2fa'
+      ctx.fillStyle = '#ecfdf5'
       ctx.fillText(labels.values?.[i] ?? '', pos.x, pos.y)
       // 差值：▲绿 / ▼红（与中心方向一致的外侧第二行）
       const diff = labels.diffs?.[i] ?? 0
@@ -248,10 +248,10 @@ const radarValueLabelsPlugin = {
       }
       // 轴名：小字灰
       ctx.font = '13px "Segoe UI", "PingFang SC", sans-serif'
-      ctx.fillStyle = '#a6acbf'
+      ctx.fillStyle = '#9ca3af'
       ctx.fillText(name, pos.x, pos.y + 32)
       // 轴线（淡化，指向中心）
-      ctx.strokeStyle = 'rgba(167,139,250,0.18)'
+      ctx.strokeStyle = 'rgba(134,239,172,0.18)'
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(center.x, center.y)
@@ -282,7 +282,7 @@ const radarValueLabelsPlugin = {
         ctx.fillText(text, lx + 14, ly + 6)
         ly += 21
       }
-      drawLegendRow('#a78bfa', labels.legend.player, 120)
+      drawLegendRow('#86efac', labels.legend.player, 120)
       drawLegendRow('rgba(203,213,225,0.8)', labels.legend.team, 120)
     }
     ctx.restore()
@@ -296,28 +296,28 @@ const data = computed<ChartData<'radar'>>(() => {
     datasets: [
       {
         label: selfName.value ?? puuid,
-        // 玩家：紫→玫红线性渐变填充（霓虹能量签名）
+        // 玩家：绿→淡绿线性渐变填充（淡绿能量签名）
         backgroundColor(context) {
           const area = context.chart.chartArea
-          if (!area) return 'rgba(124,58,237,0.2)'
+          if (!area) return 'rgba(74,222,128,0.2)'
           const g = context.chart.ctx.createLinearGradient(
             area.left,
             area.top,
             area.right,
             area.bottom
           )
-          g.addColorStop(0, 'rgba(167,139,250,0.55)')
-          g.addColorStop(1, 'rgba(244,63,94,0.35)')
+          g.addColorStop(0, 'rgba(134,239,172,0.55)')
+          g.addColorStop(1, 'rgba(248,113,113,0.35)')
           return g
         },
-        borderColor: '#a78bfa',
+        borderColor: '#86efac',
         borderWidth: 2.5,
         pointBackgroundColor: '#fff',
-        pointBorderColor: '#a78bfa',
+        pointBorderColor: '#86efac',
         pointBorderWidth: 2,
         pointRadius: 4,
         pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: '#f43f5e',
+        pointHoverBorderColor: '#f87171',
         data: [
           percentage.value.damageDealtToChampionsRatioToMax,
           percentage.value.damageTakenRatioToMax,
@@ -370,9 +370,9 @@ const options = computed<ChartOptions<'radar'>>(() => ({
       ticks: {
         display: false
       },
-      // 网格/轴线提亮紫调（与主题一致）
-      grid: { color: 'rgba(167,139,250,0.20)', lineWidth: 1.2 },
-      angleLines: { color: 'rgba(167,139,250,0.26)', lineWidth: 1.2 },
+      // 网格/轴线提亮绿调（与主题一致）
+      grid: { color: 'rgba(134,239,172,0.20)', lineWidth: 1.2 },
+      angleLines: { color: 'rgba(134,239,172,0.26)', lineWidth: 1.2 },
       // 轴名由自定义插件绘制（数值/差值/轴名三行）
       pointLabels: {
         display: false
@@ -399,7 +399,7 @@ const options = computed<ChartOptions<'radar'>>(() => ({
     },
     tooltip: {
       backgroundColor: 'rgba(18,16,28,0.92)',
-      borderColor: 'rgba(124,58,237,0.4)',
+      borderColor: 'rgba(74,222,128,0.4)',
       borderWidth: 1,
       titleColor: '#f8fafc',
       bodyColor: '#e2e8f0',
@@ -416,10 +416,10 @@ const options = computed<ChartOptions<'radar'>>(() => ({
 </script>
 
 <style scoped>
-/* 中心紫光晕（霓虹能量）：叠加在玻璃卡片背景上，营造从中心向外发散的层次 */
+/* 中心绿光晕（淡绿能量）：叠加在玻璃卡片背景上，营造从中心向外发散的层次 */
 .radar-glow {
   background:
-    radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.24), transparent 62%),
-    rgba(18, 16, 28, 0.88);
+    radial-gradient(circle at 50% 50%, rgba(74, 222, 128, 0.24), transparent 62%),
+    rgba(17, 22, 17, 0.88);
 }
 </style>

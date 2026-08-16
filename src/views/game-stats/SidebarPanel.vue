@@ -159,11 +159,11 @@ function hasPrevPage(): boolean {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 300px;
+  width: 310px;
   padding: 12px;
 }
 
-/* 通用面板卡片：紫调描边，hover 提亮 */
+/* 通用面板卡片：绿调描边，hover 提亮 */
 .panel {
   padding: 12px;
   border-radius: var(--radius);
@@ -177,7 +177,7 @@ function hasPrevPage(): boolean {
   }
 }
 
-/* 面板标题：左侧 3px 霓虹紫标记（签名元素延伸） */
+/* 面板标题：左侧 3px 柔和绿标记（签名元素延伸） */
 .panel-title {
   margin-bottom: 10px;
   padding-left: 8px;
@@ -306,7 +306,7 @@ function hasPrevPage(): boolean {
   font-variant-numeric: tabular-nums;
 }
 
-/* 百分比字段用霓虹紫强调 */
+/* 百分比字段用柔和绿强调 */
 .overview-value-accent {
   color: var(--primary-2);
 }
