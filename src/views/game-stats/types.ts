@@ -1,10 +1,10 @@
 /**
  * 战绩分析页面类型定义（League Akari 风格：顶部导航 + 左侧边栏 + 右侧战绩列表）
- * 全部字段强类型，禁止 any
+ * 任务 14 改造：列表项改为原版折叠卡（MatchCardOverview + MatchCard），
+ * 移除旧卡片模型（GameCard/TeamDetail 等），列表项直接承载轻量摘要 + 懒加载详情
  */
-
-/** 对局结果：胜利 / 失败 / 投降 */
-export type GameResult = 'victory' | 'defeat' | 'surrender'
+import type { MatchDetail, MatchSummary } from '@/api/types'
+import type { MatchCardGameDetails } from '@/views/match-detail/adapter/types'
 
 /** 顶部导航的段位板块（如 单双排位 / 灵活排位） */
 export interface RankSection {
@@ -68,108 +68,18 @@ export interface RecentPlayer {
   losses: number
 }
 
-/** 战绩卡片的特殊标记（四杀/击杀/拆塔/金币等） */
-export interface GameTag {
-  /** 标记类型：决定配色 */
-  type: 'quadra' | 'kill' | 'tower' | 'gold'
-  /** 展示文案，如 四杀 */
-  label: string
-}
-
-/** 战绩卡片的队友项（头像 + 昵称 + 本局英雄） */
-export interface GameTeammate {
-  /** 玩家 puuid */
-  puuid: string
-  /** 昵称（不含 #tag） */
-  name: string
-  /** 本局英雄 ID（头像展示） */
-  championId: number
-  /** 常用英雄 ID（副展示；当前无数据源，可能缺失） */
-  mainChampionId?: number
-}
-
-/** 展开详情的单名玩家 */
-export interface DetailPlayer {
-  /** 昵称 */
-  name: string
-  /** 英雄 ID */
-  championId: number
-  /** 击杀 */
-  kills: number
-  /** 死亡 */
-  deaths: number
-  /** 助攻 */
-  assists: number
-  /** 经济 */
-  gold: number
-  /** 每分钟输出 */
-  damagePerMin: number
-  /** 出装（6 件物品 ID） */
-  items: number[]
-  /** 召唤师技能（2 个技能 ID，如 32 海克斯闪现） */
-  summonerSpells: number[]
-  /** 输出占比百分比（进度条） */
-  damagePercent: number
-  /** 承伤占比百分比（进度条） */
-  damageTakenPercent: number
-}
-
-/** 展开详情的队伍汇总与玩家明细 */
-export interface TeamDetail {
-  /** 阵营：蓝 / 红 */
-  side: 'blue' | 'red'
-  /** 队伍总击杀 */
-  totalKills: number
-  /** 队伍总死亡 */
-  totalDeaths: number
-  /** 队伍总助攻 */
-  totalAssists: number
-  /** 队伍总经济 */
-  totalGold: number
-  /** 推塔数 */
-  towers: number
-  /** 5 名玩家明细 */
-  players: DetailPlayer[]
-}
-
-/** 单局详情（蓝队 + 红队） */
-export interface GameDetail {
-  blue: TeamDetail
-  red: TeamDetail
-}
-
-/** 战绩卡片 */
-export interface GameCard {
-  /** 对局 ID */
-  gameId: number
-  /** 队列 ID（如 420 单排 / 440 灵活 / 450 大乱斗，用于队列筛选） */
-  queueId: number
-  /** 结果：胜利 / 失败 / 投降 */
-  result: GameResult
-  /** 本玩家英雄 ID */
-  championId: number
-  /** 击杀 */
-  kills: number
-  /** 死亡 */
-  deaths: number
-  /** 助攻 */
-  assists: number
-  /** 伤害占比百分比 */
-  damageShare: number
-  /** 总伤害 */
-  totalDamage: number
-  /** 时长文本，如 11:49 */
-  duration: string
-  /** 日期文本，如 2026-08-09 22:48 */
-  date: string
-  /** 地图名，如 嚎哭深渊 / 召唤师峡谷 */
-  mapName: string
-  /** 特殊标记列表 */
-  tags: GameTag[]
-  /** 队友列表 */
-  teammates: GameTeammate[]
-  /** 展开详情的双队数据（懒加载：点击卡片后由父组件注入，未加载时为 null） */
-  detail: GameDetail | null
+/**
+ * 战绩列表项：轻量摘要 + 懒加载详情
+ * 折叠态渲染 MatchCardOverview（摘要 participants 转适配模型）；
+ * 展开态由父组件拉取详情与时间线后注入，渲染 MatchCard 展开态
+ */
+export interface GameListItem {
+  /** 列表接口返回的轻量摘要（含 participants 轻量档案） */
+  summary: MatchSummary
+  /** 真实详情（懒加载：点击展开后由父组件注入，未加载时为 null） */
+  detail: MatchDetail | null
+  /** 时间线数据（与详情并行加载；失败保持 null，时间线 Tab 空态） */
+  details: MatchCardGameDetails | null
 }
 
 /** 战绩分析页面数据根对象 */
@@ -184,6 +94,4 @@ export interface GameStatsData {
   recentTeammates: RecentPlayer[]
   /** 最近对手 */
   recentOpponents: RecentPlayer[]
-  /** 战绩列表 */
-  games: GameCard[]
 }

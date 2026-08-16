@@ -4,7 +4,7 @@
  * 后续接口联调时以本文件为唯一事实来源，避免类型漂移。
  */
 
-/** 对局列表摘要：用于列表页的轻量展示，不含参与者明细 */
+/** 对局列表摘要：用于列表页的轻量展示，含双方 10 人轻量档案（不含 statsJson 全量快照） */
 export interface MatchSummary {
   /** 对局唯一标识（Riot 的 gameId） */
   gameId: number
@@ -28,6 +28,52 @@ export interface MatchSummary {
   teamTotals: MatchTeamTotals | null
   /** 同队队友摘要列表（契约新增，固定 4 人） */
   teammates: MatchTeammate[]
+  /** 双方 10 人轻量档案（含 self，前端以 puuid 区分），供列表页折叠卡展示；
+   *  后端未升级完成期间可能缺失，展示侧需 `?? []` 兜底 */
+  participants?: MatchParticipantLight[]
+}
+
+/** 轻量参与者符文配置：主系+副系共 6 颗符文（LCU 平铺或 SGP 嵌套归一化后的形状） */
+export interface MatchParticipantLightPerks {
+  /** 符文 ID 列表（perk0-5 或 SGP 嵌套 perks.perkIds），缺失槽位为 null */
+  perkIds: (number | null)[]
+  /** 主系符文页样式 ID（如 8100 精密），缺失为 null */
+  perkStyle: number | null
+  /** 副系符文页样式 ID（如 8300 巫术），缺失为 null */
+  perkSubStyle: number | null
+}
+
+/**
+ * 列表摘要的轻量参与者档案（对应后端 MatchSummaryResponse.ParticipantLight）
+ * 字段是 MatchParticipant 的子集：无 statsJson 快照，出装/技能/海克斯/符文直显
+ */
+export interface MatchParticipantLight {
+  /** 玩家 PUUID，前端以此区分 self */
+  puuid: string
+  /** 召唤师名称（含 #tag，如 "ZZXOOV#qyq"） */
+  summonerName: string
+  /** 使用的英雄 ID */
+  championId: number
+  /** 所属队伍 ID：100（蓝方）/ 200（红方） */
+  teamId: number
+  /** 对线位置，如 TOP / JUNGLE，未知时为 null */
+  position: string | null
+  /** 是否获胜 */
+  win: boolean
+  /** 击杀数 */
+  kills: number
+  /** 死亡数 */
+  deaths: number
+  /** 助攻数 */
+  assists: number
+  /** 出装（statsJson 的 item0-6，按槽位顺序），缺失为 null */
+  items: number[] | null
+  /** 召唤师技能（statsJson 的 spell1Id/spell2Id，按槽位顺序），缺失为 null */
+  summonerSpells: number[] | null
+  /** 海克斯强化（statsJson 的 playerAugment1-6，按槽位顺序，缺失槽位为 null） */
+  augments: (number | null)[] | null
+  /** 符文配置（LCU 平铺或 SGP 嵌套归一化），缺失为 null */
+  perks: MatchParticipantLightPerks | null
 }
 
 /** 本玩家（selfPuuid）在该局的个人战绩快照（后端从 stats_json 解析而来） */

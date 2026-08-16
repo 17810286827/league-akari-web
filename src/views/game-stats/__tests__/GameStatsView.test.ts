@@ -1,0 +1,322 @@
+/**
+ * GameStatsView 组件测试（任务 14）
+ * 覆盖：列表加载后折叠卡渲染（轻量参与者 KDA/玩家行/装备图标，未触发详情请求）、
+ * 点击卡片展开（并行懒加载 getMatchDetail + getMatchTimeline，渲染 MatchCard 展开态并注入时间线）、
+ * 收起再展开命中缓存不重复请求、详情失败收起并提示、时间线失败仅 warn 不阻塞展开；
+ * mock src/api/matches.ts 的 listMatches/getMatchDetail/getMatchTimeline，
+ * 数据源为轻量摘要 fixture（与 server ParticipantLight 契约一致）+ 任务 5 的 LCU 详情 fixture；
+ * naive-ui 组件用 NConfigProvider + NMessageProvider 包裹，RadarChart/StatsBarChart 打桩
+ * （chart.js 需 canvas，jsdom 无）
+ */
+import { flushPromises, mount } from '@vue/test-utils'
+import { NConfigProvider, NMessageProvider } from 'naive-ui'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { h } from 'vue'
+
+import { getMatchDetail, getMatchTimeline, listMatches } from '@/api/matches'
+import type { MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
+import MatchCard from '@/components/match-card/MatchCard.vue'
+import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
+import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fixtures'
+
+import GameStatsView from '../GameStatsView.vue'
+
+// 局部 mock 数据层：展示函数返回空壳 + 英雄名固定值，避免测试触发 CDragon 网络请求
+vi.mock('@/utils/game-resource', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/game-resource')>()
+  return {
+    ...actual,
+    // 英雄名固定返回值（fixture 全部 championId=1），供 hidePrivacy 等文案断言
+    getChampionName: vi.fn(() => '菲奥娜'),
+    augmentDisplay: vi
+      .fn()
+      .mockResolvedValue({ name: '海克斯强化', iconUrl: '', rarity: 'kSilver' }),
+    itemDisplay: vi.fn().mockResolvedValue({
+      id: 1,
+      name: '装备',
+      iconUrl: '',
+      descriptionHtml: '',
+      price: 0,
+      totalPrice: 0
+    }),
+    perkDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
+    perkstyleDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
+    spellDisplay: vi.fn().mockResolvedValue(null)
+  }
+})
+
+// mock API 层：三个接口由各用例经 beforeEach 注入返回值
+vi.mock('@/api/matches', () => ({
+  listMatches: vi.fn(),
+  getMatchDetail: vi.fn(),
+  getMatchTimeline: vi.fn()
+}))
+
+/**
+ * 构造一名轻量参与者档案（与 server ParticipantLight 契约字段逐一对应）：
+ * 未传字段使用默认值（0/false/null），测试只关注传入部分
+ * 默认值含 7 槽出装/双召唤师技能/6 槽海克斯占位/双系符文，保证折叠卡各部件可渲染
+ */
+function makeLightParticipant(
+  partial: Partial<MatchParticipantLight> & {
+    puuid: string
+    summonerName: string
+    teamId: number
+  }
+): MatchParticipantLight {
+  return {
+    championId: 1,
+    position: 'TOP',
+    win: true,
+    kills: 0,
+    deaths: 0,
+    assists: 0,
+    // 出装 7 槽（含真眼槽）/ 召唤师技能 / 海克斯（普通对局缺失槽位为 null）/ 符文
+    items: [6653, 3078, 3031, 3026, 3074, 3047, 3340],
+    summonerSpells: [4, 12],
+    augments: [null, null, null, null, null, null],
+    perks: { perkIds: [1, 2, 3, 4, 5, 6], perkStyle: 8100, perkSubStyle: 8300 },
+    ...partial
+  }
+}
+
+/**
+ * 轻量摘要 fixture：蓝队 5 人（self 7/3/12，队友凑队总击杀 25 供参团率断言）+ 红队 5 人，
+ * 含 self/teamTotals/teammates（侧栏聚合统计消费）与 participants（折叠卡消费）
+ * 注意：与详情 fixture 共用同一批 puuid/召唤师名，保证展开后数据连贯
+ */
+function makeSummary(): MatchSummary {
+  // 蓝队：self 击杀 7，队友 6/5/4/3 → 队总击杀 25（self 参团率 (7+12)/25 = 76%）
+  const blue: MatchParticipantLight[] = [
+    makeLightParticipant({ puuid: 'lcu-p1', summonerName: 'PlayerOne#CN1', teamId: 100, kills: 7, deaths: 3, assists: 12 }),
+    makeLightParticipant({ puuid: 'lcu-p2', summonerName: 'PlayerTwo#CN1', teamId: 100, kills: 6 }),
+    makeLightParticipant({ puuid: 'lcu-p3', summonerName: 'PlayerThree#CN1', teamId: 100, kills: 5 }),
+    makeLightParticipant({ puuid: 'lcu-p4', summonerName: 'PlayerFour#CN1', teamId: 100, kills: 4 }),
+    makeLightParticipant({ puuid: 'lcu-p5', summonerName: 'PlayerFive#CN1', teamId: 100, kills: 3 })
+  ]
+  // 红队副本：负方（win=false），仅改身份字段（puuid/名称/队伍），击杀改小值防混淆
+  const red: MatchParticipantLight[] = blue.map((p, index) => ({
+    ...p,
+    puuid: `red-${p.puuid}`,
+    summonerName: p.summonerName.replace('Player', 'Rival'),
+    teamId: 200,
+    win: false,
+    kills: index // 红队击杀各不相同，验证不误并
+  }))
+
+  // 摘要根字段：gameId=123 与详情 fixture 一致，展开时按同一 ID 命中缓存
+  return {
+    gameId: 123,
+    gameCreation: 0,
+    gameDuration: 1800,
+    gameMode: 'CLASSIC',
+    queueId: 420,
+    region: 'CN',
+    winnerTeamId: 100,
+    selfPuuid: 'lcu-p1',
+    // self 快照：侧栏总览聚合消费（胜负/平均 KDA/占比），与 light participants 的 self 行同值
+    self: {
+      championId: 1,
+      summonerName: 'PlayerOne#CN1',
+      kills: 7,
+      deaths: 3,
+      assists: 12,
+      win: true,
+      totalDamage: 25000,
+      totalDamageTaken: 30000,
+      goldEarned: 12500,
+      cs: 200,
+      largestMultiKill: 0,
+      turretKills: 0,
+      gameEndedInSurrender: false
+    },
+    // 队伍聚合与队友摘要：侧栏"最近队友"聚合消费（同队 4 人）
+    teamTotals: { kills: 25, gold: 60000, damage: 100000, damageTaken: 120000 },
+    teammates: blue.slice(1).map((p) => ({
+      puuid: p.puuid,
+      summonerName: p.summonerName,
+      championId: p.championId,
+      win: true
+    })),
+    // participants：折叠卡数据源（10 人，含 self）
+    participants: [...blue, ...red]
+  }
+}
+
+/** 展开态详情 fixture：复用任务 5 的 LCU fixture + 红队副本 + 两队 teamsJson（与任务 13 口径一致） */
+const detailFixture = {
+  // 根字段：gameId=123 与轻量摘要一致（展开时替换折叠卡数据）
+  gameId: 123,
+  gameCreation: 0,
+  gameDuration: 1800,
+  gameMode: 'CLASSIC',
+  gameType: 'MATCHED_GAME',
+  queueId: 420,
+  mapId: 11,
+  gameVersion: '14.10.1',
+  region: 'CN',
+  rsoPlatformId: 'CN1',
+  // 数据源 lcu：详情面板不出现"构建"Tab（sgp 专属）
+  dataSource: 'lcu',
+  winnerTeamId: 100,
+  selfPuuid: 'lcu-p1',
+  // 队伍快照：蓝队 win 字符串（LCU 形状），供队伍胜负与推塔展示
+  teamsJson: JSON.stringify([
+    { teamId: 100, win: 'Win', towerKills: 11, inhibitorKills: 2, dragonKills: 3, baronKills: 1, riftHeraldKills: 1, voidGrubKills: 4, atakhanKills: 0, firstBlood: true, bans: [] },
+    { teamId: 200, win: 'Fail', towerKills: 3, inhibitorKills: 0, dragonKills: 2, baronKills: 0, riftHeraldKills: 0, voidGrubKills: 2, atakhanKills: 0, firstBlood: false, bans: [] }
+  ]),
+  // 参与者：蓝队全量 statsJson（LCU 平铺）+ 红队仅改身份字段
+  participants: [
+    ...lcuParticipantFixture,
+    // 红队副本：仅改顶层身份字段（LCU stats 无 teamId，分组回退顶层 teamId=200）
+    ...lcuParticipantFixture.map((p) => ({
+      ...p,
+      id: p.id + 100,
+      puuid: `red-${p.puuid}`,
+      summonerName: p.summonerName.replace('Player', 'Rival'),
+      teamId: 200
+    }))
+  ]
+}
+
+/** 时间线帧（结构透传 unknown，任意形状即可） */
+const timelineFrames = [{ frameNumber: 1 }, { frameNumber: 2 }]
+
+/** 挂载 GameStatsView：NConfigProvider + NMessageProvider 包裹（naive-ui 依赖），图表打桩 */
+function mountView() {
+  // 返回挂载结果：各用例按需 await flushPromises 等待列表/详情接口 resolve
+  return mount(
+    () =>
+      h(NConfigProvider, null, {
+        default: () => h(NMessageProvider, null, { default: () => h(GameStatsView) })
+      }),
+    { global: { stubs: { RadarChart: true, StatsBarChart: true } } }
+  )
+}
+
+describe('GameStatsView', () => {
+  beforeEach(() => {
+    // 清空各用例间的 mock 调用历史（实现保留），保证 toHaveBeenCalledTimes 按用例独立计数
+    vi.clearAllMocks()
+    // 默认：列表 1 条轻量摘要；详情与时间线成功（失败用例按需覆盖）
+    vi.mocked(listMatches).mockResolvedValue({
+      data: [makeSummary()],
+      total: 1,
+      page: 1,
+      pageSize: 20
+    } satisfies PageResponse<MatchSummary>)
+    // 详情：真实 MatchDetail（LCU fixture），与轻量摘要同一 gameId=123
+    vi.mocked(getMatchDetail).mockResolvedValue(detailFixture)
+    // 时间线：两帧透传（结构 unknown，任意形状即可）
+    vi.mocked(getMatchTimeline).mockResolvedValue(timelineFrames)
+  })
+
+  it('列表加载后渲染折叠卡（轻量参与者 KDA/玩家行/装备图标），未触发详情请求', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 列表接口按契约参数调用（第一页、每页 20 条、未选队列）
+    expect(listMatches).toHaveBeenCalledWith({ page: 1, pageSize: 20, queueId: undefined })
+
+    // 折叠卡（MatchCardOverview）渲染：self 轻量 KDA 7/3/12（statsJson 归一后来自 participants）
+    expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
+    expect(wrapper.text()).toContain('7/3/12')
+    // 蓝红两队共 10 行玩家列表（轻量参与者 10 人，含 self）
+    expect(wrapper.findAll('.group')).toHaveLength(10)
+    // 出装图标异步加载（itemDisplay mock 微任务）后出现：7 槽出装
+    await flushPromises()
+    expect(wrapper.findAll('img.item')).toHaveLength(7)
+    // 侧栏统计保持现状：总览区与队列筛选渲染
+    expect(wrapper.text()).toContain('总览统计')
+    expect(wrapper.find('.queue-select').exists()).toBe(true)
+
+    // 折叠态未触发任何详情请求，也不渲染展开卡片（懒加载生效）
+    expect(getMatchDetail).not.toHaveBeenCalled()
+    expect(getMatchTimeline).not.toHaveBeenCalled()
+    // 展开态卡片（MatchCard）与详情面板均未挂载
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+  })
+
+  it('点击折叠卡展开：并行懒加载详情+时间线，渲染 MatchCard 展开态', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 点击折叠卡 → 通知父组件按 gameId 懒加载（详情与时间线并行请求）
+    await wrapper.find('.collapsed').trigger('click')
+    expect(getMatchDetail).toHaveBeenCalledWith(123)
+    expect(getMatchTimeline).toHaveBeenCalledWith(123)
+
+    // 详情就绪后切换为 MatchCard 展开态：时间线归一化注入 details
+    await flushPromises()
+    const card = wrapper.findComponent(MatchCard)
+    expect(card.exists()).toBe(true)
+    expect(card.props('isExpanded')).toBe(true)
+    expect(card.props('details')).toEqual({ frames: timelineFrames })
+    // 展开面板 Tab 渲染（真实详情数据源为 lcu，无"构建"Tab）
+    expect(wrapper.text()).toContain('总览')
+    expect(wrapper.text()).toContain('详尽表格')
+  })
+
+  it('展开后收起（卡片内箭头）再展开：命中缓存不重复请求', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 第一步：展开 → 详情加载完成，展开态卡片出现
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(true)
+
+    // 卡片内箭头点击 → 收起（v-model 双向同步回父组件，整行回到折叠态）
+    await wrapper.find('.rotate-90').trigger('click')
+    await flushPromises()
+    // 收起后展开卡片卸载，折叠卡（轻量数据）重新挂载
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
+
+    // 再次点击展开：详情已缓存，不再请求后端（两个接口均只调用一次）
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    // 展开态由缓存数据渲染，接口调用次数不增加
+    expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
+    expect(getMatchDetail).toHaveBeenCalledTimes(1)
+    expect(getMatchTimeline).toHaveBeenCalledTimes(1)
+  })
+
+  it('详情接口失败：收起卡片并提示错误，不渲染展开态', async () => {
+    // 详情接口失败（如 404）：展开态应回退折叠卡，不渲染空详情面板
+    vi.mocked(getMatchDetail).mockRejectedValue(new Error('404 Not Found'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 点击折叠卡触发懒加载：详情失败后 expandedGameId 复位为 null
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+
+    // 展开态不渲染，折叠卡仍在（错误提示经 NMessageProvider teleport 到 body，从 body 断言）
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
+    expect(document.body.textContent).toContain('对局 123 详情加载失败')
+  })
+
+  it('时间线接口失败仅 warn 不阻塞展开（时间线注入 null，卡片正常渲染）', async () => {
+    // 时间线失败（如 500）：展开态仍以详情数据渲染，时间线 Tab 展示空态
+    vi.mocked(getMatchTimeline).mockRejectedValue(new Error('timeline 500'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 点击折叠卡展开：详情成功、时间线失败，两者互不阻塞
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+
+    // 详情不受时间线失败影响：展开卡片正常渲染，details 保持 null（时间线 Tab 空态）
+    const card = wrapper.findComponent(MatchCard)
+    expect(card.exists()).toBe(true)
+    expect(card.props('details')).toBeNull()
+    // 仅 warn 日志（不弹错误消息），与详情页口径一致
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to load match timeline'),
+      expect.anything()
+    )
+  })
+})

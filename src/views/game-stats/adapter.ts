@@ -1,19 +1,18 @@
 /**
- * 战绩分析页数据适配层：后端 API 数据 → 页面展示模型（GameCard / TeamDetail / 侧栏聚合统计）
+ * 战绩分析页数据适配层：后端 API 数据 → 页面展示模型（侧栏聚合统计 + 折叠卡轻量详情）
  * 职责：
- * 1. MatchSummary → GameCard（列表卡片所需字段，契约第 4 节规则）
- * 2. MatchDetail → GameDetail（展开详情的蓝红双队，含队内占比与出装解析）
- * 3. 侧栏聚合统计（总览 / 最近队友 / 最近对手，均从当前页数据实时计算）
+ * 1. MatchSummary → MatchDetail（列表折叠卡专用：participants 轻量档案归一到 statsJson 形状，
+ *    供任务 5 的 toParticipants/toMatchCardTeams 零改动消费；缺 mapId/teamsJson 等字段按展示需要兜底）
+ * 2. 侧栏聚合统计（总览 / 最近队友 / 最近对手，均从当前页数据实时计算）
  */
 import type {
   MatchDetail,
   MatchParticipant,
-  MatchSummary,
-  MatchTeammate
+  MatchParticipantLight,
+  MatchSummary
 } from '@/api/types'
-import { parseIdArray } from '@/utils/parse-json'
 
-import type { GameCard, GameDetail, GameResult, GameTag, OverviewStats, RecentPlayer, TeamDetail } from './types'
+import type { OverviewStats, RecentPlayer } from './types'
 
 /** 队列筛选选项：后端 listMatches 支持 queueId 参数，null 表示所有模式 */
 export interface QueueOption {
@@ -31,38 +30,13 @@ export const QUEUE_OPTIONS: QueueOption[] = [
   { label: '极地大乱斗', queueId: 450 }
 ]
 
-/** 地图名映射：游戏模式 → 中文地图名，未收录的模式原样展示 */
-const MAP_NAMES: Record<string, string> = {
-  ARAM: '嚎哭深渊',
-  CLASSIC: '召唤师峡谷'
-}
-
-/** 队伍侧别映射：后端 teamId 100 为蓝方、200 为红方 */
-const TEAM_SIDES: Record<number, TeamDetail['side']> = {
-  100: 'blue',
-  200: 'red'
-}
-
 /**
- * 将时间戳格式化为 "YYYY-MM-DD HH:mm" 文本（本地时区）
- * @param timestamp 毫秒时间戳（gameCreation）
- * @returns 展示用日期文本
+ * 地图 ID 派生表：轻量摘要无 mapId 字段，折叠卡按游戏模式派生
+ * （与 match-card-resource 的地图名静态表口径一致）；未收录模式回退 11（召唤师峡谷）
  */
-function formatDate(timestamp: number): string {
-  const d = new Date(timestamp)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/**
- * 将秒数格式化为 "mm:ss" 文本（分钟不补零，秒补零）
- * @param seconds 对局时长（秒）
- * @returns 展示用时长文本
- */
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.floor(seconds % 60)
-  return `${minutes}:${String(rest).padStart(2, '0')}`
+const MAP_IDS: Record<string, number> = {
+  CLASSIC: 11,
+  ARAM: 12
 }
 
 /**
@@ -92,223 +66,101 @@ function percentOf(numerator: number, denominator: number): number {
 }
 
 /**
- * 解析 statsJson 快照为普通对象；解析失败返回空对象（不影响卡片展示）
- * @param statsJson 后端原样存储的 JSON 字符串
- * @returns 解析出的对象，失败时为空对象
+ * 轻量参与者 → 完整参与者形状（任务 14）：
+ * 任务 5 的 toParticipants 以 statsJson 为唯一统计来源（kills/deaths/assists/出装/技能/符文均从
+ * statsJson 读取，顶层仅回退身份字段），故将轻量 DTO 的直显字段按 statsJson 键名归一到
+ * JSON 字符串中传入；无 statsJson 快照本身时按 '{}' 兜底（组件侧字段缺失按 0 展示）
+ * @param light 后端列表接口返回的轻量参与者档案
+ * @returns 适配层可消费的完整参与者形状（id/matchId 为占位，适配层不使用）
  */
-function parseStats(statsJson: string | null): Record<string, unknown> {
-  if (!statsJson) {
-    return {}
+function lightToMatchParticipant(light: MatchParticipantLight): MatchParticipant {
+  // statsJson 归一：击杀/胜负直显 + 出装 7 槽 + 召唤师技能 + 海克斯 + 符文（嵌套 perks 形状）
+  const stats: Record<string, unknown> = {
+    kills: light.kills,
+    deaths: light.deaths,
+    assists: light.assists,
+    win: light.win
   }
-  try {
-    const parsed = JSON.parse(statsJson) as unknown
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
-  } catch {
-    return {}
-  }
-}
-
-/**
- * 从 stats 对象安全取数字字段；缺失或类型不符时返回 0
- * @param stats 解析后的 stats 对象
- * @param key 字段名，如 totalDamageDealtToChampions
- * @returns 数字值（默认 0）
- */
-function numOf(stats: Record<string, unknown>, key: string): number {
-  const value = stats[key]
-  return typeof value === 'number' ? value : 0
-}
-
-/**
- * 解析 teamsJson 中每队的推塔数：按 teamId → towerKills 建映射
- * 解析失败返回空映射（推塔数按 0 展示）
- * @param teamsJson 后端原样存储的队伍快照 JSON 字符串
- * @returns teamId → towerKills 映射
- */
-function parseTowerKills(teamsJson: string | null): Map<number, number> {
-  const result = new Map<number, number>()
-  if (!teamsJson) {
-    return result
-  }
-  try {
-    const parsed = JSON.parse(teamsJson) as unknown
-    if (!Array.isArray(parsed)) {
-      return result
-    }
-    for (const team of parsed) {
-      // 每个队伍项含 teamId 与 towerKills 字段，缺失时跳过
-      const teamId = (team as Record<string, unknown>).teamId
-      const towers = (team as Record<string, unknown>).towerKills
-      if (typeof teamId === 'number') {
-        result.set(teamId, typeof towers === 'number' ? towers : 0)
-      }
-    }
-  } catch {
-    // 解析失败：保持空映射，调用方按 0 处理
-  }
-  return result
-}
-
-/**
- * 构建一支队伍的 TeamDetail：汇总行 + 5 名玩家明细（含队内伤害/承伤占比、每分钟输出）
- * @param players 该队参与者列表（后端顺序）
- * @param side 阵营（蓝 / 红）
- * @param towers 该队推塔数（teamsJson 解析）
- * @param duration 对局时长（秒），用于计算每分钟输出
- * @returns 页面展示用队伍明细
- */
-function buildTeamDetail(
-  players: MatchParticipant[],
-  side: TeamDetail['side'],
-  towers: number,
-  duration: number
-): TeamDetail {
-  // 队内总伤害与总承伤：用于计算每个玩家的占比
-  const teamDamage = players.reduce((sum, p) => sum + numOf(parseStats(p.statsJson), 'totalDamageDealtToChampions'), 0)
-  const teamDamageTaken = players.reduce((sum, p) => sum + numOf(parseStats(p.statsJson), 'totalDamageTaken'), 0)
-
-  const detailPlayers = players.map((p) => {
-    // 伤害/承伤取自 statsJson 快照，缺失时按 0 处理
-    const stats = parseStats(p.statsJson)
-    const damage = numOf(stats, 'totalDamageDealtToChampions')
-    const damageTaken = numOf(stats, 'totalDamageTaken')
-    return {
-      name: p.summonerName,
-      championId: p.championId,
-      kills: p.kills,
-      deaths: p.deaths,
-      assists: p.assists,
-      gold: p.goldEarned,
-      // 每分钟输出 = 总伤害 / 分钟数，时长异常时按 0 展示
-      damagePerMin: duration > 0 ? Math.round(damage / (duration / 60)) : 0,
-      // 出装从 items JSON 解析（过滤 0 空槽，避免渲染无效图标），非法 JSON 时为空数组
-      items: parseIdArray(p.items).filter((itemId) => itemId > 0),
-      // 召唤师技能从 summonerSpells JSON 解析（如 [32, 4] 海克斯闪现+闪现），缺失时为空数组
-      summonerSpells: parseIdArray(p.summonerSpells),
-      damagePercent: percentOf(damage, teamDamage),
-      damageTakenPercent: percentOf(damageTaken, teamDamageTaken)
+  // 出装按槽位写入 item0-6（列表 DTO 顺序与 statsJson 一致），缺失槽位不写（适配层补 0）
+  ;(light.items ?? []).forEach((itemId, index) => {
+    if (index < 7) {
+      stats[`item${index}`] = itemId
     }
   })
+  // 召唤师技能 → spell1Id/spell2Id（toParticipants 优先取 statsJson，缺失才回退顶层）
+  const spells = light.summonerSpells ?? []
+  if (spells[0] !== undefined) {
+    stats.spell1Id = spells[0]
+  }
+  if (spells[1] !== undefined) {
+    stats.spell2Id = spells[1]
+  }
+  // 海克斯强化 → playerAugment1-6（组件按槽位渲染图标，缺失槽位不写）
+  ;(light.augments ?? []).forEach((augment, index) => {
+    if (index < 6) {
+      stats[`playerAugment${index + 1}`] = augment
+    }
+  })
+  // 符文 → 嵌套 perks.perkIds 形状（toPerks 直接消费，无需平铺转换）
+  if (light.perks) {
+    stats.perks = {
+      perkIds: light.perks.perkIds,
+      perkStyle: light.perks.perkStyle,
+      perkSubStyle: light.perks.perkSubStyle
+    }
+  }
 
-  // 队伍汇总：总 KDA 与总经济由 5 人明细求和
   return {
-    side,
-    totalKills: detailPlayers.reduce((sum, p) => sum + p.kills, 0),
-    totalDeaths: detailPlayers.reduce((sum, p) => sum + p.deaths, 0),
-    totalAssists: detailPlayers.reduce((sum, p) => sum + p.assists, 0),
-    totalGold: detailPlayers.reduce((sum, p) => sum + p.gold, 0),
-    towers,
-    players: detailPlayers
+    // 占位主键：toParticipants 不使用 id/matchId（participantId 从 statsJson 读，缺失补 0）
+    id: 0,
+    matchId: 0,
+    puuid: light.puuid,
+    summonerName: light.summonerName,
+    championId: light.championId,
+    teamId: light.teamId,
+    position: light.position,
+    kills: light.kills,
+    deaths: light.deaths,
+    assists: light.assists,
+    win: light.win,
+    // 轻量 DTO 无经济/补刀字段：适配层按 0 兜底（折叠卡不展示，展开后以真实详情为准）
+    goldEarned: 0,
+    cs: 0,
+    items: null,
+    summonerSpells: null,
+    statsJson: JSON.stringify(stats)
   }
 }
 
 /**
- * 计算单局结果的展示分类：胜利 / 投降 / 失败
- * 规则（契约）：self.win 为 true → 胜利；否则若 gameEndedInSurrender → 投降；其余为失败
- * @param win 本玩家是否获胜
- * @param surrendered 是否以投降结束
- * @returns 展示用结果分类
+ * 将列表摘要转换为折叠卡可消费的 MatchDetail 形状（任务 14）：
+ * 轻量摘要缺少详情页字段（mapId/teamsJson/数据源等），折叠态仅展示 MatchCardOverview，
+ * 按展示所需兜底填充；展开后由父组件以真实详情（getMatchDetail）替换本对象
+ * @param summary 列表接口返回的轻量摘要
+ * @returns 折叠卡展示用 MatchDetail 形状（participants 为轻量档案归一结果）
  */
-function resultOf(win: boolean, surrendered: boolean): GameResult {
-  if (win) {
-    return 'victory'
-  }
-  return surrendered ? 'surrender' : 'defeat'
-}
-
-/**
- * 计算卡片的特殊标记列表（契约）：四杀（连杀 ≥ 4）与拆塔（推塔数 > 0）
- * @param largestMultiKill 最大连杀数
- * @param turretKills 推塔数
- * @returns 标记列表（可能为空）
- */
-function tagsOf(largestMultiKill: number, turretKills: number): GameTag[] {
-  const tags: GameTag[] = []
-  if (largestMultiKill >= 4) {
-    tags.push({ type: 'quadra', label: '四杀' })
-  }
-  if (turretKills > 0) {
-    tags.push({ type: 'tower', label: '拆塔' })
-  }
-  return tags
-}
-
-/**
- * 将单条 MatchSummary 转换为页面卡片 GameCard
- * 后端契约增强字段（self/teamTotals）缺失时返回 null，由调用方过滤（过渡期兼容）
- * @param summary 后端列表接口返回的单条摘要
- * @returns 页面卡片；数据不完整时返回 null
- */
-export function summaryToCard(summary: MatchSummary): GameCard | null {
-  // 契约字段缺失（后端未升级期间）时跳过该局，避免渲染空卡片
-  if (!summary.self || !summary.teamTotals) {
-    return null
-  }
-  const self = summary.self
-  const totals = summary.teamTotals
-  const { name, tagLine } = splitName(self.summonerName)
-
-  // 队友列表：同队除 self 外的 4 人（名称拆分 + 本局英雄头像）
-  const teammates = summary.teammates.map((t: MatchTeammate) => ({
-    puuid: t.puuid,
-    name: splitName(t.summonerName).name,
-    championId: t.championId,
-    // 常用英雄暂无可信数据源，由组件按需隐藏副展示
-    mainChampionId: undefined
-  }))
-
+export function summaryToDetail(summary: MatchSummary): MatchDetail {
   return {
     gameId: summary.gameId,
+    gameCreation: summary.gameCreation,
+    gameDuration: summary.gameDuration,
+    gameMode: summary.gameMode,
+    // 折叠卡不消费以下字段，按默认值填充（详情页以真实数据为准）
+    gameType: '',
     queueId: summary.queueId,
-    result: resultOf(self.win, self.gameEndedInSurrender),
-    championId: self.championId,
-    kills: self.kills,
-    deaths: self.deaths,
-    assists: self.assists,
-    // 伤害占比 = 本玩家伤害 / 全队伤害，分母为 0 时取 0（percentOf 兜底）
-    damageShare: percentOf(self.totalDamage, totals.damage),
-    totalDamage: self.totalDamage,
-    duration: formatDuration(summary.gameDuration),
-    date: formatDate(summary.gameCreation),
-    // 地图名按模式映射，未收录模式原样展示
-    mapName: MAP_NAMES[summary.gameMode] ?? summary.gameMode,
-    tags: tagsOf(self.largestMultiKill, self.turretKills),
-    teammates,
-    // 详情懒加载：初始为 null，点击卡片后由父组件注入
-    detail: null
+    mapId: MAP_IDS[summary.gameMode] ?? 11,
+    gameVersion: '',
+    region: summary.region,
+    rsoPlatformId: '',
+    // 折叠卡不渲染详情面板（isExpanded 恒 false），数据源默认 lcu（隐藏 sgp 专属 Tab）
+    dataSource: 'lcu',
+    winnerTeamId: summary.winnerTeamId,
+    selfPuuid: summary.selfPuuid,
+    // 队伍快照缺失：队伍统计由 participants 聚合（teamInfo 为 null，卡片仅用胜负/聚合列）
+    teamsJson: null,
+    // 后端未升级时 participants 可能缺失，兜底空数组（调用方按空卡过滤）
+    participants: (summary.participants ?? []).map(lightToMatchParticipant)
   }
-}
-
-/**
- * 将 MatchDetail 转换为页面的蓝红双队详情（展开卡片时调用）
- * 队伍侧别按 teamId 映射（100 蓝 / 200 红），未知 teamId 兜底按出现顺序分配
- * @param detail 后端详情接口返回
- * @returns 双队展示模型
- */
-export function detailToGameDetail(detail: MatchDetail): GameDetail {
-  // 按 teamId 分组，保持后端参与者顺序
-  const groups = new Map<number, MatchParticipant[]>()
-  for (const participant of detail.participants) {
-    const list = groups.get(participant.teamId) ?? []
-    list.push(participant)
-    groups.set(participant.teamId, list)
-  }
-
-  // 推塔数从 teamsJson 解析（按 teamId 匹配），解析失败按 0
-  const towerMap = parseTowerKills(detail.teamsJson)
-
-  // 队伍侧别分配：100 → 蓝、200 → 红；其余 teamId 按升序兜底分配
-  const teamIds = [...groups.keys()].sort()
-  const sides: TeamDetail['side'][] = ['blue', 'red']
-  const teams = teamIds.map((teamId, index) => {
-    const side = TEAM_SIDES[teamId] ?? sides[index % sides.length] ?? 'blue'
-    return buildTeamDetail(groups.get(teamId) ?? [], side, towerMap.get(teamId) ?? 0, detail.gameDuration)
-  })
-
-  // 双队兜底：数据异常（少于两队）时补全空队，保证模板两侧都有渲染
-  const blue = teams.find((t) => t.side === 'blue') ?? buildTeamDetail([], 'blue', 0, detail.gameDuration)
-  const red = teams.find((t) => t.side === 'red') ?? buildTeamDetail([], 'red', 0, detail.gameDuration)
-  return { blue, red }
 }
 
 /**
