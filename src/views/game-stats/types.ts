@@ -40,18 +40,6 @@ export interface OverviewStats {
   lineupChampionIds: number[]
 }
 
-/** 英雄点数列表项 */
-export interface ChampionPoint {
-  /** 英雄 ID */
-  championId: number
-  /** 英雄中文名，如 复仇焰魂 */
-  name: string
-  /** 英雄等级 */
-  level: number
-  /** 英雄点数 */
-  points: number
-}
-
 /** 最近队友/对手列表项 */
 export interface RecentPlayer {
   /** 玩家 puuid */
@@ -88,8 +76,6 @@ export interface GameStatsData {
   rankSections: RankSection[]
   /** 左侧总览统计 */
   overview: OverviewStats
-  /** 英雄点数列表 */
-  championPoints: ChampionPoint[]
   /** 最近队友 */
   recentTeammates: RecentPlayer[]
   /** 最近对手 */

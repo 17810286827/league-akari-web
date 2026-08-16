@@ -6,7 +6,7 @@
 import { championIconUrl } from '@/utils/icon-url'
 
 import { QUEUE_OPTIONS } from './adapter'
-import type { ChampionPoint, GameStatsData, OverviewStats, RecentPlayer } from './types'
+import type { GameStatsData, OverviewStats, RecentPlayer } from './types'
 
 // 页面数据（props 注入）与后端总条数（分页"N项"显示）；具名引用供模板函数使用
 const props = defineProps<{ data: GameStatsData; total: number }>()
@@ -14,9 +14,6 @@ const props = defineProps<{ data: GameStatsData; total: number }>()
 // 队列筛选（下拉框，值为后端 queueId，null 为所有模式）与当前页（分页控件）
 const queue = defineModel<number | null>('queue', { default: null })
 const page = defineModel<number>('page', { default: 1 })
-
-// 事件：查看更多（英雄点数占位跳转）
-const emit = defineEmits<{ viewMore: [] }>()
 
 /** 每页条数（契约固定 20） */
 const PAGE_SIZE = 20
@@ -58,11 +55,6 @@ const overviewItems: {
   { label: '补刀/分', value: (o) => o.csPerMin.toFixed(1) },
   { label: '胜负', value: (o) => `${o.wins}胜${o.losses}负` }
 ]
-
-/** 英雄点数千分位格式化 */
-function formatPoints(points: number): string {
-  return points.toLocaleString()
-}
 
 /** 判断是否还能翻下一页：当前页已满且未到总条数 */
 function hasNextPage(): boolean {
@@ -124,30 +116,7 @@ function hasPrevPage(): boolean {
       </div>
     </section>
 
-    <!-- 三、英雄点数区（当前无数据源：展示空态"暂无数据"） -->
-    <section class="panel">
-      <div class="panel-header">
-        <h3 class="panel-title">英雄点数</h3>
-        <button type="button" class="more-btn" @click="emit('viewMore')">查看更多</button>
-      </div>
-      <ul v-if="data.championPoints.length > 0" class="champion-list">
-        <li v-for="champion in data.championPoints" :key="champion.championId" class="champion-item">
-          <img
-            :src="championIconUrl(champion.championId)"
-            :alt="champion.name"
-            class="champion-avatar"
-          />
-          <div class="champion-info">
-            <p class="champion-name">{{ champion.name }}</p>
-            <p class="champion-level">{{ champion.level }}级</p>
-          </div>
-          <p class="champion-points">{{ formatPoints(champion.points) }}点</p>
-        </li>
-      </ul>
-      <p v-else class="empty-tip">暂无数据</p>
-    </section>
-
-    <!-- 四、最近队友区（从本页对局 teammates 聚合） -->
+    <!-- 三、最近队友区（从本页对局 teammates 聚合） -->
     <section class="panel">
       <h3 class="panel-title">最近队友</h3>
       <ul v-if="data.recentTeammates.length > 0" class="recent-list">
@@ -211,12 +180,6 @@ function hasPrevPage(): boolean {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 /* 无数据空态提示 */
@@ -346,55 +309,7 @@ function hasPrevPage(): boolean {
   border: 1px solid var(--border);
 }
 
-/* 三、英雄点数 */
-.more-btn {
-  font-size: 15px;
-  color: var(--win);
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.champion-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.champion-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.champion-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-
-.champion-info {
-  flex: 1;
-}
-
-.champion-name {
-  font-size: 16px;
-  color: var(--text);
-}
-
-.champion-level {
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-.champion-points {
-  font-size: 15px;
-  color: var(--gold);
-  font-weight: 600;
-}
-
-/* 四、五、最近队友/对手 */
+/* 三、四、最近队友/对手 */
 .recent-list {
   display: flex;
   flex-direction: column;

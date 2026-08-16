@@ -10,10 +10,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
 
 import { getMatchDetail, listMatches } from '@/api/matches'
-import type { MatchDetail, MatchSummary } from '@/api/types'
+import type { MatchDetail, MatchSummary, RecentOpponent } from '@/api/types'
 import { createLogger } from '@/utils/logger'
 
-import { computeOverview, computeRecentOpponents, computeRecentTeammates } from './adapter'
+import { computeOverview, computeRecentTeammates, mapRecentOpponents } from './adapter'
 import GameCardItem from './GameCardItem.vue'
 import SidebarPanel from './SidebarPanel.vue'
 import TopNavBar from './TopNavBar.vue'
@@ -45,27 +45,24 @@ const page = ref(1)
 const expandedGameId = ref<number | null>(null)
 // 侧栏折叠态：小屏默认收起，由折叠按钮切换
 const sidebarCollapsed = ref(false)
+// 最近对手：后端列表接口聚合结果（列表查询时即返回，不依赖展开详情）
+const recentOpponents = ref<RecentOpponent[]>([])
 
 /** 详情懒加载缓存项：真实详情（时间线 Tab 已移除，不再加载 /timeline） */
 interface DetailCacheEntry {
   detail: MatchDetail
 }
 
-// 详情懒加载：转换结果缓存（避免重复请求）与原始详情列表（供最近对手聚合）
+// 详情懒加载：转换结果缓存（避免重复请求）
 // 缓存以 gameId 为键：展开过的对局再次展开直接命中，不再请求后端
 const detailCache = ref(new Map<number, DetailCacheEntry>())
-// 展开态加载中标记：首次展开时置 true，详情面板就绪前展示占位
+// 展开态加载中标记：首次展开时置 true，详情面板就绪前保留折叠卡
 const detailLoading = ref(false)
-// 已加载的真实详情列表：随展开对局增多，侧栏"最近对手"逐步完整
-const loadedDetails = ref<MatchDetail[]>([])
-
-/** 当前页用户 PUUID（每局一致，取第一局用于对手聚合定位本队） */
-const selfPuuid = computed(() => matches.value[0]?.selfPuuid ?? '')
 
 /**
  * 卡片列表：摘要直传折叠卡（不重复适配，MatchCardOverview 内部消费轻量 participants）；
  * 后端未升级（participants 缺失）的对局被过滤，避免渲染空卡；
- * 已加载的详情/时间线按 gameId 注入列表项，展开态直接展示
+ * 已加载的详情按 gameId 注入列表项，展开态直接展示
  */
 const games = computed<GameListItem[]>(() =>
   matches.value
@@ -84,9 +81,8 @@ const games = computed<GameListItem[]>(() =>
 const sidebarData = computed<GameStatsData>(() => ({
   rankSections,
   overview: computeOverview(matches.value),
-  championPoints: [],
   recentTeammates: computeRecentTeammates(matches.value),
-  recentOpponents: computeRecentOpponents(loadedDetails.value, selfPuuid.value)
+  recentOpponents: mapRecentOpponents(recentOpponents.value)
 }))
 
 /**
@@ -106,6 +102,8 @@ async function loadMatches(): Promise<void> {
     })
     matches.value = res.data
     total.value = res.total
+    // 最近对手：后端列表接口聚合结果（列表查询时即返回）
+    recentOpponents.value = res.recentOpponents ?? []
     logger.info('Loaded match list', { page: page.value, total: res.total, count: res.data.length })
   } catch (error) {
     // 列表加载失败：记录日志并提示用户，列表置空展示空态
@@ -146,8 +144,6 @@ async function toggleGame(gameId: number): Promise<void> {
     }
     // 写入缓存：折叠卡/展开态共用，收起再展开零请求
     detailCache.value.set(gameId, { detail })
-    // 记录原始详情，供"最近对手"聚合逐步完善
-    loadedDetails.value = [...loadedDetails.value, detail]
     logger.info('Loaded match detail', { gameId })
   } catch (error) {
     // 详情失败：展开态无数据可展示，收起卡片并弹出错误提示
@@ -170,12 +166,6 @@ async function toggleGame(gameId: number): Promise<void> {
 function handleRefresh(): void {
   logger.info('Refresh clicked')
   loadMatches()
-}
-
-/** 查看更多（英雄点数占位：当前无数据源） */
-function handleViewMore(): void {
-  // 预留英雄点数页跳转入口：数据源接入前仅记录日志
-  logger.info('View more champion points clicked (placeholder)')
 }
 
 // 队列切换：回到第一页并重新加载（后端按 queueId 过滤）
@@ -220,7 +210,6 @@ onMounted(() => {
           :total="total"
           v-model:queue="activeQueueId"
           v-model:page="page"
-          @view-more="handleViewMore"
         />
       </div>
 
@@ -283,8 +272,8 @@ onMounted(() => {
 .body {
   display: flex;
   align-items: flex-start;
-  /* 居中布局：与详情页 max-w-6xl（1152px）一致，宽屏两侧留白 */
-  max-width: 1152px;
+  /* 加宽至 1400px：详情表格列与卡片数据留足空间（原 1152px 在加列后偏挤） */
+  max-width: 1400px;
   margin: 0 auto;
 }
 

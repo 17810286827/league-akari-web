@@ -329,50 +329,23 @@ export function computeRecentTeammates(matches: MatchSummary[]): RecentPlayer[] 
 }
 
 /**
- * 从已加载的详情聚合"最近对手"：取 self 所在队伍之外的所有玩家（每局 5 人）
- * 详情为懒加载，故对手数据随展开的对局增多而逐渐完整
- * @param details 已加载的详情列表
- * @param selfPuuid 当前用户 PUUID，用于识别本队
- * @returns 最近对手列表（最多 5 人）
+ * 最近对手映射：后端列表接口聚合结果 → 侧栏展示模型（拆分昵称/尾号）
+ * 后端在列表查询时已按出现次数聚合前 5，前端不再依赖展开详情的懒加载
+ * @param opponents 后端 PageResponse.recentOpponents（可能缺失：后端未升级时为空列表）
+ * @returns 最近对手列表
  */
-export function computeRecentOpponents(details: MatchDetail[], selfPuuid: string): RecentPlayer[] {
-  const map = new Map<string, RecentPlayer & { appearCount: number }>()
-  for (const detail of details) {
-    // 定位 self 所在队伍，其余参与者视为对手
-    const selfTeamId = detail.participants.find((p) => p.puuid === selfPuuid)?.teamId
-    for (const participant of detail.participants) {
-      // 跳过本队成员（含 self 自己）
-      if (selfTeamId !== undefined && participant.teamId === selfTeamId) {
-        continue
-      }
-      const { name, tagLine } = splitName(participant.summonerName)
-      const existing = map.get(participant.puuid)
-      if (existing) {
-        // 胜负数从对手视角累加（其 win 即该局是否获胜）
-        if (participant.win) {
-          existing.wins += 1
-        } else {
-          existing.losses += 1
-        }
-        existing.name = name
-        existing.tagLine = tagLine
-        existing.championId = participant.championId
-        existing.appearCount += 1
-      } else {
-        map.set(participant.puuid, {
-          puuid: participant.puuid,
-          name,
-          tagLine,
-          championId: participant.championId,
-          wins: participant.win ? 1 : 0,
-          losses: participant.win ? 0 : 1,
-          appearCount: 1
-        })
-      }
+export function mapRecentOpponents(
+  opponents?: Array<{ puuid: string; summonerName: string; championId: number; wins: number; losses: number }>
+): RecentPlayer[] {
+  return (opponents ?? []).map((opponent) => {
+    const { name, tagLine } = splitName(opponent.summonerName)
+    return {
+      puuid: opponent.puuid,
+      name,
+      tagLine,
+      championId: opponent.championId,
+      wins: opponent.wins,
+      losses: opponent.losses
     }
-  }
-  return [...map.values()]
-    .sort((a, b) => b.appearCount - a.appearCount)
-    .slice(0, 5)
-    .map(({ appearCount: _appearCount, ...player }) => player)
+  })
 }

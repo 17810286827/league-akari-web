@@ -182,6 +182,22 @@ export interface PageResponse<T> {
   pageSize: number
   /** 符合条件的总条数 */
   total: number
+  /** 最近对手聚合（仅 matches 列表接口返回：本页对局非 self 队玩家按出现次数前 5；后端未升级时缺失） */
+  recentOpponents?: RecentOpponent[]
+}
+
+/** 最近对手聚合项（与后端 MatchSummaryResponse.RecentOpponent 对齐） */
+export interface RecentOpponent {
+  /** 玩家 puuid */
+  puuid: string
+  /** 召唤师名（含 #tag） */
+  summonerName: string
+  /** 英雄 ID（最后一次出现） */
+  championId: number
+  /** 胜场数 */
+  wins: number
+  /** 负场数 */
+  losses: number
 }
 
 /** 对局参与者：对局详情中的单个玩家记录 */
