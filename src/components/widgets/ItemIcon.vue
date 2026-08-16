@@ -77,8 +77,9 @@ onBeforeUnmount(() => {
     </template>
     <div class="max-w-56">
       <p class="item-name">{{ display?.name ?? '加载中…' }}</p>
-      <p v-if="display" class="item-price">{{ display.totalPrice }} 金币</p>
-      <p v-if="display" class="item-desc">{{ display.descriptionHtml }}</p>
+      <!-- itemDisplay 现返回非空资源，未知物品 name 为空串，据此隐藏价格/描述 -->
+      <p v-if="display?.name" class="item-price">{{ display.totalPrice }} 金币</p>
+      <p v-if="display?.name" class="item-desc">{{ display.descriptionHtml }}</p>
     </div>
   </NPopover>
 </template>
