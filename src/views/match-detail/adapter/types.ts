@@ -200,16 +200,215 @@ export interface MatchCardDamageDetail {
 }
 
 /**
- * 击杀事件（web 本地类型，任务 9；字段对应原版 DetailedChampionKillEvent 的消费子集，
- * 供 VictimDamageDetails 展示伤害明细）
+ * 击杀事件（web 本地类型，任务 9/15；字段对应原版 DetailedChampionKillEvent，
+ * 任务 15 扩展为时间线完整消费子集——Events Tab 与 VictimDamageDetails 共用；
+ * victimDamageReceived 改为可选：LCU/官方 API 数据无伤害明细，缺失时按无伤害处理）
  */
 export interface MatchCardChampionKillEvent {
+  type: 'CHAMPION_KILL'
+  /** 事件时间戳（毫秒） */
+  timestamp: number
+  /** 击杀者参与者编号 */
+  killerId: number
   /** 被击杀者参与者编号 */
   victimId: number
-  /** 击杀者对受害者的伤害（原版可选字段，缺失按无伤害处理） */
+  /** 助攻参与者编号列表 */
+  assistingParticipantIds: number[]
+  /** 事件发生坐标（地图像素坐标，MapPosition 消费） */
+  position: MatchCardTimelinePosition
+  /** 击杀赏金（原版字段，组件未消费，透传备用） */
+  bounty?: number
+  /** 终结赏金（原版字段，组件未消费，透传备用） */
+  shutdownBounty?: number
+  /** 击杀者连杀数（原版字段，组件未消费，透传备用） */
+  killStreakLength?: number
+  /** 击杀者对受害者的伤害（SGP 专属，缺失按无伤害处理） */
   victimDamageDealt?: MatchCardDamageDetail[]
-  /** 受害者受到的伤害（必填） */
-  victimDamageReceived: MatchCardDamageDetail[]
+  /** 受害者受到的伤害（SGP 专属，缺失按无伤害处理） */
+  victimDamageReceived?: MatchCardDamageDetail[]
+  /** 受害者团战中受到的伤害（SGP 专属，组件未消费，透传备用） */
+  victimTeamfightDamageDealt?: MatchCardDamageDetail[]
+  /** 受害者团战中对击杀者造成的伤害（SGP 专属，组件未消费，透传备用） */
+  victimTeamfightDamageReceived?: MatchCardDamageDetail[]
+}
+
+/** 时间线事件坐标（对齐原版 Position：召唤师峡谷像素坐标） */
+export interface MatchCardTimelinePosition {
+  x: number
+  y: number
+}
+
+/** 技能加点事件（对齐原版 DetailedSkillLevelUpEvent，Builds Tab 消费） */
+export interface MatchCardTimelineSkillLevelUpEvent {
+  type: 'SKILL_LEVEL_UP'
+  timestamp: number
+  /** 加点选手的参与者编号 */
+  participantId: number
+  /** 技能槽位（1-4 对应 Q/W/E/R） */
+  skillSlot: number
+  /** 加点类型：EVOLVE 为进化（海克斯进化不占普通加点次数），缺失按普通加点处理 */
+  levelUpType?: 'NORMAL' | 'EVOLVE' | (string & {})
+}
+
+/** 购买事件（对齐原版 DetailedItemPurchasedEvent，Builds Tab 消费） */
+export interface MatchCardTimelineItemPurchasedEvent {
+  type: 'ITEM_PURCHASED'
+  timestamp: number
+  /** 购买选手的参与者编号 */
+  participantId: number
+  /** 购买物品 ID */
+  itemId: number
+}
+
+/** 特殊击杀事件（一血/多杀/团灭，对齐原版 ChampionSpecialKillEvent，Events Tab 消费） */
+export interface MatchCardTimelineSpecialKillEvent {
+  type: 'CHAMPION_SPECIAL_KILL'
+  timestamp: number
+  killerId: number
+  /** 特殊击杀类型：KILL_FIRST_BLOOD（一血）/ KILL_MULTI（多杀）/ KILL_ACE（团灭） */
+  killType: string
+  /** 多杀数量（KILL_MULTI 才有，如 2/3/4/5） */
+  multiKillLength?: number
+  position: MatchCardTimelinePosition
+}
+
+/** 摧毁建筑事件（对齐原版 DetailedBuildingKillEvent 消费子集，Events Tab 消费） */
+export interface MatchCardTimelineBuildingKillEvent {
+  type: 'BUILDING_KILL'
+  timestamp: number
+  killerId: number
+  /** 建筑类型：TOWER_BUILDING / INHIBITOR_BUILDING */
+  buildingType: string
+  /** 防御塔类型（如 OUTER_TURRET），缺失时组件按 buildingType 展示 */
+  towerType?: string
+  /** 分路（如 MID_LANE），缺失时组件省略分路展示 */
+  laneType?: string
+  position: MatchCardTimelinePosition
+}
+
+/** 防御塔镀层事件（对齐原版 DetailedTurretPlateDestroyedEvent 消费子集，Events Tab 消费） */
+export interface MatchCardTimelineTurretPlateDestroyedEvent {
+  type: 'TURRET_PLATE_DESTROYED'
+  timestamp: number
+  /** 摧毁镀层的选手参与者编号（0 表示镀层自行掉落，模板跳过） */
+  killerId: number
+  /** 分路（如 MID_LANE），缺失时组件展示通用文案 */
+  laneType?: string
+  position: MatchCardTimelinePosition
+}
+
+/** 对局结束事件（Events Tab 的 firstAndEndTime 用它取真实结束时间） */
+export interface MatchCardTimelineGameEndEvent {
+  type: 'GAME_END'
+  timestamp: number
+}
+
+/**
+ * 时间线事件联合（web 本地类型，字段对齐原版 @shared/types/sgp/match-history 消费子集）。
+ * 注意：不含未建模事件类型（如 WARD_PLACED/ELITE_MONSTER_KILL）——type 为 string 的
+ * 兜底成员会破坏判别式收窄（组件按 type 字面量收窄），且无任何组件消费这些事件，
+ * 转换层直接跳过（对齐原版三个 Tab 的消费结构）
+ */
+export type MatchCardTimelineEvent =
+  | MatchCardChampionKillEvent
+  | MatchCardTimelineSpecialKillEvent
+  | MatchCardTimelineBuildingKillEvent
+  | MatchCardTimelineTurretPlateDestroyedEvent
+  | MatchCardTimelineSkillLevelUpEvent
+  | MatchCardTimelineItemPurchasedEvent
+  | MatchCardTimelineGameEndEvent
+
+/** 参与者帧的伤害统计（对齐原版 DamageStats；仅 SGP 提供，v5/LCU 无该记录） */
+export interface MatchCardTimelineDamageStats {
+  magicDamageDone: number
+  magicDamageDoneToChampions: number
+  magicDamageTaken: number
+  physicalDamageDone: number
+  physicalDamageDoneToChampions: number
+  physicalDamageTaken: number
+  totalDamageDone: number
+  /** 对英雄总伤害（DiffLineChart 的 damageDealt 指标） */
+  totalDamageDoneToChampions: number
+  /** 总承伤（DiffLineChart 的 damageTaken 指标） */
+  totalDamageTaken: number
+  trueDamageDone: number
+  trueDamageDoneToChampions: number
+  trueDamageTaken: number
+}
+
+/** 参与者帧的英雄属性（对齐原版 ChampionStats；仅 SGP 提供，StatsLine Tab 消费） */
+export interface MatchCardTimelineChampionStats {
+  abilityHaste: number
+  abilityPower: number
+  armor: number
+  armorPen: number
+  armorPenPercent: number
+  attackDamage: number
+  attackSpeed: number
+  bonusArmorPenPercent: number
+  bonusMagicPenPercent: number
+  ccReduction: number
+  cooldownReduction: number
+  health: number
+  healthMax: number
+  healthRegen: number
+  lifesteal: number
+  magicPen: number
+  magicPenPercent: number
+  magicResist: number
+  movementSpeed: number
+  omnivamp: number
+  physicalVamp: number
+  power: number
+  powerMax: number
+  powerRegen: number
+  spellVamp: number
+}
+
+/**
+ * 参与者帧（web 本地类型，对齐原版 DetailedParticipantFrame 消费子集；
+ * 数值字段缺失由转换层兜底为 0，damageStats/championStats 仅 SGP 数据携带）
+ */
+export interface MatchCardTimelineParticipantFrame {
+  /** 参与者编号（与帧内 key 一致，缺失时以 key 为准） */
+  participantId: number
+  currentGold: number
+  totalGold: number
+  goldPerSecond: number
+  level: number
+  xp: number
+  minionsKilled: number
+  jungleMinionsKilled: number
+  position: MatchCardTimelinePosition
+  /** SGP 专属：伤害统计（LCU/官方 API 无，DiffLineChart 用它区分数据源） */
+  damageStats?: MatchCardTimelineDamageStats
+  /** SGP 专属：英雄属性（LCU/官方 API 无，StatsLine Tab 消费） */
+  championStats?: MatchCardTimelineChampionStats
+}
+
+/** 时间线帧（web 本地类型；events 为字段完整事件，participantFrames 以字符串参与者编号为 key） */
+export interface MatchCardTimelineFrame {
+  timestamp: number
+  events: MatchCardTimelineEvent[]
+  participantFrames: Record<string, MatchCardTimelineParticipantFrame>
+}
+
+/** 构建 Tab 的购买序列分割标记（原版合成事件：购买间隔超过 30s 时插入） */
+export interface MatchCardItemSpacerEvent {
+  type: 'LEAGUE_AKARI_ITEM_SPACER'
+}
+
+/** 构建数据适配结果（对齐原版 Builds Tab 的 collected 计算结构） */
+export interface MatchCardBuildsResult {
+  /** 每位选手的锻炉物品数量（原版 ANVIL 概念：itemId 6032/220000） */
+  anvils: Record<number, number>
+  /** 每位选手的技能加点序列（displayLevel 为加点序号，EVOLVE 不占序号） */
+  skillLevelUpEvents: Record<
+    number,
+    (MatchCardTimelineSkillLevelUpEvent & { displayLevel?: number })[]
+  >
+  /** 每位选手的购买序列（含超 30s 间隔插入的 spacer 分割标记） */
+  itemPurchaseEvents: Record<number, (MatchCardTimelineItemPurchasedEvent | MatchCardItemSpacerEvent)[]>
 }
 
 /**

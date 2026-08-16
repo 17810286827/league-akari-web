@@ -422,7 +422,8 @@ const data = computed(() => {
 
   // id 0 可能代表很多其他的伤害来源，这里当成独立处理
   const damageDealtMap = collectDamage(event.victimDamageDealt || [])
-  const damageReceivedMap = collectDamage(event.victimDamageReceived)
+  // victimDamageReceived 任务 15 起为可选（LCU/官方 API 无伤害明细），缺失按无伤害处理
+  const damageReceivedMap = collectDamage(event.victimDamageReceived ?? [])
 
   const { sorted: damageReceived, maxTotal: maxDamageReceived } = extractMaxAndSorted(
     Object.values(damageReceivedMap)
