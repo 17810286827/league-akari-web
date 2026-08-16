@@ -34,7 +34,10 @@ describe('ItemDisplay 合成路径', () => {
       descriptionHtml: '大幅提升法术强度',
       price: 1200,
       totalPrice: 3600,
-      from: [1058, 1058],
+      from: [
+        { id: 1058, name: '灭世法典', iconPath: '/lol-game-data/assets/ASSETS/Items/Icons2D/1058_mage_t1_amplifyingtome.png' },
+        { id: 1058, name: '灭世法典', iconPath: '/lol-game-data/assets/ASSETS/Items/Icons2D/1058_mage_t1_amplifyingtome.png' }
+      ],
       to: []
     })
   })
@@ -48,10 +51,10 @@ describe('ItemDisplay 合成路径', () => {
     // 触发 popover 显示（NPopover 惰性渲染，teleport 到 body）
     await wrapper.get('img').trigger('mouseenter')
     await vi.waitFor(() => {
-      // from 行渲染 2 个小件图标（1058 的 CDN 路径）
+      // from 行渲染 2 个小件图标（iconPath 经 CdnImage 转换）
       const fromImgs = document.body.querySelectorAll('.from img')
       expect(fromImgs.length).toBe(2)
-      expect((fromImgs[0] as HTMLImageElement).src).toContain('items/1058.png')
+      expect((fromImgs[0] as HTMLImageElement).src).toContain('1058_mage_t1_amplifyingtome.png')
     })
 
     // to 为空数组：不渲染 to 行

@@ -63,10 +63,18 @@ export interface ItemDisplayResource {
   priceTotal?: number
   /** 总价（保留原名以兼容 ItemIcon.vue 等既有消费方） */
   totalPrice: number
-  /** 合成组件 ID 列表（合成路径，老数据可能缺失） */
-  from?: number[]
-  /** 升级合成去向 ID 列表（老数据可能缺失；主仓库 items.display 亦返回该字段） */
-  to?: number[]
+  /** 合成组件（合成路径，含图标与名称；老数据可能缺失） */
+  from?: ItemComponentResource[]
+  /** 升级合成去向（老数据可能缺失；主仓库 items.display 亦返回该字段） */
+  to?: ItemComponentResource[]
+}
+
+/** 合成路径中的组件物品：id/名称/图标路径（与原版 provider 的 itemInline 结构对齐） */
+export interface ItemComponentResource {
+  id: number
+  name: string
+  /** LCU 资源路径（如 /lol-game-data/assets/ASSETS/Items/Icons2D/1043_xxx.png） */
+  iconPath: string
 }
 
 /**
@@ -246,14 +254,33 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
       priceTotal: item.priceTotal,
       // totalPrice 为必填展示字段：priceTotal 缺失时补 0，避免渲染 "undefined 金币"
       totalPrice: item.priceTotal ?? 0,
-      // 合成组件 ID（合成路径）：CDragon 老版本数据的 to 字段可能为数字 0（无去向），统一归一为数组
-      from: Array.isArray(item.from) ? item.from : [],
-      // 升级合成去向 ID（与 from 同源，主仓库 items.display 亦返回）
-      to: Array.isArray(item.to) ? item.to : []
+      // 合成组件（合成路径）：CDragon 老版本数据的 to 字段可能为数字 0（无去向），统一归一为数组；
+      // 图标/名称取自 items 记录（组件 id 无法推导文件名，必须用记录的 iconPath）
+      from: toComponents(items, item.from),
+      // 升级合成去向（与 from 同源，主仓库 items.display 亦返回）
+      to: toComponents(items, item.to)
     }
   } catch {
     return emptyItemDisplay(itemId)
   }
+}
+
+/**
+ * 把合成路径的组件 ID 数组转换为组件资源列表：
+ * 从 items 记录取名称与图标路径（CDragon 图标文件名含物品 slug，仅凭 id 无法推导）；
+ * 组件 id 以查询键为准（键值对象形状的记录不含 id 字段）
+ */
+function toComponents(items: Map<number, Item>, ids: unknown): ItemComponentResource[] {
+  if (!Array.isArray(ids)) return []
+  const result: ItemComponentResource[] = []
+  for (const rawId of ids) {
+    const id = Number(rawId)
+    const item = Number.isFinite(id) ? items.get(id) : undefined
+    if (item?.name) {
+      result.push({ id, name: item.name, iconPath: item.iconPath ?? '' })
+    }
+  }
+  return result
 }
 
 // ---- 海克斯强化（augment）----

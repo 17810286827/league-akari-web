@@ -114,16 +114,12 @@ onBeforeUnmount(() => {
 
 /**
  * 合成路径内联项（原版 provider 返回 itemInline 对象数组 { id, name, iconPath }，
- * web 数据层仅返回 id 数组，此处按 CDragon 约定本地组装图标路径）
+ * web 数据层 itemDisplay 已按同一结构返回组件资源，此处直接消费）
  */
-function inlineItem(id: number): { id: number; name?: string; iconPath: string } {
-  return { id, iconPath: `/lol-game-data/assets/v1/items/${id}.png` }
-}
-
 /** 合成组件图标列表（from） */
-const fromItems = computed(() => (itemDisplay.value?.from ?? []).map(inlineItem))
+const fromItems = computed(() => itemDisplay.value?.from ?? [])
 /** 升级去向图标列表（to） */
-const toItems = computed(() => (itemDisplay.value?.to ?? []).map(inlineItem))
+const toItems = computed(() => itemDisplay.value?.to ?? [])
 </script>
 
 <style scoped>
