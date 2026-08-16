@@ -57,13 +57,13 @@ const chartColors = computed(() => {
       },
       team: {
         background: 'rgba(148,163,184,0.18)',
-        border: 'rgba(203,213,225,0.9)',
+        border: 'rgba(203,213,225,0.95)',
         point: '#cbd5f1'
       },
       legend: '#e2e8f0',
-      label: '#e2e8f0',
-      grid: 'rgba(226,232,240,0.16)',
-      angle: 'rgba(226,232,240,0.18)',
+      label: '#f1f5f9',
+      grid: 'rgba(226,232,240,0.30)',
+      angle: 'rgba(226,232,240,0.36)',
       tooltipBg: 'rgba(15,23,42,0.92)',
       tooltipBorder: 'rgba(148,163,184,0.4)',
       tooltipTitle: '#f8fafc',
@@ -74,18 +74,18 @@ const chartColors = computed(() => {
   return {
     player: {
       background: 'rgba(255,99,132,0.16)',
-      border: 'rgba(220,38,38,0.9)',
+      border: 'rgba(220,38,38,0.95)',
       point: '#ef4444'
     },
     team: {
       background: 'rgba(148,163,184,0.18)',
-      border: 'rgba(71,85,105,0.9)',
+      border: 'rgba(51,65,85,0.95)',
       point: '#475569'
     },
     legend: '#1f2937',
-    label: '#111827',
-    grid: 'rgba(15,23,42,0.08)',
-    angle: 'rgba(15,23,42,0.12)',
+    label: '#0f172a',
+    grid: 'rgba(15,23,42,0.18)',
+    angle: 'rgba(15,23,42,0.24)',
     tooltipBg: 'rgba(255,255,255,0.94)',
     tooltipBorder: 'rgba(148,163,184,0.5)',
     tooltipTitle: '#111827',
@@ -228,7 +228,7 @@ const data = computed<ChartData<'radar'>>(() => {
         label: selfName.value ?? puuid,
         backgroundColor: chartColors.value.player.background,
         borderColor: chartColors.value.player.border,
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointBackgroundColor: chartColors.value.player.point,
         pointBorderColor: '#fff',
         pointHoverBackgroundColor: '#fff',
@@ -247,7 +247,7 @@ const data = computed<ChartData<'radar'>>(() => {
         label: t('matchCard.radar.teamAvg'),
         backgroundColor: chartColors.value.team.background,
         borderColor: chartColors.value.team.border,
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointBackgroundColor: chartColors.value.team.point,
         pointBorderColor: '#fff',
         pointHoverBackgroundColor: '#fff',
@@ -280,9 +280,14 @@ const options = computed<ChartOptions<'radar'>>(() => ({
       ticks: {
         display: false
       },
-      grid: { color: chartColors.value.grid },
-      angleLines: { color: chartColors.value.angle },
-      pointLabels: { color: chartColors.value.label }
+      // 网格/轴线加粗提亮：默认 1px + 低透明度在深色背景上几乎不可见
+      grid: { color: chartColors.value.grid, lineWidth: 1.5 },
+      angleLines: { color: chartColors.value.angle, lineWidth: 1.5 },
+      pointLabels: {
+        color: chartColors.value.label,
+        // 标签内嵌数值（伤害/补刀/KDA 等），放大加粗保证可读
+        font: { size: 13, weight: 600 }
+      }
     }
   },
   plugins: {
@@ -291,7 +296,8 @@ const options = computed<ChartOptions<'radar'>>(() => ({
     },
     legend: {
       labels: {
-        color: chartColors.value.legend
+        color: chartColors.value.legend,
+        font: { size: 13, weight: 500 }
       }
     },
     tooltip: {
