@@ -5,7 +5,7 @@
  * naive-ui 组件统一用 NConfigProvider 包裹挂载，RadarChart 打桩（chart.js 需 canvas，jsdom 无）
  */
 import { flushPromises, mount } from '@vue/test-utils'
-import { NConfigProvider } from 'naive-ui'
+import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -79,10 +79,17 @@ const cherrySummary: MatchDetail = {
   participants: lcuParticipantFixture
 }
 
-/** 挂载 MatchCard（默认 isExpanded=false）：NConfigProvider 包裹（naive-ui 依赖）+ RadarChart 打桩 */
+/** 挂载 MatchCard（默认 isExpanded=false）：NConfigProvider + NMessageProvider 包裹
+ *  （naive-ui 依赖，MatchCardDetails 的 AI 分析按钮 useMessage 需要）+ RadarChart 打桩 */
 function mountMatchCard(summary: MatchDetail, extraProps: Record<string, unknown> = {}) {
   return mount(
-    () => h(NConfigProvider, null, { default: () => h(MatchCard, { summary, puuid: 'lcu-p1', ...extraProps }) }),
+    () =>
+      h(NConfigProvider, null, {
+        default: () =>
+          h(NMessageProvider, null, {
+            default: () => h(MatchCard, { summary, puuid: 'lcu-p1', ...extraProps })
+          })
+      }),
     { global: { stubs: { RadarChart: true } } }
   )
 }
