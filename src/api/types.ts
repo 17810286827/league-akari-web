@@ -116,6 +116,10 @@ export interface MatchParticipantLight {
   maxCsAdvantageOnLaneOpponent?: number | null
   /** 击飞击杀数（折叠卡击飞标签使用） */
   knockEnemyIntoTeamAndKill?: number | null
+  /** 召唤师账号等级（顶部玩家信息展示） */
+  summonerLevel?: number | null
+  /** 召唤师头像 ID（顶部玩家头像展示） */
+  profileIcon?: number | null
 }
 
 /** 本玩家（selfPuuid）在该局的个人战绩快照（后端从 stats_json 解析而来） */
@@ -198,6 +202,16 @@ export interface RecentOpponent {
   wins: number
   /** 负场数 */
   losses: number
+}
+
+/** Riot 召唤师账号信息（与后端 RiotAccountDto 对齐，召唤师搜索接口返回） */
+export interface RiotAccount {
+  /** 拳头账号唯一标识 */
+  puuid: string
+  /** 昵称（# 之前部分） */
+  gameName: string
+  /** 尾号（# 之后部分） */
+  tagLine: string
 }
 
 /** 对局参与者：对局详情中的单个玩家记录 */

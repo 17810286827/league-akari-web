@@ -1,16 +1,17 @@
 <script setup lang="ts">
 /**
- * 战绩分析页面（League Akari 风格，接入真实后端数据）：
- * 顶部导航（段位板块+刷新）→ 左侧边栏（队列筛选/总览/英雄点数/最近队友对手）+ 右侧战绩列表
- * （原版折叠卡：轻量摘要渲染 MatchCardOverview，点击展开懒加载详情+时间线渲染 MatchCard 展开态）
- * 数据流：onMounted → listMatches 加载本页 → summary 直接传给 GameCardItem 渲染折叠卡；
- *         点击卡片 → getMatchDetail + getMatchTimeline 并行懒加载 → 注入展开态（组件内缓存已加载详情）
+ * 玩家战绩页（/players/:puuid）：
+ * 顶部导航（段位板块+刷新）→ 左侧边栏（召唤师查询/队列筛选/总览/最近队友对手）+ 右侧战绩列表
+ * 数据流：路由参数 puuid（+query name/tag）初始化查询玩家 → listMatches({ puuid }) 加载该玩家对局；
+ *         侧栏查询框可切换玩家（搜索成功后跳转到新玩家的战绩页）；
+ *         点击卡片 → getMatchDetail 懒加载 → 注入展开态（组件内缓存已加载详情）
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
+import { useRoute, useRouter } from 'vue-router'
 
-import { getMatchDetail, listMatches } from '@/api/matches'
-import type { MatchDetail, MatchSummary, RecentOpponent } from '@/api/types'
+import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import type { MatchDetail, MatchSummary, RecentOpponent, RiotAccount } from '@/api/types'
 import { createLogger } from '@/utils/logger'
 
 import { computeOverview, computeRecentTeammates, mapRecentOpponents } from './adapter'
@@ -22,9 +23,11 @@ import type { GameListItem, GameStatsData, RankSection } from './types'
 const logger = createLogger('GameStats')
 // 全局消息提示（App.vue 已注册 NMessageProvider）
 const message = useMessage()
+const route = useRoute()
+const router = useRouter()
 
-/** 每页条数（契约固定 20） */
-const PAGE_SIZE = 20
+/** 每页条数（分页控件可选 5/10/20，默认 20） */
+const pageSize = ref(20)
 
 /** 顶部段位板块：无数据源，保持"未定级"展示（契约第 5 节） */
 const rankSections: RankSection[] = [
@@ -38,7 +41,11 @@ const total = ref(0)
 const loading = ref(false)
 const errorMsg = ref('')
 
-// 交互状态：当前队列（null 为所有模式）、当前页、展开的对局、侧栏折叠
+// 交互状态：当前查询玩家、当前队列（null 为所有模式）、当前页、展开的对局、侧栏折叠
+// 查询玩家：由路由参数初始化（/players/:puuid?name=&tag=）
+const queryPlayer = ref<RiotAccount | null>(null)
+/** 顶部搜索框输入内容（"昵称#tag"） */
+const summonerInput = ref('')
 const activeQueueId = ref<number | null>(null)
 const page = ref(1)
 // 展开对局 ID：同一时刻至多展开一局（与详情页单局语义一致）
@@ -75,6 +82,25 @@ const games = computed<GameListItem[]>(() =>
 )
 
 /**
+ * 查询玩家展示信息（顶部导航左侧）：从最近一局对局数据提取
+ * 召唤师头像（profileIcon）与召唤师等级（summonerLevel，后端列表接口提供）；
+ * 无对局数据时头像/等级缺失（前端占位）
+ */
+const playerProfile = computed(() => {
+  const qp = queryPlayer.value
+  if (!qp) return null
+  const target = `${qp.gameName}#${qp.tagLine}`
+  const me = games.value
+    .map((g) => g.summary.participants?.find((p) => p.summonerName === target))
+    .find(Boolean)
+  return {
+    name: target,
+    profileIconId: me?.profileIcon,
+    summonerLevel: me?.summonerLevel
+  }
+})
+
+/**
  * 侧栏数据：总览/最近队友/最近对手均从当前页数据实时聚合；
  * 英雄点数无数据源为空列表；渲染由 SidebarPanel 独立完成，与列表改造解耦
  */
@@ -97,8 +123,13 @@ async function loadMatches(): Promise<void> {
   try {
     const res = await listMatches({
       page: page.value,
-      pageSize: PAGE_SIZE,
-      queueId: activeQueueId.value ?? undefined
+      pageSize: pageSize.value,
+      queueId: activeQueueId.value ?? undefined,
+      // 只查询当前玩家的对局：按召唤师名（含 #tag）匹配本地对局数据
+      // （Riot puuid 与本地 SGP 对局的 ID 体系不一致，按名称匹配才能命中）
+      summonerName: queryPlayer.value
+        ? `${queryPlayer.value.gameName}#${queryPlayer.value.tagLine}`
+        : undefined
     })
     matches.value = res.data
     total.value = res.total
@@ -114,6 +145,31 @@ async function loadMatches(): Promise<void> {
     message.error(errorMsg.value)
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 顶部搜索框提交：输入"昵称#tag" → Riot Account 搜索（后端 JVM 缓存）→
+ * 成功后 router 跳转新玩家战绩页（携带昵称/尾号 query）；失败提示后端返回的明确原因
+ */
+async function handleSearchSummoner(): Promise<void> {
+  const riotName = summonerInput.value.trim()
+  if (!riotName) {
+    return
+  }
+  try {
+    const account = await searchRiotAccount(riotName)
+    logger.info('Summoner searched, navigate to matches', { riotName, puuid: account.puuid })
+    await router.push({
+      path: `/players/${account.puuid}`,
+      query: { name: account.gameName, tag: account.tagLine }
+    })
+  } catch (error) {
+    // 搜索失败：优先取后端返回的 message（如"Riot API Key 未配置"/"召唤师不存在"）
+    const detail = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+    const reason = detail ?? (error instanceof Error ? error.message : '未知错误')
+    logger.error('Failed to search summoner', { riotName, error })
+    message.error(`召唤师查询失败：${reason}`)
   }
 }
 
@@ -174,23 +230,64 @@ watch(activeQueueId, () => {
   loadMatches()
 })
 
-// 分页变化：重新加载对应页（初始 onMounted 已加载，无需 immediate）
+// 分页变化：重新加载对应页（查询玩家变化时已由 handleSearchSummoner 重置）
 watch(page, (next, prev) => {
   if (next !== prev) {
     loadMatches()
   }
 })
 
-// 页面挂载后加载第一页真实数据
+// 页面挂载：从路由参数初始化查询玩家（/players/:puuid?name=&tag=）并加载其战绩
 onMounted(() => {
+  const puuid = route.params.puuid as string | undefined
+  const name = route.query.name as string | undefined
+  const tag = route.query.tag as string | undefined
+  queryPlayer.value = puuid
+    ? { puuid, gameName: name ?? '', tagLine: tag ?? '' }
+    : null
+  logger.info('GameStats mounted for summoner', { puuid, name, tag })
   loadMatches()
 })
+
+// 路由 puuid 变化（侧栏切换玩家/直接改 URL）：重新初始化并加载新玩家的战绩
+watch(
+  () => route.params.puuid,
+  (puuid, prev) => {
+    if (!puuid || puuid === prev) return
+    // 重置分页/展开态/缓存，按新玩家重新加载
+    queryPlayer.value = {
+      puuid: puuid as string,
+      gameName: (route.query.name as string) ?? '',
+      tagLine: (route.query.tag as string) ?? ''
+    }
+    page.value = 1
+    expandedGameId.value = null
+    detailCache.value.clear()
+    logger.info('Summoner route changed', { puuid })
+    loadMatches()
+  }
+)
 </script>
 
 <template>
   <div class="game-stats">
-    <!-- 顶部导航：段位板块 + 刷新按钮（数据源缺失时保持"未定级"） -->
-    <TopNavBar :sections="rankSections" @refresh="handleRefresh" />
+    <!-- 页面最顶层：居中召唤师查询栏（位于段位导航之上） -->
+    <div class="top-search">
+      <div class="top-search-box">
+        <input
+          v-model="summonerInput"
+          class="top-search-input"
+          placeholder="输入召唤师名（昵称#tag）查询战绩"
+          @keyup.enter="handleSearchSummoner"
+        />
+        <button type="button" class="top-search-button" @click="handleSearchSummoner">
+          查询
+        </button>
+      </div>
+    </div>
+
+    <!-- 顶部导航：查询玩家信息（左）+ 段位板块（中）+ 刷新按钮（右） -->
+    <TopNavBar :sections="rankSections" :player="playerProfile" @refresh="handleRefresh" />
 
     <div class="body">
       <!-- 侧栏折叠按钮：小屏可见，点击展开/收起侧栏 -->
@@ -203,13 +300,14 @@ onMounted(() => {
         {{ sidebarCollapsed ? '展开侧栏' : '收起侧栏' }}
       </button>
 
-      <!-- 左侧边栏：小屏可折叠（队列筛选/总览/英雄点数/最近队友对手） -->
+      <!-- 左侧边栏：小屏可折叠（队列筛选/总览/最近队友对手） -->
       <div v-show="!sidebarCollapsed" class="sidebar-wrap">
         <SidebarPanel
           :data="sidebarData"
           :total="total"
           v-model:queue="activeQueueId"
           v-model:page="page"
+          v-model:page-size="pageSize"
         />
       </div>
 
@@ -225,9 +323,9 @@ onMounted(() => {
               :detail-loading="detailLoading && expandedGameId === game.summary.gameId"
               @toggle="toggleGame"
             />
-            <!-- 空态：加载失败显示错误提示，否则为无数据提示 -->
+            <!-- 空态：加载失败显示错误；查询后无数据显示暂无对局 -->
             <p v-if="!loading && games.length === 0" class="empty">
-              {{ errorMsg || '该队列下暂无对局记录' }}
+              {{ errorMsg || '该玩家暂无对局记录' }}
             </p>
           </div>
         </n-spin>
@@ -268,6 +366,57 @@ onMounted(() => {
 </style>
 
 <style lang="scss" scoped>
+/* 顶部查询栏：整行居中（搜索框 + 查询按钮，电竞终端风格） */
+.top-search {
+  display: flex;
+  justify-content: center;
+  padding: 14px 20px 4px;
+}
+
+.top-search-box {
+  display: flex;
+  gap: 8px;
+  width: min(560px, 90vw);
+}
+
+.top-search-input {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 15px;
+  border-radius: 10px;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  background: rgba(18, 16, 28, 0.85);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-2);
+    box-shadow: 0 0 14px rgba(124, 58, 237, 0.35);
+  }
+}
+
+.top-search-button {
+  flex-shrink: 0;
+  padding: 10px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  transition: filter 0.15s;
+
+  &:hover {
+    filter: brightness(1.12);
+  }
+}
+
 /* 页面主体：侧栏 + 主内容区（宽屏并排，小屏侧栏默认隐藏） */
 .body {
   display: flex;

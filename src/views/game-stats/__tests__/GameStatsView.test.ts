@@ -1,9 +1,9 @@
 /**
- * GameStatsView 组件测试（任务 14）
- * 覆盖：列表加载后折叠卡渲染（轻量参与者 KDA/玩家行/装备图标，未触发详情请求）、
- * 点击卡片展开（并行懒加载 getMatchDetail + getMatchTimeline，渲染 MatchCard 展开态并注入时间线）、
- * 收起再展开命中缓存不重复请求、详情失败收起并提示、时间线失败仅 warn 不阻塞展开；
- * mock src/api/matches.ts 的 listMatches/getMatchDetail/getMatchTimeline，
+ * GameStatsView 组件测试（玩家战绩页）
+ * 覆盖：路由携带 puuid 自动加载该玩家对局（折叠卡渲染/未触发详情请求）、
+ * 侧栏搜索跳转新玩家路由、点击卡片展开（懒加载 getMatchDetail，渲染 MatchCard 展开态）、
+ * 收起再展开命中缓存不重复请求、详情失败收起并提示、竞态保护；
+ * mock src/api/matches.ts 的 listMatches/getMatchDetail/searchRiotAccount 与 vue-router，
  * 数据源为轻量摘要 fixture（与 server ParticipantLight 契约一致）+ 任务 5 的 LCU 详情 fixture；
  * naive-ui 组件用 NConfigProvider + NMessageProvider 包裹，RadarChart/StatsBarChart 打桩
  * （chart.js 需 canvas，jsdom 无）
@@ -13,13 +13,21 @@ import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 
-import { getMatchDetail, listMatches } from '@/api/matches'
+import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
 import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
 import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fixtures'
 
 import GameStatsView from '../GameStatsView.vue'
+
+// mock 路由：战绩页固定访问 /players/lcu-p1?name=PlayerOne&tag=CN1（puuid 与 fixture 一致）；
+// router.push 使用共享 mock，供"侧栏搜索跳转"用例断言
+const routerPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: { puuid: 'lcu-p1' }, query: { name: 'PlayerOne', tag: 'CN1' } }),
+  useRouter: () => ({ push: routerPush })
+}))
 
 // 局部 mock 数据层：展示函数返回空壳 + 英雄名固定值，避免测试触发 CDragon 网络请求
 vi.mock('@/utils/game-resource', async (importOriginal) => {
@@ -48,7 +56,8 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
 // mock API 层：接口由各用例经 beforeEach 注入返回值（时间线接口已不再调用）
 vi.mock('@/api/matches', () => ({
   listMatches: vi.fn(),
-  getMatchDetail: vi.fn()
+  getMatchDetail: vi.fn(),
+  searchRiotAccount: vi.fn()
 }))
 
 /**
@@ -195,7 +204,7 @@ describe('GameStatsView', () => {
   beforeEach(() => {
     // 清空各用例间的 mock 调用历史（实现保留），保证 toHaveBeenCalledTimes 按用例独立计数
     vi.clearAllMocks()
-    // 默认：列表 1 条轻量摘要；详情与时间线成功（失败用例按需覆盖）
+    // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
       data: [makeSummary()],
       total: 1,
@@ -204,14 +213,27 @@ describe('GameStatsView', () => {
     } satisfies PageResponse<MatchSummary>)
     // 详情：真实 MatchDetail（LCU fixture），与轻量摘要同一 gameId=123
     vi.mocked(getMatchDetail).mockResolvedValue(detailFixture)
+    // 召唤师搜索：默认返回 self 玩家账号（puuid=lcu-p1，与摘要/详情 fixture 一致）
+    vi.mocked(searchRiotAccount).mockResolvedValue({
+      puuid: 'lcu-p1',
+      gameName: 'PlayerOne',
+      tagLine: 'CN1'
+    })
   })
 
-  it('列表加载后渲染折叠卡（轻量参与者 KDA/玩家行/装备图标），未触发详情请求', async () => {
+  it('路由携带 puuid：自动加载该玩家的对局并渲染折叠卡，未触发详情请求', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // 列表接口按契约参数调用（第一页、每页 20 条、未选队列）
-    expect(listMatches).toHaveBeenCalledWith({ page: 1, pageSize: 20, queueId: undefined })
+    // 挂载即按路由 puuid 加载（无需手动查询），列表接口携带查询玩家
+    expect(listMatches).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      queueId: undefined,
+      summonerName: 'PlayerOne#CN1'
+    })
+    // 顶部居中查询栏渲染（可切换查询玩家）
+    expect(wrapper.find('.top-search-input').exists()).toBe(true)
 
     // 折叠卡（MatchCardOverview）渲染：self 轻量 KDA 7/3/12（statsJson 归一后来自 participants）
     expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
@@ -229,6 +251,23 @@ describe('GameStatsView', () => {
     expect(getMatchDetail).not.toHaveBeenCalled()
     // 展开态卡片（MatchCard）与详情面板均未挂载
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+  })
+
+  it('顶部搜索框搜索召唤师：搜索成功后跳转到新玩家的战绩页路由', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 顶部搜索框输入"昵称#tag"并点击查询：搜索接口按输入调用
+    await wrapper.find('.top-search-input').setValue('赌书消得泼茶香#iKun')
+    await wrapper.find('.top-search-button').trigger('click')
+    await flushPromises()
+
+    expect(searchRiotAccount).toHaveBeenCalledWith('赌书消得泼茶香#iKun')
+    // 成功后跳转新玩家战绩页（携带昵称/尾号 query），不原地加载
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/players/lcu-p1',
+      query: { name: 'PlayerOne', tag: 'CN1' }
+    })
   })
 
   it('点击折叠卡展开：懒加载详情，渲染 MatchCard 展开态', async () => {

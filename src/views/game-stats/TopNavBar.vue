@@ -1,11 +1,17 @@
 <script setup lang="ts">
 /**
- * 顶部导航栏：左侧显示单双排位/灵活排位段位板块，右侧刷新图标
- * 段位图标未定级时使用灰色问号占位
+ * 顶部导航栏：左侧查询玩家信息（头像/昵称/等级），中间段位板块，右侧刷新图标
+ * 段位图标未定级时使用灰色问号占位；玩家信息缺失时左侧留空
  */
+import { profileIconUrl } from '@/utils/icon-url'
+
 import type { RankSection } from './types'
 
-defineProps<{ sections: RankSection[] }>()
+/** 查询玩家展示信息：昵称（含#tag）、召唤师头像 ID、召唤师等级（可缺失） */
+defineProps<{
+  sections: RankSection[]
+  player?: { name: string; profileIconId?: number; summonerLevel?: number } | null
+}>()
 
 // 刷新按钮事件（由父组件处理，当前仅占位）
 const emit = defineEmits<{ refresh: [] }>()
@@ -13,7 +19,25 @@ const emit = defineEmits<{ refresh: [] }>()
 
 <template>
   <nav class="top-nav">
-    <!-- 左侧：段位板块列表 -->
+    <!-- 左侧：查询玩家信息（召唤师头像 + 昵称 + 等级） -->
+    <div class="player-info">
+      <template v-if="player">
+        <img
+          v-if="profileIconUrl(player.profileIconId)"
+          :src="profileIconUrl(player.profileIconId)"
+          alt="玩家头像"
+          class="player-avatar"
+          loading="lazy"
+        />
+        <div v-else class="player-avatar player-avatar-placeholder" />
+        <div class="player-meta">
+          <p class="player-name">{{ player.name }}</p>
+          <p class="player-level" v-if="player.summonerLevel">等级 {{ player.summonerLevel }}</p>
+        </div>
+      </template>
+    </div>
+
+    <!-- 中间：段位板块列表 -->
     <div class="rank-sections">
       <div v-for="section in sections" :key="section.queue" class="rank-section">
         <!-- 段位图标：未定级灰色占位 -->
@@ -42,13 +66,15 @@ const emit = defineEmits<{ refresh: [] }>()
 </template>
 
 <style lang="scss" scoped>
-/* 顶部导航：深色底 + 左右分栏 */
 /* 顶部导航：近黑底 + 签名霓虹渐变光带（电竞终端）；
-   三栏 grid：左空位 / 段位板块水平居中 / 右侧刷新按钮 */
+   限宽 1400px 与页面主体对齐（左侧玩家信息/段位与侧栏左对齐）；
+   三栏 grid：左玩家信息 / 段位板块居中 / 右侧刷新按钮 */
 .top-nav {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 12px 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -56,6 +82,49 @@ const emit = defineEmits<{ refresh: [] }>()
   box-shadow:
     inset 0 -2px 0 0 linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.65), rgba(244, 63, 94, 0.4), transparent),
     0 1px 12px rgba(124, 58, 237, 0.08);
+}
+
+/* 左侧玩家信息：头像 + 昵称/等级竖排，第一轨道左对齐 */
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-column: 1;
+  min-width: 0;
+}
+
+.player-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 58, 237, 0.45);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.3);
+  flex-shrink: 0;
+}
+
+/* 头像缺失占位（无对局数据时的灰色圆） */
+.player-avatar-placeholder {
+  background: var(--surface-hover);
+}
+
+.player-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.player-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-level {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* 段位板块：第二轨道（auto）→ 页面水平居中 */
