@@ -226,12 +226,14 @@ import { formatMilliseconds } from '../utils/time'
 
 const { basicInfo, frames, participants, team, hidePrivacy } = useMatchCard()
 
+// 游戏资源提供者（英雄名等静态资源查询）与导航器滚动定位引用
 const resources = useGameResourceProvider()
+// scrollbarRef：滚动容器；contentRef：内容区（目标选手块定位）；isNavigatorExpanded：导航器展开态
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
 const isNavigatorExpanded = ref(false)
 
-/** 技能键位映射（原版常量：槽位 1-4 → Q/W/E/R） */
+/** 技能键位映射（原版常量：槽位 1-4 → Q/W/E/R），未知槽位在模板中回退显示 'U' */
 const SKILL_SLOT_TRANSLATIONS = {
   1: 'Q',
   2: 'W',
@@ -239,7 +241,10 @@ const SKILL_SLOT_TRANSLATIONS = {
   4: 'R'
 }
 
-/** 选手排序：CHERRY 按子队名次，普通对局按队伍标识 */
+/**
+ * 选手排序：CHERRY 竞技场按子队名次分组展示，普通对局按队伍标识排序
+ * （蓝队 TEAM-100 靠左，与卡片头部队伍布局一致）
+ */
 const sortedParticipants = computed(() => {
   if (basicInfo.value.isCherrySubteam) {
     return participants.value.toSorted((a, b) => {
@@ -252,15 +257,23 @@ const sortedParticipants = computed(() => {
   })
 })
 
-/** 加点/购买序列与锻炉计数：适配层组装（原版 collected 计算下沉，字段缺失事件已跳过） */
+/**
+ * 加点/购买序列与锻炉计数：适配层组装（原版 collected 计算下沉，字段缺失事件已跳过），
+ * 模板直接按参与者编号索引消费
+ */
 const collected = computed<MatchCardBuildsResult>(() => toMatchCardBuilds(frames.value))
 
+// 位置文案与胜负标签主题（选手头部位置徽章用）
 const position = usePosition()
 const tagTheme = useWinResultTagClass(() => team.value?.winResult)
 
+/** 选手类型别名：与 participants 的元素类型绑定，避免重复书写长类型 */
 type Participant = (typeof participants.value)[number]
 
-/** 选手名：隐私模式下用英雄名代替 */
+/**
+ * 选手名：隐私模式下用英雄名代替（对齐原版 hidePrivacy 语义），
+ * 否则显示「游戏名 #TAG」，无 tagLine 时仅显示游戏名
+ */
 const participantName = (participant: Participant) => {
   if (hidePrivacy.value) {
     return resources.champions.name(participant.championId)
@@ -271,7 +284,10 @@ const participantName = (participant: Participant) => {
     : participant.gameName
 }
 
-/** 导航器滚动定位：按 data-builds-participant-id 找到目标玩家块并平滑滚动 */
+/**
+ * 导航器滚动定位：按 data-builds-participant-id 找到目标玩家块并平滑滚动。
+ * offsetTop 相对内容区顶部，减 8px 留出呼吸边距；目标块未找到时静默返回
+ */
 const scrollToParticipant = (participantId: number) => {
   const target = contentRef.value?.querySelector<HTMLElement>(
     `[data-builds-participant-id="${participantId}"]`

@@ -294,14 +294,20 @@ import VictimDamageDetails from '../widgets/VictimDamageDetails.vue'
 
 const { participants, basicInfo, frames, team } = useMatchCard()
 
+// 游戏资源提供者（英雄名等静态资源查询，web 版无网络依赖）
 const resources = useGameResourceProvider()
 
+/** 事件类型白名单：Events Tab 仅渲染这四类事件（对齐原版 SUPPORTED_EVENT_TYPES） */
 const SUPPORTED_EVENT_TYPES = [
   'CHAMPION_KILL',
   'CHAMPION_SPECIAL_KILL',
   'BUILDING_KILL',
   'TURRET_PLATE_DESTROYED'
 ]
+/**
+ * 事件类型筛选：勾选的事件类型才在时间线中渲染（原版默认勾选击杀与拆塔，
+ * 一血/镀层事件默认折叠，可在右侧筛选面板手动开启）
+ */
 const selectedFilters = ref<(typeof SUPPORTED_EVENT_TYPES)[number][]>([
   'CHAMPION_KILL',
   'BUILDING_KILL'
@@ -310,7 +316,10 @@ const selectedFilters = ref<(typeof SUPPORTED_EVENT_TYPES)[number][]>([
 /** 按英雄筛选：为空表示不过滤，否则只显示与所选英雄相关的事件 */
 const selectedChampionIds = ref<number[]>([])
 
-/** 时间戳格式化：超过一小时带小时位（mm:ss:SSS / HH:mm:ss:SSS） */
+/**
+ * 时间戳格式化：超过一小时带小时位（mm:ss:SSS / HH:mm:ss:SSS），
+ * 与时间线事件时间的展示口径一致（毫秒级精度，便于定位到具体时刻）
+ */
 const formatDuration = (timestamp: number) => {
   if (timestamp > 60 * 60 * 1000) {
     return dayjs.duration(timestamp).format('HH:mm:ss:SSS')
@@ -319,7 +328,10 @@ const formatDuration = (timestamp: number) => {
   return dayjs.duration(timestamp).format('mm:ss:SSS')
 }
 
-/** 事件类型（去重），用于筛选器勾选项：取本局实际出现的受支持类型 */
+/**
+ * 事件类型（去重），用于筛选器勾选项：取本局实际出现的受支持类型，
+ * 未出现的事件类型不展示勾选框（避免无效筛选项）
+ */
 const eventTypes = computed(() => {
   return [
     ...new Set(
@@ -333,7 +345,10 @@ const eventTypes = computed(() => {
 /** 全部事件（适配层已跳过字段缺失事件，仅含 Events Tab 渲染的四类） */
 const events = computed(() => toMatchCardEvents(frames.value))
 
-/** 获取事件涉及的 participantId 列表（击杀者、助攻、被击杀者等） */
+/**
+ * 获取事件涉及的 participantId 列表（击杀者、助攻、被击杀者等）：
+ * 按事件类型存在性判断字段（in 收窄），用于按英雄筛选时判定事件归属
+ */
 const getEventParticipantIds = (e: MatchCardTimelineEvent): number[] => {
   const ids: number[] = []
   if ('killerId' in e && e.killerId) ids.push(e.killerId)
@@ -344,7 +359,10 @@ const getEventParticipantIds = (e: MatchCardTimelineEvent): number[] => {
   return ids
 }
 
-/** 按英雄筛选后的事件（未选任何英雄时全量返回） */
+/**
+ * 按英雄筛选后的事件（未选任何英雄时全量返回）：
+ * 事件涉及的参与者英雄 ID 与所选英雄集合有交集即保留
+ */
 const filteredEvents = computed(() => {
   const championIds = selectedChampionIds.value
   if (championIds.length === 0) return events.value
@@ -358,7 +376,10 @@ const filteredEvents = computed(() => {
   })
 })
 
-/** 本局出现的英雄列表（按 championId 去重），用于按英雄筛选 */
+/**
+ * 本局出现的英雄列表（按 championId 去重），用于按英雄筛选：
+ * 同名英雄（镜像/克隆）只出现一次，按英雄名排序便于查找
+ */
 const championFilterOptions = computed(() => {
   const seen = new Set<number>()
   return participants.value
@@ -374,7 +395,11 @@ const championFilterOptions = computed(() => {
     .toSorted((a, b) => a.label.localeCompare(b.label))
 })
 
-/** 镀层统计：每位选手摧毁的镀层数（killerId 为 0 的自行掉落事件不计入），无镀层事件为 null */
+/**
+ * 镀层统计：每位选手摧毁的镀层数。
+ * killerId 为 0 表示镀层自行掉落（非选手摧毁），不计入；无镀层事件时返回 null 隐藏面板；
+ * 结果按摧毁数降序，并关联到参与者以取英雄 ID 与名称
+ */
 const platesTakeParticipants = computed(() => {
   const plateEvents = events.value
     .filter((e) => e.type === 'TURRET_PLATE_DESTROYED')
@@ -382,6 +407,7 @@ const platesTakeParticipants = computed(() => {
 
   if (plateEvents.length === 0) return null
 
+  // 按击杀者（participantId）累加镀层数
   const map = plateEvents.reduce(
     (acc, event) => {
       acc[event.killerId] = (acc[event.killerId] || 0) + 1
@@ -405,7 +431,10 @@ const platesTakeParticipants = computed(() => {
     .filter((p) => p !== null)
 })
 
-/** 参与者编号 → 参与者（击杀/助攻/被击杀者英雄图标查询用） */
+/**
+ * 参与者编号 → 参与者索引：击杀/助攻/被击杀者英雄图标查询用，
+ * 未命中（如野怪击杀）返回 undefined，模板以 ?. 兜底
+ */
 const participantMap = computed(() => {
   return participants.value.reduce(
     (acc, participant) => {
@@ -416,7 +445,11 @@ const participantMap = computed(() => {
   )
 })
 
-/** 首帧与末帧时间：sgp source 会记录真正时间，所以有数据就直接用（GAME_END 事件优先） */
+/**
+ * 首帧与末帧时间（时间线起止节点展示）：
+ * sgp source 会记录真正时间，所以有数据就直接用——末帧存在 GAME_END 事件时
+ * 以该事件时间为准（更精确），否则退化为末帧自身时间戳
+ */
 const firstAndEndTime = computed(() => {
   const series = toMatchCardTimelineSeries(frames.value)
   if (series.length === 0) return { firstTime: 0, endTime: 0 }
@@ -437,11 +470,13 @@ const firstAndEndTime = computed(() => {
   }
 })
 
+// 事件/建筑/塔/分路类型文案工厂（缺失 key 回显原值，与文本工具口径一致）
 const frameEventType = useFrameEventType()
 const buildingType = useBuildingType()
 const towerType = useTowerType()
 const laneType = useLaneType()
 
+// 胜负标签主题（win 蓝 / loss 红），击杀头部标签与镀层统计徽章共用
 const tagTheme = useWinResultTagClass(() => team.value?.winResult)
 </script>
 

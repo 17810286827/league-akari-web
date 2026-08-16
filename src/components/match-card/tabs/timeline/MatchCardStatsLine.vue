@@ -127,23 +127,37 @@ import { getTeamColor, playerColors, useWinResultTagClass } from '../../utils/th
 import { formatMilliseconds } from '../../utils/time'
 import MapPosition from '../../widgets/MapPosition.vue'
 
+// 游戏资源提供者（英雄名等静态资源查询，web 版无网络依赖）
 const resources = useGameResourceProvider()
 
 const { basicInfo, frames, participants, team, hidePrivacy } = useMatchCard()
 
+// currentFrameIndex：滑动条当前帧（选手属性与地图位置随帧联动）；selectedPlayer：当前选手编号
 const currentFrameIndex = ref(0)
 const selectedPlayer = ref(0)
 
+// 位置文案与胜负标签主题（选手头部位置徽章用）
 const position = usePosition()
 const tagTheme = useWinResultTagClass(() => team.value?.winResult)
 
-/** 归一化后的时间线序列（滑动条 max 与选手帧查询共用） */
+/**
+ * 归一化后的时间线序列（滑动条 max 与选手帧查询共用）：
+ * 适配层已校验帧结构并把数值字段兜底为 0，此处无需再防御
+ */
 const series = computed(() => toMatchCardTimelineSeries(frames.value))
 
+/**
+ * 滑动条 tooltip 格式化：帧时间戳转 mm:ss 文本；
+ * 越界（空序列）时回退 0 避免显示 undefined
+ */
 const formatTooltip = (index: number) => {
   return formatMilliseconds(series.value[index]?.timestamp || 0)
 }
 
+/**
+ * 选手选择项：CHERRY 按子队名次排序、普通对局按队伍标识排序，
+ * 颜色取自 playerColors（与差距线图表同一套选手配色）
+ */
 const sortedPlayerOptions = computed(() => {
   return participants.value
     .toSorted((a, b) => {
@@ -162,16 +176,24 @@ const sortedPlayerOptions = computed(() => {
     })
 })
 
+/** 当前所选选手的参与者档案（头部英雄图标/名字/位置徽章用），未选中时为空 */
 const selectedParticipant = computed(() => {
   return participants.value.find((p) => p.participantId === selectedPlayer.value)
 })
 
-/** 当前帧所选选手的参与者帧（地图位置展示用） */
+/**
+ * 当前帧所选选手的参与者帧（地图位置展示用）：
+ * 帧下标越界或该帧无该选手数据时返回 undefined，模板以 v-if 守卫
+ */
 const selectedFrameParticipant = computed(() => {
   return series.value[currentFrameIndex.value]?.participantFrames[selectedPlayer.value]
 })
 
-/** 属性展示项：仅 SGP 详细帧有 championStats，其余数据源为空数组（对齐原版判定） */
+/**
+ * 属性展示项：仅 SGP 详细帧有 championStats（isMatchCardDetailedParticipantFrame 判定），
+ * LCU/官方 API 数据返回空数组（属性网格留空，对齐原版行为）；
+ * 展示顺序固定：生命/资源 → 攻击 → 法术与冷却 → 防御 → 穿透 → 移速与吸血 → 控制减免
+ */
 const displayedItems = computed(() => {
   if (!isMatchCardDetailedParticipantFrame(selectedFrameParticipant.value)) {
     return []
@@ -179,7 +201,7 @@ const displayedItems = computed(() => {
 
   const stats = selectedFrameParticipant.value.championStats
 
-  // 顺序：生命/资源 → 攻击 → 法术与冷却 → 防御 → 穿透 → 移速与吸血 → 控制减免
+  // 生命/资源组：生命值与法力值均为「当前/上限」双值展示
   return [
     {
       name: t('matchCard.statsLine.stats.health'),
@@ -197,6 +219,7 @@ const displayedItems = computed(() => {
       name: t('matchCard.statsLine.stats.powerRegen'),
       formattedValue: stats.powerRegen.toString()
     },
+    // 攻击组：攻击力/攻速/法强（攻速与移速等比率字段统一追加 % 后缀）
     {
       name: t('matchCard.statsLine.stats.attackDamage'),
       formattedValue: stats.attackDamage.toString()
@@ -209,6 +232,7 @@ const displayedItems = computed(() => {
       name: t('matchCard.statsLine.stats.abilityPower'),
       formattedValue: stats.abilityPower.toString()
     },
+    // 法术与冷却组：技能急速与冷却缩减
     {
       name: t('matchCard.statsLine.stats.abilityHaste'),
       formattedValue: stats.abilityHaste.toString()
@@ -217,11 +241,13 @@ const displayedItems = computed(() => {
       name: t('matchCard.statsLine.stats.cooldownReduction'),
       formattedValue: `${stats.cooldownReduction.toString()}%`
     },
+    // 防御组：护甲与魔抗
     { name: t('matchCard.statsLine.stats.armor'), formattedValue: stats.armor.toString() },
     {
       name: t('matchCard.statsLine.stats.magicResist'),
       formattedValue: stats.magicResist.toString()
     },
+    // 穿透组：固定值与百分比穿透（含额外穿透）
     { name: t('matchCard.statsLine.stats.armorPen'), formattedValue: stats.armorPen.toString() },
     {
       name: t('matchCard.statsLine.stats.armorPenPercent'),
@@ -240,6 +266,7 @@ const displayedItems = computed(() => {
       name: t('matchCard.statsLine.stats.bonusMagicPenPercent'),
       formattedValue: `${stats.bonusMagicPenPercent.toString()}%`
     },
+    // 移速与吸血组：移速 + 三种吸血（生命/物理/法术/全能）
     {
       name: t('matchCard.statsLine.stats.movementSpeed'),
       formattedValue: stats.movementSpeed.toString()
@@ -260,6 +287,7 @@ const displayedItems = computed(() => {
       name: t('matchCard.statsLine.stats.omnivamp'),
       formattedValue: `${stats.omnivamp.toString()}%`
     },
+    // 控制减免组：韧性
     {
       name: t('matchCard.statsLine.stats.ccReduction'),
       formattedValue: `${stats.ccReduction.toString()}%`
@@ -267,6 +295,10 @@ const displayedItems = computed(() => {
   ]
 })
 
+/**
+ * 默认选中第一名选手：选手选项就绪后立即选中（immediate），
+ * 之后选手列表变化（如数据刷新）时保持当前选择不重置
+ */
 watch(
   () => sortedPlayerOptions.value,
   (options) => {
