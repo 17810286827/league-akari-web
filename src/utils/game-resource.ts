@@ -34,6 +34,8 @@ interface Item {
   iconPath: string
   /** 合成组件 ID 列表（老版本数据可能缺失该字段） */
   from?: number[]
+  /** 升级合成去向 ID 列表（与 LCU 同源数据，老版本数据可能缺失该字段） */
+  to?: number[]
 }
 
 /** 技能展示资源（对齐主仓库 SummonerSpellDisplayResource） */
@@ -63,6 +65,8 @@ export interface ItemDisplayResource {
   totalPrice: number
   /** 合成组件 ID 列表（合成路径，老数据可能缺失） */
   from?: number[]
+  /** 升级合成去向 ID 列表（老数据可能缺失；主仓库 items.display 亦返回该字段） */
+  to?: number[]
 }
 
 /**
@@ -243,7 +247,9 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
       // totalPrice 为必填展示字段：priceTotal 缺失时补 0，避免渲染 "undefined 金币"
       totalPrice: item.priceTotal ?? 0,
       // 合成组件 ID（合成路径）
-      from: item.from
+      from: item.from,
+      // 升级合成去向 ID（与 from 同源，主仓库 items.display 亦返回）
+      to: item.to
     }
   } catch {
     return emptyItemDisplay(itemId)
@@ -435,6 +441,8 @@ export interface PerkDisplayResource {
 export interface PerkstyleDisplayResource {
   name: string
   iconUrl: string
+  /** 样式说明文本（主仓库 perkStyles.display 亦返回 tooltip 字段） */
+  tooltip?: string
 }
 
 /** 符文 JSON 记录（perks.json，longDesc 为填充数值后的 HTML 描述） */
@@ -452,6 +460,8 @@ interface Perkstyle {
   id: number
   name?: string
   iconPath?: string
+  /** 样式说明（真实数据为 tooltip 字段） */
+  tooltip?: string
 }
 
 let perksPromise: Promise<Map<number, Perk>> | null = null
@@ -530,7 +540,9 @@ export async function perkstyleDisplay(styleId: number): Promise<PerkstyleDispla
     return {
       name: style.name,
       // 样式图标同样经 resolveAssetUrl 转为 CDN 地址（缺失时为空串）
-      iconUrl: resolveAssetUrl(style.iconPath) ?? ''
+      iconUrl: resolveAssetUrl(style.iconPath) ?? '',
+      // 样式说明透传（缺失时不展示该行）
+      tooltip: style.tooltip
     }
   } catch {
     return { name: '', iconUrl: '' }

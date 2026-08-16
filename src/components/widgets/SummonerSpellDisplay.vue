@@ -1,45 +1,84 @@
+<template>
+  <!-- 悬浮卡片：展示技能名称/冷却/等级要求/描述（与原版结构一致） -->
+  <NPopover
+    v-if="spellDisplay"
+    :delay="delay"
+    :disabled="disablePopover"
+    :keep-alive-on-hover="keepAliveOnHover"
+  >
+    <template #trigger>
+      <CdnImage
+        :path="spellDisplay.iconUrl"
+        v-bind="$attrs"
+        :style="{ width: `${size}px`, height: `${size}px` }"
+        class="spell"
+      />
+    </template>
+    <div style="max-width: 240px">
+      <div class="name">{{ spellDisplay.name }}</div>
+      <div class="cooldown">
+        {{
+          t('gameAssets.summonerSpell.cooldown', {
+            time: spellDisplay.cooldown
+          })
+        }}
+      </div>
+      <div class="level">
+        {{
+          t('gameAssets.summonerSpell.levelRequirement', {
+            level: spellDisplay.summonerLevel
+          })
+        }}
+      </div>
+      <div class="description">{{ spellDisplay.description }}</div>
+    </div>
+  </NPopover>
+  <!-- 空槽占位：spellId 为空或未知技能时渲染 -->
+  <div
+    v-else
+    :style="{ width: `${size}px`, height: `${size}px` }"
+    v-bind="$attrs"
+    class="empty"
+  ></div>
+</template>
+
 <script setup lang="ts">
-/**
- * 召唤师技能图标 + 描述（对齐主仓库 SummonerSpellDisplay.vue）：
- * 图标（CDN）触发 NPopover，展示技能名称 / 冷却 / 等级要求 / 描述
- * 数据来自 game-resource（CommunityDragon game-data JSON），未知技能显示空占位
- */
 import { NPopover } from 'naive-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 
-import { spellDisplay, type SpellDisplayResource } from '@/utils/game-resource'
+import CdnImage from './CdnImage.vue'
+import { t } from '@/utils/match-card-i18n'
+import { spellDisplay as fetchSpellDisplay, type SpellDisplayResource } from '@/utils/game-resource'
 
-const props = withDefaults(
-  defineProps<{
-    /** 技能 ID，如 4（闪现）/ 32（标记） */
-    spellId?: number
-    /** 图标尺寸（px） */
-    size?: number
-  }>(),
-  { size: 20 }
-)
+const { spellId, size = 20, delay = 50 } = defineProps<{
+  disablePopover?: boolean
+  spellId?: number
+  size?: number
+  keepAliveOnHover?: boolean
+  delay?: number
+}>()
 
-/** 技能展示资源（异步加载） */
-const display = ref<SpellDisplayResource | null>(null)
+/** 技能展示资源（异步加载；web 数据层未知技能返回 null） */
+const spellDisplay = ref<SpellDisplayResource | null>(null)
 
 // 查询序号：防止快速切换技能时旧响应覆盖新内容
 let requestSeq = 0
 
-/** 加载技能信息（spellId 变化时重新加载） */
+/** 加载技能信息（spellId 变化时重新加载；0/undefined 视为空槽） */
 async function load(): Promise<void> {
   const seq = ++requestSeq
-  if (!props.spellId) {
-    display.value = null
+  if (!spellId) {
+    spellDisplay.value = null
     return
   }
-  display.value = await spellDisplay(props.spellId)
+  spellDisplay.value = await fetchSpellDisplay(spellId)
   // 仅在仍是最新请求时保留结果
   if (seq !== requestSeq) {
-    display.value = null
+    spellDisplay.value = null
   }
 }
 
-watch(() => props.spellId, load, { immediate: true })
+watch(() => spellId, load, { immediate: true })
 
 // 组件卸载时使在途请求失效
 onBeforeUnmount(() => {
@@ -47,66 +86,37 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<template>
-  <!-- 技能信息就绪：图标 + 弹出描述 -->
-  <NPopover v-if="display" :delay="50" placement="top">
-    <template #trigger>
-      <img
-        :src="display.iconUrl"
-        :alt="display.name"
-        class="spell-icon"
-        :style="{ width: `${size}px`, height: `${size}px` }"
-      />
-    </template>
-    <div class="max-w-60">
-      <div class="spell-name">{{ display.name }}</div>
-      <div class="spell-meta">
-        {{ display.cooldown }} 秒冷却 · {{ display.summonerLevel }} 级解锁
-      </div>
-      <div class="spell-desc">{{ display.description }}</div>
-    </div>
-  </NPopover>
-  <!-- 未知技能：空占位 -->
-  <span
-    v-else
-    class="spell-icon spell-icon-empty"
-    :style="{ width: `${size}px`, height: `${size}px` }"
-    aria-hidden="true"
-  />
-</template>
+<style scoped>
+@reference '../../styles/tailwind.css';
 
-<style lang="scss" scoped>
-/* 技能图标：圆角小方块 */
-.spell-icon {
-  display: inline-block;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--surface-hover);
-}
+@layer components {
+  .cooldown,
+  .description,
+  .level {
+    font-size: 12px;
+  }
 
-/* 未知技能的暗色占位 */
-.spell-icon-empty {
-  opacity: 0.4;
-}
+  .cooldown,
+  .level {
+    font-style: italic;
+  }
 
-.spell-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 2px;
-}
+  .level {
+    margin-bottom: 2px;
+  }
 
-.spell-meta {
-  font-size: 12px;
-  font-style: italic;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
+  .name {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
 
-.spell-desc {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text);
+  .spell {
+    border-radius: 2px;
+  }
+
+  .empty {
+    @apply rounded-xs bg-gray-500/40 dark:bg-black/20;
+  }
 }
 </style>

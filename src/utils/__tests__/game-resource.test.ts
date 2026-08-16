@@ -51,24 +51,25 @@ describe('game-resource 扩展', () => {
     // 重置模块缓存：避免命中前置用例的 Promise 缓存，强制本用例重新发起网络请求
     vi.resetModules()
     const fresh = await import('../game-resource')
-    // items.json 真实为数组（记录自带 id/from/priceTotal）
+    // items.json 真实为数组（记录自带 id/from/priceTotal/to）
     vi.mocked(fetch).mockResolvedValueOnce(
       ok([
-        { id: 3089, name: '无尽之刃', description: '', price: 1200, priceTotal: 3400, from: [1038], iconPath: '/lol-game-data/assets/v1/3089.png' },
-        { id: 1038, name: '长剑', description: '', price: 350, priceTotal: 350, from: [], iconPath: '/lol-game-data/assets/v1/1038.png' }
+        { id: 3089, name: '无尽之刃', description: '', price: 1200, priceTotal: 3400, from: [1038], to: [1053], iconPath: '/lol-game-data/assets/v1/3089.png' },
+        { id: 1038, name: '长剑', description: '', price: 350, priceTotal: 350, from: [], to: [3089], iconPath: '/lol-game-data/assets/v1/1038.png' }
       ])
     )
     // perks.json 真实为数组（longDesc 为填充数值后的 HTML 描述）
     vi.mocked(fetch).mockResolvedValueOnce(
       ok([{ id: 8112, name: '电刑', longDesc: '爆发伤害', iconPath: '/lol-game-data/assets/v1/8112.png' }])
     )
-    // perkstyles.json 真实结构为 { styles: [...] }，需取 styles 子字段
+    // perkstyles.json 真实结构为 { styles: [...] }，需取 styles 子字段（tooltip 为样式说明）
     vi.mocked(fetch).mockResolvedValueOnce(
-      ok({ schemaVersion: 2, styles: [{ id: 8100, name: '主宰', tooltip: '', iconPath: '/lol-game-data/assets/v1/8100.png' }] })
+      ok({ schemaVersion: 2, styles: [{ id: 8100, name: '主宰', tooltip: '提升攻击或法术强度', iconPath: '/lol-game-data/assets/v1/8100.png' }] })
     )
     const item = await fresh.itemDisplay(3089)
     expect(item.name).toBe('无尽之刃')
     expect(item.from).toEqual([1038])
+    expect(item.to).toEqual([1053])
     expect(item.priceTotal).toBe(3400)
     const perk = await fresh.perkDisplay(8112)
     expect(perk.name).toBe('电刑')
@@ -76,6 +77,7 @@ describe('game-resource 扩展', () => {
     const style = await fresh.perkstyleDisplay(8100)
     expect(style.name).toBe('主宰')
     expect(style.iconUrl).toContain('8100.png')
+    expect(style.tooltip).toBe('提升攻击或法术强度')
   })
 
   it('gtimg 数组形状（augmentID/name_cn/desc/level）解析为中文描述与稀有度', async () => {
