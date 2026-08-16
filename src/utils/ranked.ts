@@ -1,0 +1,50 @@
+/**
+ * 排位/选位工具（任务 11 移植自原版 LeagueAkari `@shared/utils/ranked.ts`，函数体逐字照搬）
+ * 原版为 Electron 共享工具模块，web 端无该共享层，按项目惯例放入 src/utils
+ */
+
+/** 解析后的选位角色：current 实际位置 / assignmentReason 分配原因 / primary 主选 / secondary 副选 / fill 补位 */
+export interface ParsedRole {
+  current: string
+  assignmentReason: string
+  primary: string
+  secondary: string
+  fill: string
+}
+
+// assignmentReason: PRIMARY, SECONDARY, FILL_SECONDARY, FILL_PRIMARY, AUTOFILL
+// NONE, UNSELECTED
+// TOP, MIDDLE, JUNGLE, BOTTOM, UTILITY
+/** 解析 LCU/SGP 的 selectedRolePreferences 字符串（点分格式，如 "MIDDLE.PRIMARY.MIDDLE.BOTTOM"） */
+export function parseSelectedRole(role: string | null): ParsedRole {
+  if (!role) {
+    return {
+      current: 'NONE',
+      assignmentReason: 'NONE',
+      primary: 'NONE',
+      secondary: 'NONE',
+      fill: 'NONE'
+    }
+  }
+
+  const segments = role.split('.')
+  if (segments.length !== 4 && segments.length !== 5) {
+    return {
+      current: 'NONE',
+      assignmentReason: 'NONE',
+      primary: 'NONE',
+      secondary: 'NONE',
+      fill: 'NONE'
+    }
+  }
+
+  const [p1, p2, p3, p4, p5] = segments
+
+  return {
+    current: p1,
+    assignmentReason: p2,
+    primary: p3,
+    secondary: p4,
+    fill: p5 || 'NONE'
+  }
+}

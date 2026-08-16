@@ -24,8 +24,9 @@ const logger = createLogger('MatchCardParticipants')
 /**
  * statsJson 结构：LCU 平铺与 SGP 透传字段名一致；
  * 已知字段显式声明，其余字段经索引签名原样透传（组件侧 ?? 兜底）
+ * 导出供任务 11 的 details-table（raw-details）复用同一解析口径
  */
-interface ParticipantStatsJson {
+export interface ParticipantStatsJson {
   // 身份与队伍（LCU stats 缺失，SGP 透传自带）
   puuid?: string
   participantId?: number
@@ -157,7 +158,7 @@ function bool(value: boolean | undefined | null): boolean {
 }
 
 /** 解析 statsJson；失败返回空对象并记 warn（不阻塞展示，与旧 adapter 的 parseStats 同款容错） */
-function parseStatsJson(statsJson: string | null): ParticipantStatsJson {
+export function parseStatsJson(statsJson: string | null): ParticipantStatsJson {
   if (!statsJson) {
     return {}
   }

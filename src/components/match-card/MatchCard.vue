@@ -1,11 +1,14 @@
 <!--
-  对局卡片入口：折叠卡总览 + （任务 11）详情面板
-  原版含 MatchCardDetails 面板（KeepAlive 包裹），web 端任务 11 移植 Details 后接入：
-  <KeepAlive><MatchCardDetails v-if="!puuid || isExpanded" /></KeepAlive>
+  对局卡片入口：折叠卡总览 + 详情面板（任务 11 接入）
+  原版结构：<KeepAlive><MatchCardDetails v-if="!puuid || isExpanded" /></KeepAlive>
 -->
 <template>
   <div class="relative w-full min-w-175 [contain-intrinsic-size:116px] [content-visibility:auto]">
     <MatchCardOverview @toggle-expand="isExpanded = !isExpanded" />
+
+    <KeepAlive>
+      <MatchCardDetails v-if="!puuid || isExpanded" />
+    </KeepAlive>
   </div>
 </template>
 
@@ -15,6 +18,7 @@ import { onErrorCaptured } from 'vue'
 import type { MatchDetail } from '@/api/types'
 import type { MatchCardGameDetails } from '@/views/match-detail/adapter/types'
 
+import MatchCardDetails from './MatchCardDetails.vue'
 import MatchCardOverview from './MatchCardOverview.vue'
 import { provideMatchCard } from './context'
 
