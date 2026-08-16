@@ -62,6 +62,25 @@ export interface ParticipantStatsJson {
   perk3?: number
   perk4?: number
   perk5?: number
+  // 符文对局内变量（LCU 平铺；perk0Var1-3 对应 perk0，以此类推）
+  perk0Var1?: number
+  perk0Var2?: number
+  perk0Var3?: number
+  perk1Var1?: number
+  perk1Var2?: number
+  perk1Var3?: number
+  perk2Var1?: number
+  perk2Var2?: number
+  perk2Var3?: number
+  perk3Var1?: number
+  perk3Var2?: number
+  perk3Var3?: number
+  perk4Var1?: number
+  perk4Var2?: number
+  perk4Var3?: number
+  perk5Var1?: number
+  perk5Var2?: number
+  perk5Var3?: number
   perkPrimaryStyle?: number
   perkSubStyle?: number
   // 符文（SGP 嵌套对象：perkIds 直用形状 或 原版 styles 形状）
@@ -69,7 +88,11 @@ export interface ParticipantStatsJson {
     perkIds?: number[]
     perkStyle?: number
     perkSubStyle?: number
-    styles?: { style?: number; selections?: { perk?: number }[] }[]
+    statPerks?: { offense?: number; flex?: number; defense?: number }
+    styles?: {
+      style?: number
+      selections?: { perk?: number; var1?: number; var2?: number; var3?: number }[]
+    }[]
   }
   // 出装 7 槽
   item0?: number
@@ -202,9 +225,11 @@ function teamKeyOf(
 
 /**
  * 符文双路径解析：
- * 1. SGP 嵌套 perks 优先——perkIds 形状直用；原版 SGP 的 { statPerks, styles } 形状则从
- *    主/副系 styles 派生（perkIds = 两系全部 selections，perkStyle/perkSubStyle = 两系 style）；
- * 2. 缺失回退 LCU 平铺 perk0-5 + perkPrimaryStyle + perkSubStyle；
+ * 1. SGP 嵌套 perks 优先——perkIds 形状直用（无 var 记录，perkVars 为 null）；
+ *    原版 SGP 的 { statPerks, styles } 形状则从主/副系 styles 派生
+ *    （perkIds = 两系全部 selections，perkVars = 各 selection 的 var1-3，style = 两系 style）；
+ * 2. 缺失回退 LCU 平铺 perk0-5 + perk0Var1-5Var3 + perkPrimaryStyle/perkSubStyle
+ *    （对齐原版 mapLcuDataToPerks；LCU 无统计符文，statPerks 为 null）；
  * 3. 全部缺失返回全 null（组件侧 ?? 兜底）
  */
 function toPerks(stats: ParticipantStatsJson): MatchCardParticipantPerks {
@@ -220,17 +245,46 @@ function toPerks(stats: ParticipantStatsJson): MatchCardParticipantPerks {
       return {
         perkIds,
         perkStyle: nested.perkStyle ?? nested.styles?.[0]?.style ?? null,
-        perkSubStyle: nested.perkSubStyle ?? nested.styles?.[1]?.style ?? null
+        perkSubStyle: nested.perkSubStyle ?? nested.styles?.[1]?.style ?? null,
+        // 对局内变量仅原版 styles 形状携带（与 selections 顺序一一对应，缺项补 0）
+        perkVars: Array.isArray(nested.styles)
+          ? nested.styles.flatMap((s) =>
+              (s.selections ?? []).map((sel) => ({
+                var1: sel.var1 ?? 0,
+                var2: sel.var2 ?? 0,
+                var3: sel.var3 ?? 0
+              }))
+            )
+          : null,
+        // 统计符文仅 SGP 提供，缺失项补 0
+        statPerks: nested.statPerks
+          ? {
+              offense: nested.statPerks.offense ?? 0,
+              flex: nested.statPerks.flex ?? 0,
+              defense: nested.statPerks.defense ?? 0
+            }
+          : null
       }
     }
   }
-  // LCU 平铺：perk0-5 + perkPrimaryStyle/perkSubStyle
+  // LCU 平铺：perk0-5 + perkNVarn + perkPrimaryStyle/perkSubStyle
   return {
     perkIds: [stats.perk0, stats.perk1, stats.perk2, stats.perk3, stats.perk4, stats.perk5].map(
       (perk) => perk ?? null
     ),
     perkStyle: stats.perkPrimaryStyle ?? null,
-    perkSubStyle: stats.perkSubStyle ?? null
+    perkSubStyle: stats.perkSubStyle ?? null,
+    // LCU 对局内变量按 perkN 序号对应（perk0Var1-3 → perkIds[0]），缺失补 0
+    perkVars: [
+      { var1: stats.perk0Var1 ?? 0, var2: stats.perk0Var2 ?? 0, var3: stats.perk0Var3 ?? 0 },
+      { var1: stats.perk1Var1 ?? 0, var2: stats.perk1Var2 ?? 0, var3: stats.perk1Var3 ?? 0 },
+      { var1: stats.perk2Var1 ?? 0, var2: stats.perk2Var2 ?? 0, var3: stats.perk2Var3 ?? 0 },
+      { var1: stats.perk3Var1 ?? 0, var2: stats.perk3Var2 ?? 0, var3: stats.perk3Var3 ?? 0 },
+      { var1: stats.perk4Var1 ?? 0, var2: stats.perk4Var2 ?? 0, var3: stats.perk4Var3 ?? 0 },
+      { var1: stats.perk5Var1 ?? 0, var2: stats.perk5Var2 ?? 0, var3: stats.perk5Var3 ?? 0 }
+    ],
+    // LCU 无统计符文记录（对齐原版 mapLcuDataToPerks 的 statPerks: null）
+    statPerks: null
   }
 }
 

@@ -77,6 +77,25 @@ export const lcuParticipantFixture: MatchParticipant[] = [
       perk3: 4,
       perk4: 5,
       perk5: 6,
+      // 符文对局内变量（LCU 平铺：perkNVarn 与 perkN 一一对应，值为 100+序号*10 便于断言）
+      perk0Var1: 101,
+      perk0Var2: 102,
+      perk0Var3: 103,
+      perk1Var1: 111,
+      perk1Var2: 112,
+      perk1Var3: 113,
+      perk2Var1: 121,
+      perk2Var2: 122,
+      perk2Var3: 123,
+      perk3Var1: 131,
+      perk3Var2: 132,
+      perk3Var3: 133,
+      perk4Var1: 141,
+      perk4Var2: 142,
+      perk4Var3: 143,
+      perk5Var1: 151,
+      perk5Var2: 152,
+      perk5Var3: 153,
       perkPrimaryStyle: 8100,
       perkSubStyle: 8300,
       // 多杀
@@ -203,7 +222,7 @@ export const sgpParticipantFixture: MatchParticipant[] = [
       item4: 3074,
       item5: 3047,
       item6: 3340,
-      // SGP 嵌套 perks（原版 Perks 形状：statPerks + styles）
+      // SGP 嵌套 perks（原版 Perks 形状：statPerks + styles，含对局内变量 var1-3）
       perks: {
         statPerks: { offense: 8, flex: 6, defense: 10 },
         styles: [
@@ -211,18 +230,18 @@ export const sgpParticipantFixture: MatchParticipant[] = [
             description: 'primaryStyle',
             style: 8100,
             selections: [
-              { perk: 1, var1: 0, var2: 0, var3: 0 },
-              { perk: 2, var1: 0, var2: 0, var3: 0 },
-              { perk: 3, var1: 0, var2: 0, var3: 0 },
-              { perk: 4, var1: 0, var2: 0, var3: 0 }
+              { perk: 1, var1: 101, var2: 102, var3: 103 },
+              { perk: 2, var1: 111, var2: 112, var3: 113 },
+              { perk: 3, var1: 121, var2: 122, var3: 123 },
+              { perk: 4, var1: 131, var2: 132, var3: 133 }
             ]
           },
           {
             description: 'subStyle',
             style: 8300,
             selections: [
-              { perk: 5, var1: 0, var2: 0, var3: 0 },
-              { perk: 6, var1: 0, var2: 0, var3: 0 }
+              { perk: 5, var1: 141, var2: 142, var3: 143 },
+              { perk: 6, var1: 151, var2: 152, var3: 153 }
             ]
           }
         ]

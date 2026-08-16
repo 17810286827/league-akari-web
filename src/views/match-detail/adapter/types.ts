@@ -9,7 +9,21 @@
 /** 对局结果（原版 WinResult：win/loss/remake/abort；web 后端不存 endOfGameResult，abort 不会出现） */
 export type WinResult = 'win' | 'loss' | 'remake' | 'abort'
 
-/** 符文数据（web 双源统一形状：6 枚符文 + 主/副系样式） */
+/** 单枚符文对局内的 3 个变量（原版 selection 的 var1-3，供 @eogvarN@ 占位符替换） */
+export interface MatchCardPerkVars {
+  var1: number
+  var2: number
+  var3: number
+}
+
+/** 对局内统计符文（原版 statPerks；仅 SGP 提供，LCU 无该记录） */
+export interface MatchCardStatPerks {
+  offense: number
+  flex: number
+  defense: number
+}
+
+/** 符文数据（web 双源统一形状：6 枚符文 + 主/副系样式 + 对局内变量/统计符文） */
 export interface MatchCardParticipantPerks {
   /** 6 枚符文 ID（主系 4 + 副系 2），字段缺失为 null */
   perkIds: (number | null)[]
@@ -17,6 +31,10 @@ export interface MatchCardParticipantPerks {
   perkStyle: number | null
   /** 副系样式 ID（如 8300 巫术），缺失为 null */
   perkSubStyle: number | null
+  /** 每枚符文的对局内变量（与 perkIds 一一对应；数据源无 var 记录时为 null） */
+  perkVars: MatchCardPerkVars[] | null
+  /** 对局内统计符文（仅 SGP；LCU 平铺无该记录时为 null） */
+  statPerks: MatchCardStatPerks | null
 }
 
 /** 信号 ping 计数（原版 MatchParticipantPings；仅 SGP 提供，LCU 无该数据时为 null） */

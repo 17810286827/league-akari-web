@@ -435,6 +435,11 @@ export interface PerkDisplayResource {
   iconUrl: string
   /** 符文描述（HTML 文本，优先 CDragon longDesc 填充后描述） */
   descriptionHtml?: string
+  /**
+   * 对局内统计描述（原版 endOfGameStatDescs：含 @eogvarN@ 占位符，
+   * 由 RunesTab 用选手对局内的 var1-3 实际数值替换）
+   */
+  endOfGameStatDescriptions?: string[]
 }
 
 /** 符文页样式展示资源 */
@@ -453,6 +458,8 @@ interface Perk {
   longDesc?: string
   description?: string
   tooltip?: string
+  /** 对局内统计描述（原版字段，含 @eogvarN@ 占位符，老数据可能缺失） */
+  endOfGameStatDescs?: string[]
 }
 
 /** 符文页样式 JSON 记录（perkstyles.json 的 styles 元素） */
@@ -521,7 +528,9 @@ export async function perkDisplay(perkId: number): Promise<PerkDisplayResource> 
       // iconPath 缺失时 resolveAssetUrl 返回 null，最终兜底为空串
       iconUrl: resolveAssetUrl(perk.iconPath) ?? '',
       // 描述优先取 longDesc（填充数值的 HTML），兼容 description/tooltip 字段形状
-      descriptionHtml: perk.longDesc ?? perk.description ?? perk.tooltip
+      descriptionHtml: perk.longDesc ?? perk.description ?? perk.tooltip,
+      // 对局内统计描述原样透传（占位符由消费方按选手对局数据替换，缺失时为空数组）
+      endOfGameStatDescriptions: perk.endOfGameStatDescs ?? []
     }
   } catch {
     return { name: '', iconUrl: '' }

@@ -16,7 +16,21 @@ describe('toParticipants', () => {
     expect(p.augments).toEqual([1, 2, 3, 4, 5, 6])
     expect(p.doubleKills).toBe(2)
     expect(p.tripleKills).toBe(1)
-    expect(p.perks).toEqual({ perkIds: [1, 2, 3, 4, 5, 6], perkStyle: 8100, perkSubStyle: 8300 })
+    expect(p.perks).toEqual({
+      perkIds: [1, 2, 3, 4, 5, 6],
+      perkStyle: 8100,
+      perkSubStyle: 8300,
+      // LCU 平铺对局内变量（perkNVarn 与 perkIds 对应位一致）+ 无统计符文
+      perkVars: [
+        { var1: 101, var2: 102, var3: 103 },
+        { var1: 111, var2: 112, var3: 113 },
+        { var1: 121, var2: 122, var3: 123 },
+        { var1: 131, var2: 132, var3: 133 },
+        { var1: 141, var2: 142, var3: 143 },
+        { var1: 151, var2: 152, var3: 153 }
+      ],
+      statPerks: null
+    })
     expect(p.items).toHaveLength(7) // item0-6
   })
 
@@ -40,7 +54,17 @@ describe('toParticipants 双源补充', () => {
     expect(result[0].perks).toEqual({
       perkIds: [1, 2, 3, 4, 5, 6],
       perkStyle: 8100,
-      perkSubStyle: 8300
+      perkSubStyle: 8300,
+      // SGP selections 携带对局内变量（与 perkIds 顺序一一对应）+ 统计符文
+      perkVars: [
+        { var1: 101, var2: 102, var3: 103 },
+        { var1: 111, var2: 112, var3: 113 },
+        { var1: 121, var2: 122, var3: 123 },
+        { var1: 131, var2: 132, var3: 133 },
+        { var1: 141, var2: 142, var3: 143 },
+        { var1: 151, var2: 152, var3: 153 }
+      ],
+      statPerks: { offense: 8, flex: 6, defense: 10 }
     })
   })
 
