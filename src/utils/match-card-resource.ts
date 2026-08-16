@@ -19,7 +19,7 @@ function detectColorMode(): 'dark' | 'light' {
 
 /** 队列名静态表（任务 10：web 无 LCU gameData，取常见队列中文名，未命中回退 id） */
 const QUEUE_NAMES: Record<number, string> = {
-  // 与既有页面口径一致（src/views/game-stats/adapter.ts / match-detail/adapter.ts）
+  // 与既有页面口径一致（src/views/game-stats/adapter.ts 的队列筛选映射）
   420: '单排/双排',
   430: '匹配',
   440: '灵活排位',

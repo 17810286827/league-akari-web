@@ -134,8 +134,9 @@ async function toggleGame(gameId: number): Promise<void> {
     return
   }
   expandedGameId.value = gameId
-  // 命中缓存直接展示，不再请求后端
+  // 命中缓存直接展示，不再请求后端（同时清理竞态可能残留的过期 loading）
   if (detailCache.value.has(gameId)) {
+    detailLoading.value = false
     return
   }
   detailLoading.value = true
@@ -146,11 +147,18 @@ async function toggleGame(gameId: number): Promise<void> {
       getMatchDetail(gameId),
       getMatchTimeline(gameId)
     ])
+    // 归属校验：await 期间用户可能已切换展开目标（点 A 后立即点 B），
+    // 过期响应不得再改动展开状态（误收起新目标）或复位新目标的 loading
+    if (expandedGameId.value !== gameId) {
+      return
+    }
     // 详情失败：展开态无数据可展示，收起卡片并弹出错误提示
     if (detailResult.status === 'rejected') {
       logger.error('Failed to load match detail', { gameId, error: detailResult.reason })
       message.error(`对局 ${gameId} 详情加载失败`)
       expandedGameId.value = null
+      // 本请求仍是当前展开目标：失败收起的同时复位 loading（finally 归属校验此时已不满足）
+      detailLoading.value = false
       return
     }
     // 时间线失败：仅记录 warn（时间线 Tab 显示空态），不阻塞卡片展开
@@ -169,8 +177,10 @@ async function toggleGame(gameId: number): Promise<void> {
     loadedDetails.value = [...loadedDetails.value, detailResult.value]
     logger.info('Loaded match detail', { gameId })
   } finally {
-    // 无论成败都复位加载态：展开占位由 expandedGameId + 缓存共同驱动
-    detailLoading.value = false
+    // 归属校验：仅当本请求仍是当前展开目标时复位 loading（过期请求不得复位新目标的 loading）
+    if (expandedGameId.value === gameId) {
+      detailLoading.value = false
+    }
   }
 }
 

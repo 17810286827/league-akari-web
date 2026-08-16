@@ -237,8 +237,8 @@
         <!-- augments (5) -->
         <div v-else-if="column.name === 'augments' && participant.augments" :class="column.class">
           <AugmentDisplay
-            v-for="aug in participant.augments.slice(0, someoneHas6Augments ? 6 : 5)"
-            :key="aug ?? undefined"
+            v-for="(aug, index) in participant.augments.slice(0, someoneHas6Augments ? 6 : 5)"
+            :key="index"
             :augment-id="aug ?? undefined"
             :size="20"
           />

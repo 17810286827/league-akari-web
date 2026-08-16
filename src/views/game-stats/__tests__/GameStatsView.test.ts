@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 
 import { getMatchDetail, getMatchTimeline, listMatches } from '@/api/matches'
-import type { MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
+import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
 import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fixtures'
@@ -83,9 +83,10 @@ function makeLightParticipant(
 /**
  * 轻量摘要 fixture：蓝队 5 人（self 7/3/12，队友凑队总击杀 25 供参团率断言）+ 红队 5 人，
  * 含 self/teamTotals/teammates（侧栏聚合统计消费）与 participants（折叠卡消费）
- * 注意：与详情 fixture 共用同一批 puuid/召唤师名，保证展开后数据连贯
+ * 注意：与详情 fixture 共用同一批 puuid/召唤师名，保证展开后数据连贯；
+ * gameId 可传参（竞态用例需要两张不同 ID 的卡片）
  */
-function makeSummary(): MatchSummary {
+function makeSummary(gameId = 123): MatchSummary {
   // 蓝队：self 击杀 7，队友 6/5/4/3 → 队总击杀 25（self 参团率 (7+12)/25 = 76%）
   const blue: MatchParticipantLight[] = [
     makeLightParticipant({ puuid: 'lcu-p1', summonerName: 'PlayerOne#CN1', teamId: 100, kills: 7, deaths: 3, assists: 12 }),
@@ -104,9 +105,9 @@ function makeSummary(): MatchSummary {
     kills: index // 红队击杀各不相同，验证不误并
   }))
 
-  // 摘要根字段：gameId=123 与详情 fixture 一致，展开时按同一 ID 命中缓存
+  // 摘要根字段：gameId 与详情 fixture 一致（默认 123），展开时按同一 ID 命中缓存
   return {
-    gameId: 123,
+    gameId,
     gameCreation: 0,
     gameDuration: 1800,
     gameMode: 'CLASSIC',
@@ -296,6 +297,51 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
     expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
     expect(document.body.textContent).toContain('对局 123 详情加载失败')
+  })
+
+  it('竞态：点 A 后立即点 B，A 详情失败不收起 B（过期响应不改动展开状态）', async () => {
+    // 两张卡：A（gameId=123）与 B（gameId=456）；A 的详情请求挂起，B 的详情立即成功
+    vi.mocked(listMatches).mockResolvedValue({
+      data: [makeSummary(), makeSummary(456)],
+      total: 2,
+      page: 1,
+      pageSize: 20
+    } satisfies PageResponse<MatchSummary>)
+    // A 的详情为可手动 reject 的挂起 Promise（模拟请求在途）；B 返回带自身 gameId 的详情
+    let rejectADetail!: (reason?: unknown) => void
+    const pendingADetail = new Promise<MatchDetail>((_resolve, reject) => {
+      rejectADetail = reject
+    })
+    vi.mocked(getMatchDetail).mockImplementation((gameId) =>
+      gameId === 123 ? pendingADetail : Promise.resolve({ ...detailFixture, gameId: 456 })
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 列表渲染两张折叠卡：先点 A（详情请求在途），再立即改点 B
+    expect(wrapper.findAll('.collapsed')).toHaveLength(2)
+    await wrapper.findAll('.collapsed')[0].trigger('click')
+    await flushPromises()
+    // A 展开态详情未就绪：展示占位文案，列表只剩 B 一张折叠卡
+    expect(wrapper.text()).toContain('详情加载中...')
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    // B 详情已就绪：渲染的是 B 的展开态卡片（summary.gameId=456，非 A），loading 已复位
+    const card = wrapper.findComponent(MatchCard)
+    expect(card.exists()).toBe(true)
+    expect(card.props('isExpanded')).toBe(true)
+    expect(card.props('summary')).toMatchObject({ gameId: 456 })
+    expect(card.props('loadingDetails')).toBe(false)
+
+    // A 的详情此刻才失败：过期 rejection 不得收起正在展示的 B，也不弹 A 的错误提示
+    // 前一用例的错误提示仍残留在 body（wrapper 未卸载），改为断言 reject 前后 body 文本无新增
+    const bodyTextBeforeReject = document.body.textContent ?? ''
+    rejectADetail(new Error('404 Not Found'))
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(true)
+    expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
+    expect(wrapper.findComponent(MatchCard).props('loadingDetails')).toBe(false)
+    expect(document.body.textContent).toBe(bodyTextBeforeReject)
   })
 
   it('时间线接口失败仅 warn 不阻塞展开（时间线注入 null，卡片正常渲染）', async () => {

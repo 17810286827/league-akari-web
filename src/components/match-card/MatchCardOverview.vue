@@ -69,8 +69,8 @@
             <!-- augments -->
             <div v-if="displayParts.augments" class="hidden grid-cols-3 gap-0.5 @[680px]:grid">
               <AugmentDisplay
-                v-for="augment of participant.augments"
-                :key="augment ?? undefined"
+                v-for="(augment, index) of participant.augments"
+                :key="index"
                 :augment-id="augment ?? undefined"
                 :size="20"
               />
