@@ -184,11 +184,19 @@ function splitSummonerName(name: string): { gameName: string; tagLine: string } 
 /**
  * 队伍标识：CHERRY 竞技场按 playerSubteamId 分组（子队 2-3 人，组内击杀参与率才有意义），
  * 其余模式按 teamId；双源字段名一致，teamId 缺省回退顶层直显（LCU stats 无 teamId）
+ * @param gameMode 游戏模式（任务 10 校正）：CHERRY 时无条件按子队分组；
+ *                 不传时保留 playerSubteamId>0 启发式（向后兼容任务 5 调用方）
  */
-function teamKeyOf(participant: MatchParticipant, stats: ParticipantStatsJson): string {
+function teamKeyOf(
+  participant: MatchParticipant,
+  stats: ParticipantStatsJson,
+  gameMode?: string
+): string {
   const teamId = stats.teamId ?? participant.teamId
   const playerSubteamId = num(stats.playerSubteamId)
-  return playerSubteamId > 0 ? `CHERRY-${playerSubteamId}` : `TEAM-${teamId}`
+  // CHERRY 判定：显式 gameMode 优先；缺省回退旧启发式（子队 ID>0 视为竞技场）
+  const isCherry = gameMode === 'CHERRY' || (gameMode === undefined && playerSubteamId > 0)
+  return isCherry ? `CHERRY-${playerSubteamId}` : `TEAM-${teamId}`
 }
 
 /**
@@ -286,9 +294,10 @@ function computeWinResult(p: {
 function mapParticipant(
   participant: MatchParticipant,
   stats: ParticipantStatsJson,
-  totalKills: Map<string, number>
+  totalKills: Map<string, number>,
+  gameMode?: string
 ): MatchCardParticipant {
-  const teamIdentifier = teamKeyOf(participant, stats)
+  const teamIdentifier = teamKeyOf(participant, stats, gameMode)
   // 击杀基础：统一从 statsJson 取（顶层直显字段为冗余快照，不参与计算）
   const kills = num(stats.kills)
   const deaths = num(stats.deaths)
@@ -394,8 +403,14 @@ function mapParticipant(
  * 把后端 MatchParticipant（statsJson 全量快照）转换为原版 participants 模型
  * 双源兼容：LCU 平铺字段与 SGP 整体透传字段名一致，统一从 statsJson 取值；
  * statsJson 缺失/解析失败不阻塞（空对象兜底），返回数组长度与入参一致
+ * @param participants 后端参与者列表
+ * @param gameMode 游戏模式（任务 10 校正）：CHERRY 时按 playerSubteamId 分组；
+ *                 不传时按旧启发式（子队 ID>0 视为 CHERRY），普通对局不受影响
  */
-export function toParticipants(participants: MatchParticipant[]): MatchCardParticipant[] {
+export function toParticipants(
+  participants: MatchParticipant[],
+  gameMode?: string
+): MatchCardParticipant[] {
   // 先统一解析 statsJson（双源同源），供队伍总击杀与逐人映射共用
   const parsed = participants.map((participant) => ({
     participant,
@@ -405,11 +420,13 @@ export function toParticipants(participants: MatchParticipant[]): MatchCardParti
   // 队总击杀：按队伍标识累加（CHERRY 按 playerSubteamId，其余按 teamId），用于击杀参与率
   const totalKills = new Map<string, number>()
   for (const { participant, stats } of parsed) {
-    const teamIdentifier = teamKeyOf(participant, stats)
+    const teamIdentifier = teamKeyOf(participant, stats, gameMode)
     totalKills.set(teamIdentifier, (totalKills.get(teamIdentifier) ?? 0) + num(stats.kills))
   }
 
-  return parsed.map(({ participant, stats }) => mapParticipant(participant, stats, totalKills))
+  return parsed.map(({ participant, stats }) =>
+    mapParticipant(participant, stats, totalKills, gameMode)
+  )
 }
 
 /**

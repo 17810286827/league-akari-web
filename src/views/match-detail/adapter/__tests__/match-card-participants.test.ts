@@ -60,6 +60,24 @@ describe('toParticipants 双源补充', () => {
     expect(result[0].teamIdentifier).toBe('TEAM-100')
     expect(result.every((p) => p.teamIdentifier === 'TEAM-100')).toBe(true)
   })
+
+  it('队伍标识：显式 gameMode 校正 CHERRY 判定（任务 10）', () => {
+    // CHERRY：全部按 playerSubteamId 分组（fixture 子队 ID 为 0 → CHERRY-0）
+    const cherry = toParticipants(lcuParticipantFixture, 'CHERRY')
+    expect(cherry.every((p) => p.teamIdentifier === 'CHERRY-0')).toBe(true)
+
+    // 普通模式：即使 statsJson 含 playerSubteamId>0 也不按子队分组（校正旧启发式）
+    const fakeSubteam = toParticipants(
+      [
+        {
+          ...lcuParticipantFixture[0],
+          statsJson: JSON.stringify({ ...JSON.parse(lcuParticipantFixture[0].statsJson!), playerSubteamId: 2 })
+        }
+      ],
+      'CLASSIC'
+    )
+    expect(fakeSubteam[0].teamIdentifier).toBe('TEAM-100')
+  })
 })
 
 describe('toBasicInfo', () => {

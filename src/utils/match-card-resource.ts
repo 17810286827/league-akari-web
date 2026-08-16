@@ -17,6 +17,23 @@ function detectColorMode(): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/** 队列名静态表（任务 10：web 无 LCU gameData，取常见队列中文名，未命中回退 id） */
+const QUEUE_NAMES: Record<number, string> = {
+  // 与既有页面口径一致（src/views/game-stats/adapter.ts / match-detail/adapter.ts）
+  420: '单排/双排',
+  430: '匹配',
+  440: '灵活排位',
+  450: '极地大乱斗'
+}
+
+/** 地图名静态表（任务 10：web 无 LCU gameData，常见地图中文名，未命中回退 id） */
+const MAP_NAMES: Record<number, string> = {
+  1: '召唤师峡谷',
+  3: '扭曲丛林',
+  11: '召唤师峡谷',
+  12: '嚎哭深渊'
+}
+
 /**
  * 游戏资源提供者（web 简化版）：返回形状对齐原版 useGameResourceProvider 的
  * runtime（locale/colorMode）与 champions.name；items/perks 等其余资源由
@@ -47,6 +64,21 @@ export function useGameResourceProvider() {
           return '占位'
         }
         return getChampionName(id)
+      }
+    },
+    queues: {
+      /** 队列名（对齐原版 queues.name；web 无 LCU gameData，静态表未命中回退 id） */
+      name(id: number) {
+        return QUEUE_NAMES[id] ?? id.toString()
+      }
+    },
+    maps: {
+      /**
+       * 地图名（对齐原版 maps.name 签名；web 无 gameModeMutators 数据，
+       * 忽略 context 参数直接查静态表，未命中回退 id）
+       */
+      name(id: number, _context?: { gameModeMutators?: string[] | null }) {
+        return MAP_NAMES[id] ?? id.toString()
       }
     }
   }

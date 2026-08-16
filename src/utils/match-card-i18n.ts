@@ -23,6 +23,11 @@ const zh: Record<string, string> = {
   'matchCard.result.remake': '重开',
   'matchCard.result.abort': '被终止',
   'matchCard.result.surrender': '投降',
+  // 折叠卡总览（MatchCardOverview 消费，match-card.yaml overview 段）
+  'matchCard.overview.perfect': '完美',
+  'matchCard.overview.damage': '伤害',
+  'matchCard.overview.cs': '补兵',
+  'matchCard.overview.csPerMin': '/ 分钟',
   // 队伍名（common.yaml teams 段；text.ts useTeamName 消费）
   'teams.TEAM-100': '蓝队',
   'teams.TEAM-200': '红队',

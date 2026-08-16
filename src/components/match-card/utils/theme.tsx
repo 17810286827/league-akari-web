@@ -7,6 +7,8 @@
  */
 import { MaybeRefOrGetter, computed, toValue } from 'vue'
 
+import { useMatchCard } from '../context'
+
 /**
  * 玩家图表颜色数组
  * 用于图表中区分不同玩家的数据线
@@ -161,7 +163,54 @@ export function getDamageTextColorClass(type: 'physical' | 'magic' | 'true' | (s
 }
 
 /**
- * 原版 useWinResultStyleType / useCardBorderClass 依赖 useMatchCard context
- * （读取 basicInfo.gameMode 与 team.winResult 判定胜负样式），
- * 任务 10 移植 context.ts 后从原版恢复，函数体无需改动。
+ * 胜负样式类型（任务 10 恢复自原版）：读取 context 的 team.winResult 与
+ * basicInfo.gameMode 判定卡片整体胜负风格（win/loss/neutral）
  */
+export function useWinResultStyleType() {
+  const { basicInfo, team } = useMatchCard()
+
+  return computed(() => {
+    if (!team.value) {
+      return 'neutral'
+    }
+
+    if (
+      basicInfo.value.gameMode === 'PRACTICETOOL' ||
+      team.value.winResult === 'remake' ||
+      team.value.winResult === 'abort'
+    ) {
+      return 'neutral'
+    }
+
+    if (team.value.winResult === 'win') {
+      return 'win'
+    }
+
+    return 'loss'
+  })
+}
+
+/** 卡片边框 class（任务 10 恢复自原版）：胜负/重开决定边框颜色，其余灰边 */
+export function useCardBorderClass() {
+  const { basicInfo, team } = useMatchCard()
+
+  return computed(() => {
+    if (!team.value) {
+      return 'border-black/20 dark:border-white/20'
+    }
+
+    if (
+      basicInfo.value.gameMode === 'PRACTICETOOL' ||
+      team.value.winResult === 'remake' ||
+      team.value.winResult === 'abort'
+    ) {
+      return 'border-black/20 dark:border-white/20'
+    }
+
+    if (team.value.winResult === 'win') {
+      return 'border-blue-600/20 dark:border-blue-300/20'
+    }
+
+    return 'border-red-600/20 dark:border-red-300/20'
+  })
+}

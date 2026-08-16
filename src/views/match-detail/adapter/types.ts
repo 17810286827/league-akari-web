@@ -193,3 +193,12 @@ export interface MatchCardChampionKillEvent {
   /** 受害者受到的伤害（必填） */
   victimDamageReceived: MatchCardDamageDetail[]
 }
+
+/**
+ * 对局详情（时间线）数据（web 本地类型，任务 10 预定义；供 context.details 消费，
+ * 任务 11 时间线 Tab 从后端 timeline 接口装载后注入）
+ */
+export interface MatchCardGameDetails {
+  /** 时间线帧数组（结构透传，frames 消费方以 toMatchCardFrames 防御处理） */
+  frames: unknown[]
+}
