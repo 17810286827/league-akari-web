@@ -14,6 +14,8 @@ export interface MatchSummary {
   gameDuration: number
   /** 游戏模式，如 CLASSIC / ARAM */
   gameMode: string
+  /** 地图 ID（真实值，后端列表接口返回；折叠卡塔杀标签等按地图口径计算） */
+  mapId?: number
   /** 队列 ID，如 420（单排） */
   queueId: number
   /** 对局所在大区 */
@@ -74,6 +76,8 @@ export interface MatchParticipantLight {
   augments: (number | null)[] | null
   /** 符文配置（LCU 平铺或 SGP 嵌套归一化），缺失为 null */
   perks: MatchParticipantLightPerks | null
+  /** 对英雄造成的总伤害（折叠卡雷达图/伤害占比使用；后端未升级时可能缺失） */
+  totalDamageDealtToChampions?: number | null
   /** 承受总伤害（折叠卡统计行使用；后端未升级时可能缺失） */
   totalDamageTaken?: number | null
   /** 治疗量（后端未升级时可能缺失） */
@@ -88,6 +92,30 @@ export interface MatchParticipantLight {
   turretKills?: number | null
   /** 插眼数（后端未升级时可能缺失） */
   wardsPlaced?: number | null
+  /** 对塔伤害（折叠卡拆塔标签使用；后端未升级时可能缺失） */
+  totalDamageToTowers?: number | null
+  /** 双杀数（折叠卡多杀标签使用） */
+  doubleKills?: number | null
+  /** 三杀数 */
+  tripleKills?: number | null
+  /** 四杀数 */
+  quadraKills?: number | null
+  /** 五杀数 */
+  pentaKills?: number | null
+  /** 对友军总护盾量（折叠卡护盾标签使用） */
+  totalDamageShieldedOnTeammates?: number | null
+  /** 控制他人时长（折叠卡控制标签使用） */
+  timeCCingOthers?: number | null
+  /** 单杀数（SGP challenges 独有，折叠卡单杀标签使用） */
+  soloKills?: number | null
+  /** 敌方塔附近击杀数（折叠卡塔杀标签使用） */
+  killsNearEnemyTurret?: number | null
+  /** 己方塔下击杀数（折叠卡反杀标签使用） */
+  killsUnderOwnTurret?: number | null
+  /** 对线最大补刀差（折叠卡补刀压制标签使用） */
+  maxCsAdvantageOnLaneOpponent?: number | null
+  /** 击飞击杀数（折叠卡击飞标签使用） */
+  knockEnemyIntoTeamAndKill?: number | null
 }
 
 /** 本玩家（selfPuuid）在该局的个人战绩快照（后端从 stats_json 解析而来） */

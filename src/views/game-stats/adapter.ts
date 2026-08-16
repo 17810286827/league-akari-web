@@ -31,12 +31,15 @@ export const QUEUE_OPTIONS: QueueOption[] = [
 ]
 
 /**
- * 地图 ID 派生表：轻量摘要无 mapId 字段，折叠卡按游戏模式派生
- * （与 match-card-resource 的地图名静态表口径一致）；未收录模式回退 11（召唤师峡谷）
+ * 地图 ID 派生表：轻量摘要优先使用后端返回的真实 mapId（与详情接口一致），
+ * 后端未升级（无 mapId 字段）时按游戏模式兜底（与 match-card-resource 的地图名静态表口径一致）；
+ * 未收录模式回退 11（召唤师峡谷）
  */
 const MAP_IDS: Record<string, number> = {
   CLASSIC: 11,
-  ARAM: 12
+  ARAM: 12,
+  // KIWI 新玩法复用嚎哭深渊地图（与详情接口真实 mapId 一致，避免塔杀标签阈值判定差异）
+  KIWI: 12
 }
 
 /**
@@ -109,8 +112,9 @@ function lightToMatchParticipant(light: MatchParticipantLight): MatchParticipant
       perkSubStyle: light.perks.perkSubStyle
     }
   }
-  // 折叠卡统计行字段（后端 ParticipantLight 扩展后提供；缺失不写，适配层兜底 0）
+  // 折叠卡统计行/雷达图字段（后端 ParticipantLight 扩展后提供；缺失不写，适配层兜底 0）
   const statFields: Array<[string, number | null | undefined]> = [
+    ['totalDamageDealtToChampions', light.totalDamageDealtToChampions],
     ['totalDamageTaken', light.totalDamageTaken],
     ['totalHeal', light.totalHeal],
     ['visionScore', light.visionScore],
@@ -123,6 +127,40 @@ function lightToMatchParticipant(light: MatchParticipantLight): MatchParticipant
     if (typeof value === 'number') {
       stats[key] = value
     }
+  }
+  // 折叠卡成就标签字段：多杀/拆塔/护盾/控制读 stats 顶层（ManyTags 直接消费）；
+  // 拆塔键名对齐 statsJson 的 damageDealtToTurrets（toParticipants 按此键读取）
+  const tagFields: Array<[string, number | null | undefined]> = [
+    ['damageDealtToTurrets', light.totalDamageToTowers],
+    ['doubleKills', light.doubleKills],
+    ['tripleKills', light.tripleKills],
+    ['quadraKills', light.quadraKills],
+    ['pentaKills', light.pentaKills],
+    ['totalDamageShieldedOnTeammates', light.totalDamageShieldedOnTeammates],
+    ['timeCCingOthers', light.timeCCingOthers]
+  ]
+  for (const [key, value] of tagFields) {
+    if (typeof value === 'number') {
+      stats[key] = value
+    }
+  }
+  // 单杀/塔杀/补刀压制/击飞击杀：toParticipants 从 stats.challenges 嵌套读取（SGP 独有），
+  // 此处按同形状写入；任一字段缺失时整个 challenges 不写（组件侧按 null 兜底）
+  const challenges: Record<string, number> = {}
+  const challengeFields: Array<[string, number | null | undefined]> = [
+    ['soloKills', light.soloKills],
+    ['killsNearEnemyTurret', light.killsNearEnemyTurret],
+    ['killsUnderOwnTurret', light.killsUnderOwnTurret],
+    ['maxCsAdvantageOnLaneOpponent', light.maxCsAdvantageOnLaneOpponent],
+    ['knockEnemyIntoTeamAndKill', light.knockEnemyIntoTeamAndKill]
+  ]
+  for (const [key, value] of challengeFields) {
+    if (typeof value === 'number') {
+      challenges[key] = value
+    }
+  }
+  if (Object.keys(challenges).length > 0) {
+    stats.challenges = challenges
   }
 
   return {
@@ -163,7 +201,8 @@ export function summaryToDetail(summary: MatchSummary): MatchDetail {
     // 折叠卡不消费以下字段，按默认值填充（详情页以真实数据为准）
     gameType: '',
     queueId: summary.queueId,
-    mapId: MAP_IDS[summary.gameMode] ?? 11,
+    // 优先后端真实 mapId（与详情接口一致，塔杀标签等按地图口径计算），未升级时按模式兜底
+    mapId: summary.mapId ?? MAP_IDS[summary.gameMode] ?? 11,
     gameVersion: '',
     region: summary.region,
     rsoPlatformId: '',
