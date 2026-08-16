@@ -155,3 +155,41 @@ export interface MatchCardBasicInfo {
   /** 获胜方队伍 ID，未知为 null */
   winnerTeamId: number | null
 }
+
+/**
+ * 击杀事件伤害明细（web 本地类型，任务 9；字段对应原版
+ * @shared/types/sgp/match-history 的 DamageDetail，供 VictimDamageDetails 消费）
+ */
+export interface MatchCardDamageDetail {
+  /** 是否普攻伤害（原版 LCU 的 basic 字段） */
+  basic: boolean
+  /** 魔法伤害 */
+  magicDamage: number
+  /** 来源名称（如野怪名 Cherries_Shopkeeper） */
+  name: string
+  /** 伤害来源参与者编号（非英雄来源为 0） */
+  participantId: number
+  /** 物理伤害 */
+  physicalDamage: number
+  /** 技能名称（展示备用） */
+  spellName: string
+  /** 技能槽位（0-3 对应 Q/W/E/R，63 为被动 P；组件按槽位映射键位） */
+  spellSlot: number
+  /** 真实伤害 */
+  trueDamage: number
+  /** 来源类型：MINION/MONSTER/TOWER 等（组件映射为 minion/monster/tower/other） */
+  type: string
+}
+
+/**
+ * 击杀事件（web 本地类型，任务 9；字段对应原版 DetailedChampionKillEvent 的消费子集，
+ * 供 VictimDamageDetails 展示伤害明细）
+ */
+export interface MatchCardChampionKillEvent {
+  /** 被击杀者参与者编号 */
+  victimId: number
+  /** 击杀者对受害者的伤害（原版可选字段，缺失按无伤害处理） */
+  victimDamageDealt?: MatchCardDamageDetail[]
+  /** 受害者受到的伤害（必填） */
+  victimDamageReceived: MatchCardDamageDetail[]
+}

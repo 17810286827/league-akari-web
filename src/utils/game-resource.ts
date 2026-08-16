@@ -548,3 +548,49 @@ export async function perkstyleDisplay(styleId: number): Promise<PerkstyleDispla
     return { name: '', iconUrl: '' }
   }
 }
+
+// ---- 冠军（champion）----
+
+/** 冠军摘要 JSON 记录（champion-summary.json；主仓库即用此文件，champions.json 已 404） */
+interface ChampionSummary {
+  id: number
+  name?: string
+}
+
+let championsPromise: Promise<Map<number, ChampionSummary>> | null = null
+/** 冠军名同步缓存（加载完成后填充；组件模板需同步取值，未命中回退 id 字符串） */
+let championNames = new Map<number, string>()
+
+/** 加载冠军表（仅首次调用发起网络请求；失败清空缓存允许重试） */
+function loadChampions(): Promise<Map<number, ChampionSummary>> {
+  if (!championsPromise) {
+    championsPromise = fetchGameDataJson<unknown>('champion-summary.json')
+      .then((payload) => {
+        const map = toIdMap<ChampionSummary>(payload, 'data')
+        // 同步填充名字缓存：供组件模板同步读取（未命中回退 id 字符串）
+        championNames = new Map(
+          [...map].map(([id, champion]) => [id, champion.name ?? String(id)])
+        )
+        logger.info('冠军数据加载完成', { count: map.size })
+        return map
+      })
+      .catch((error) => {
+        // 失败后清空缓存 Promise，允许下次调用重新发起请求
+        championsPromise = null
+        logger.error('冠军数据加载失败', error)
+        throw error
+      })
+  }
+  return championsPromise
+}
+
+/**
+ * 同步读取冠军名（对齐原版 providers/game-resource 的 champions.name 语义）：
+ * 首次调用触发后台加载（结果写入缓存），未加载完成/未命中时回退 id 字符串
+ * @param championId 英雄 ID（-1/-3 等特殊值由调用方自行处理，此处原样回退）
+ */
+export function getChampionName(championId: number): string {
+  // 触发加载（重复调用复用同一 Promise；失败静默，下次调用重试）
+  void loadChampions().catch(() => {})
+  return championNames.get(championId) ?? String(championId)
+}

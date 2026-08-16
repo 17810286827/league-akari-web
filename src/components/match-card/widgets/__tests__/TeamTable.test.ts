@@ -1,0 +1,179 @@
+/**
+ * TeamTable 组件冒烟测试（任务 9）
+ * 覆盖：表头（队伍名/队 KDA/野怪目标/禁用列表）+ 玩家行渲染数量 + KDA 列文本，
+ * 数据用任务 5 的 LCU fixture（lcuParticipantFixture）+ 自造最小 teamsJson；
+ * naive-ui 组件统一用 NConfigProvider 包裹挂载
+ */
+import { mount } from '@vue/test-utils'
+import { NConfigProvider } from 'naive-ui'
+import { defineComponent, h } from 'vue'
+import { describe, expect, it, vi } from 'vitest'
+
+import type { MatchDetail } from '@/api/types'
+import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fixtures'
+import { provideMatchCard } from '../../context'
+import TeamTable from '../TeamTable.vue'
+
+// 局部 mock 数据层：展示函数全部返回空壳，避免测试触发 CDragon 网络请求
+vi.mock('@/utils/game-resource', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/game-resource')>()
+  return {
+    ...actual,
+    augmentDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
+    itemDisplay: vi
+      .fn()
+      .mockResolvedValue({
+        id: 0,
+        name: '',
+        iconUrl: '',
+        descriptionHtml: '',
+        price: 0,
+        totalPrice: 0
+      }),
+    perkDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
+    perkstyleDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
+    spellDisplay: vi.fn().mockResolvedValue(null)
+  }
+})
+
+/** 最小对局详情：LCU 参与者 fixture + 两队 teamsJson（含禁用与野怪目标） */
+const summary: MatchDetail = {
+  gameId: 1,
+  gameCreation: 0,
+  gameDuration: 1800,
+  gameMode: 'CLASSIC',
+  gameType: 'MATCHED_GAME',
+  queueId: 420,
+  mapId: 11,
+  gameVersion: '14.10.1',
+  region: 'CN',
+  rsoPlatformId: 'CN1',
+  dataSource: 'lcu',
+  winnerTeamId: 100,
+  selfPuuid: 'lcu-p1',
+  teamsJson: JSON.stringify([
+    {
+      teamId: 100,
+      win: 'Win',
+      towerKills: 11,
+      inhibitorKills: 2,
+      dragonKills: 3,
+      baronKills: 1,
+      riftHeraldKills: 1,
+      voidGrubKills: 4,
+      atakhanKills: 0,
+      firstBlood: true,
+      bans: [
+        { championId: 1, pickTurn: 1 },
+        { championId: 2, pickTurn: 2 }
+      ]
+    },
+    {
+      teamId: 200,
+      win: 'Fail',
+      towerKills: 3,
+      inhibitorKills: 0,
+      dragonKills: 2,
+      baronKills: 0,
+      riftHeraldKills: 0,
+      voidGrubKills: 2,
+      atakhanKills: 0,
+      firstBlood: false,
+      bans: []
+    }
+  ]),
+  participants: lcuParticipantFixture
+}
+
+/** 测试挂载壳：提供 match-card context 后渲染 TeamTable（NConfigProvider 包裹） */
+const Harness = defineComponent({
+  setup() {
+    provideMatchCard({
+      summary,
+      puuid: 'lcu-p1',
+      hidePrivacy: false,
+      navigateToSummonerByPuuid: vi.fn()
+    })
+    return () => h(TeamTable, { teamIdentifier: 'TEAM-100' })
+  }
+})
+
+/** 挂载 TeamTable：NConfigProvider 包裹（naive-ui 依赖）+ RadarChart 打桩（chart.js 需 canvas，jsdom 无） */
+function mountTeamTable() {
+  return mount(() =>
+    h(NConfigProvider, null, {
+      default: () => h(Harness)
+    }),
+    { global: { stubs: { RadarChart: true } } }
+  )
+}
+
+describe('TeamTable', () => {
+  it('渲染 5 行玩家（TEAM-100 的 LCU fixture 5 名参赛者）', () => {
+    const wrapper = mountTeamTable()
+
+    // 玩家行 class 为 h-12（表头为 h-8），仅玩家行使用该高度
+    const playerRows = wrapper.findAll('div.h-12')
+    expect(playerRows).toHaveLength(5)
+  })
+
+  it('KDA 列渲染 击杀/死亡/助攻 与击杀参与率文本', () => {
+    const wrapper = mountTeamTable()
+    const text = wrapper.text()
+
+    // 首名玩家（fixture 击杀 7/3/12，队总击杀 25 → 参团率 76%）
+    expect(text).toContain('7/3/12 (76%)')
+    expect(text).toContain('6.33 KDA')
+    // 队友（击杀 6/1/2 → 参团率 32%）
+    expect(text).toContain('6/1/2 (32%)')
+  })
+
+  it('表头渲染队伍名/队 KDA/野怪目标与禁用列表', () => {
+    const wrapper = mountTeamTable()
+    const text = wrapper.text()
+
+    // 队伍名（teams.TEAM-100 → 蓝队）与队总 KDA（7+6+5+4+3 / 3+1×4 / 12+2×4）
+    expect(text).toContain('蓝队')
+    expect(text).toContain('25/7/20')
+    // 野怪目标：标签在 title 属性（原版 1:1），数量在紧随的 span（塔 11/水晶 2/龙 3/男爵 1/巢虫 4/先锋 1）
+    expect(wrapper.find('[title="防御塔"]').exists()).toBe(true)
+    expect(wrapper.find('[title="防御塔"] span').text()).toBe('11')
+    expect(wrapper.find('[title="水晶"] span').text()).toBe('2')
+    expect(wrapper.find('[title="巨龙"] span').text()).toBe('3')
+    expect(wrapper.find('[title="纳什男爵"] span').text()).toBe('1')
+    expect(wrapper.find('[title="虚空巢虫"] span').text()).toBe('4')
+    expect(wrapper.find('[title="峡谷先锋"] span').text()).toBe('1')
+    // 禁用列表（bans 标签 + 2 个禁用英雄）
+    expect(text).toContain('禁用')
+    // 对线位置（matchCard.position.TOP → 上路）
+    expect(text).toContain('上路')
+  })
+
+  it('点击玩家名触发 navigateToSummonerByPuuid 导航', async () => {
+    const navigateToSummonerByPuuid = vi.fn()
+    const HarnessWithNav = defineComponent({
+      setup() {
+        provideMatchCard({
+          summary,
+          puuid: 'lcu-p1',
+          hidePrivacy: false,
+          navigateToSummonerByPuuid
+        })
+        return () => h(TeamTable, { teamIdentifier: 'TEAM-100' })
+      }
+    })
+    const wrapper = mount(
+      () =>
+        h(NConfigProvider, null, {
+          default: () => h(HarnessWithNav)
+        }),
+      { global: { stubs: { RadarChart: true } } }
+    )
+
+    // 玩家名（PlayerOne）触发点击 → 导航到对应 puuid
+    const nameEls = wrapper.findAll('.truncate')
+    expect(nameEls.length).toBeGreaterThan(0)
+    await nameEls[0].trigger('click')
+    expect(navigateToSummonerByPuuid).toHaveBeenCalledWith('lcu-p1')
+  })
+})

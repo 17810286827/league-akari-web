@@ -4,13 +4,15 @@
  * - 原版 `@shared/data-adapter/utils` 的 noZero → 本地实现（口径一致）
  * - 原版 i18next 的 TFunction / useTranslation → 本地 t 签名（兼容 @/utils/match-card-i18n）
  * - 原版 TagContext 由 useMatchCard 推导 → web 显式声明（participant 用 web 适配层
- *   MatchCardParticipant；team/teams 的聚合统计字段按原版口径声明——web 任务 6 的
- *   MatchCardTeamStats 尚无这些聚合字段，任务 10 组装 context 时需补算）
- * - usePlayerTags（组合式）依赖 match-card context，任务 10 移植 context 后恢复
+ *   MatchCardParticipant；team/teams 的聚合统计字段按原版口径声明——web 任务 9 的
+ *   toMatchCardTeams 已补算这些聚合字段）
+ * - usePlayerTags（组合式）消费 web match-card context（任务 9 的 context.ts 提供）
  */
-import type { VNodeChild } from 'vue'
+import { computed, type VNodeChild } from 'vue'
 
+import { t } from '@/utils/match-card-i18n'
 import type { MatchCardBasicInfo, MatchCardParticipant } from '@/views/match-detail/adapter/types'
+import { useMatchCard } from '../context'
 
 /** web 本地 t 函数签名：与 @/utils/match-card-i18n 的 t 一致（缺失 key 回显本身） */
 export type TagTFunction = (key: string, params?: Record<string, string | number>) => string
@@ -618,8 +620,42 @@ export function computeTowerKillTags({ participant, basicInfo }: TagContext, t: 
 }
 
 /**
- * 原版 usePlayerTags()（组合式，消费 useMatchCard context + i18next 的 useTranslation）
- * 未移植：web 的 match-card context 由任务 10 组装，届时从原版恢复本函数，
- * 并将 useTranslation() 替换为 @/utils/match-card-i18n 的 t、useMatchCard() 替换为 web context。
- * 恢复时按原版 usePlayerTags 原样复制 + 上述两处替换即可。
+ * 玩家标签计算（任务 9 恢复原版 usePlayerTags 组合式）：
+ * 消费 web match-card context（任务 9 的 context.ts）与 @/utils/match-card-i18n 的 t，
+ * 其余逻辑与 compute* 系列一致，按原版顺序聚合后按 priority 降序返回
  */
+export function usePlayerTags() {
+  const { participant, teams, team, basicInfo } = useMatchCard()
+
+  return computed(() => {
+    if (!participant.value || !team.value) return []
+
+    const context: TagContext = {
+      participant: participant.value,
+      team: team.value,
+      teams: teams.value,
+      basicInfo: basicInfo.value
+    }
+
+    const tags: PlayerTag[] = [
+      ...computeMultikillTags(context, t),
+      ...computeTowerKillTags(context, t),
+      ...computeDamageTags(context, t),
+      ...computeTakenTags(context, t),
+      ...computeHealTags(context, t),
+      ...computeTowerTags(context, t),
+      ...computeShieldTags(context, t),
+      ...computeSoloTags(context, t),
+      ...computeGoldTags(context, t),
+      ...computeDamageGoldEfficiencyTags(context, t),
+      ...computeCsTags(context, t),
+      ...computeCsAdvantageTags(context, t),
+      ...computeKillsTags(context, t),
+      ...computeKpTags(context, t),
+      ...computedKnockUpTags(context, t),
+      ...computeCcTags(context, t)
+    ]
+
+    return tags.sort((a, b) => (b.priority || 0) - (a.priority || 0))
+  })
+}
