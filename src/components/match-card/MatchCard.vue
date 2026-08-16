@@ -3,7 +3,13 @@
   原版结构：<KeepAlive><MatchCardDetails v-if="!puuid || isExpanded" /></KeepAlive>
 -->
 <template>
-  <div class="relative w-full min-w-175 [contain-intrinsic-size:116px] [content-visibility:auto]">
+  <!--
+    web 版移除原版 content-visibility 优化（[contain-intrinsic-size:116px] [content-visibility:auto]）：
+    展开态容器实际高度 = 折叠卡 116px + 详情面板（数百 px），估算高度仅 116px，
+    首次展开/滚动回视口时会按估算高度布局再突变到实际高度，造成卡片跳动；
+    web 列表折叠卡本就直接渲染 MatchCardOverview（无此优化），移除后行为一致
+  -->
+  <div class="relative w-full min-w-175">
     <MatchCardOverview @toggle-expand="isExpanded = !isExpanded" />
 
     <KeepAlive>

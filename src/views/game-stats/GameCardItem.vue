@@ -30,9 +30,16 @@ const emit = defineEmits<{ toggle: [gameId: number] }>()
 /** 折叠态 context 数据：轻量摘要 → MatchDetail 形状（participants 已归一 statsJson） */
 const lightDetail = computed(() => summaryToDetail(props.game.summary))
 
+/**
+ * 折叠态展示数据源：详情已加载（展开过）时优先用真实详情，未加载回退轻量摘要。
+ * 原因：列表摘要与详情是两个接口，参与者顺序/字段口径存在差异，
+ * 若折叠卡恒用摘要，展开→收起后会出现玩家顺序与统计错位；统一数据源后两态渲染完全一致。
+ */
+const overviewDetail = computed(() => props.game.detail ?? lightDetail.value)
+
 // 折叠态卡片上下文：isExpanded 恒 false（详情面板仅展开态渲染），puuid 高亮 self 行
 provideMatchCard({
-  summary: lightDetail,
+  summary: overviewDetail,
   puuid: computed(() => props.game.summary.selfPuuid),
   isExpanded: false
 })
@@ -93,10 +100,13 @@ const expandedModel = computed({
   }
 }
 
-/* 展开态加载中占位 */
+/* 展开态加载中占位：高度与折叠卡（h-29 = 116px）一致，避免首次展开时
+   116px → 60px 占位 → 详情就绪后 734px 的两次高度突变造成卡片跳动 */
 .detail-placeholder {
-  padding: 28px 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 116px;
   font-size: 13px;
   color: var(--text-muted);
   border-radius: var(--radius);
