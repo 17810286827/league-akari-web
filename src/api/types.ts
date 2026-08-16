@@ -74,20 +74,20 @@ export interface MatchParticipantLight {
   augments: (number | null)[] | null
   /** 符文配置（LCU 平铺或 SGP 嵌套归一化），缺失为 null */
   perks: MatchParticipantLightPerks | null
-  /** 承受总伤害（折叠卡统计行使用），缺失为 null */
-  totalDamageTaken: number | null
-  /** 治疗量，缺失为 null */
-  totalHeal: number | null
-  /** 视野得分，缺失为 null */
-  visionScore: number | null
-  /** 获得金币，缺失为 null */
-  goldEarned: number | null
-  /** 补刀数，缺失为 null */
-  cs: number | null
-  /** 推塔数，缺失为 null */
-  turretKills: number | null
-  /** 插眼数，缺失为 null */
-  wardsPlaced: number | null
+  /** 承受总伤害（折叠卡统计行使用；后端未升级时可能缺失） */
+  totalDamageTaken?: number | null
+  /** 治疗量（后端未升级时可能缺失） */
+  totalHeal?: number | null
+  /** 视野得分（后端未升级时可能缺失） */
+  visionScore?: number | null
+  /** 获得金币（后端未升级时可能缺失） */
+  goldEarned?: number | null
+  /** 补刀数（后端未升级时可能缺失） */
+  cs?: number | null
+  /** 推塔数（后端未升级时可能缺失） */
+  turretKills?: number | null
+  /** 插眼数（后端未升级时可能缺失） */
+  wardsPlaced?: number | null
 }
 
 /** 本玩家（selfPuuid）在该局的个人战绩快照（后端从 stats_json 解析而来） */
