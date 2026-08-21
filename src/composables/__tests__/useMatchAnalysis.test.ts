@@ -11,8 +11,8 @@ vi.mock('@/api/matches', () => ({
   analyzeMatch: vi.fn()
 }))
 
-// mock 日志器：验证损坏缓存会 warning，同时避免测试输出真实日志。
-const loggerWarn = vi.fn()
+// mock 日志器：状态必须在 vi.hoisted 中创建，因为 vi.mock 工厂会被提升到导入语句之前。
+const { loggerWarn } = vi.hoisted(() => ({ loggerWarn: vi.fn() }))
 vi.mock('@/utils/logger', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
@@ -72,7 +72,7 @@ describe('useMatchAnalysis', () => {
       async (_gameId, handlers) =>
         new Promise<void>((resolve) => {
           resolveRequest = resolve
-          handlers?.onStart?.(false)
+          handlers?.onStart?.(true)
           handlers?.onReasoning?.('新思考')
           handlers?.onChunk?.('新正文-1')
           handlers?.onChunk?.('新正文-2')
@@ -82,6 +82,7 @@ describe('useMatchAnalysis', () => {
     localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
 
+    // 初始化快照代表用户仍在看的最近一次成功结果，新流不能因首块到达而提前污染它。
     const request = state.analyze()
     await settle()
     expect(state.analyzing.value).toBe(true)
@@ -89,20 +90,20 @@ describe('useMatchAnalysis', () => {
     expect(state.reasoning.value).toBe('旧思考')
     expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
 
-    handlersAt(0).onDone?.(false)
+    handlersAt(0).onDone?.(true)
     resolveRequest()
     await request
 
     expect(state.analyzing.value).toBe(false)
     expect(state.result.value).toBe('新正文-1新正文-2')
     expect(state.reasoning.value).toBe('新思考')
-    expect(state.truncatedTip.value).toBe('')
-    expect(state.fromCache.value).toBe(false)
+    expect(state.truncatedTip.value).not.toBe('')
+    expect(state.fromCache.value).toBe(true)
     expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual({
       result: '新正文-1新正文-2',
       reasoning: '新思考',
-      truncatedTip: '',
-      fromCache: false
+      truncatedTip: expect.any(String),
+      fromCache: true
     })
   })
 
@@ -124,11 +125,14 @@ describe('useMatchAnalysis', () => {
     localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
 
+    // 网络失败必须回到成功快照，否则半截模型输出会在页面和缓存中留下不可重试的脏状态。
     const failedRequest = state.analyze()
     await settle()
     rejectRequest(new Error('网络暂时不可用'))
-    await failedRequest
+    // 契约约束：请求异常由 composable 吞掉并转成可重试的 UI 错误，不向调用方 reject。
+    await expect(failedRequest).resolves.toBeUndefined()
 
+    expect(state.analyzing.value).toBe(false)
     expect(state.result.value).toBe('旧正文')
     expect(state.reasoning.value).toBe('旧思考')
     expect(state.errorMsg.value).toContain('网络暂时不可用')
@@ -198,6 +202,7 @@ describe('useMatchAnalysis', () => {
 
     const first = state.analyze()
     await settle()
+    // 第二次请求拥有更新的 request id，旧流即使晚完成也只能被丢弃。
     const second = state.analyze()
     await settle()
     resolvers[1]?.()
@@ -221,7 +226,9 @@ describe('useMatchAnalysis', () => {
     localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
 
-    await state.analyze()
+    // 流内错误与网络 reject 采用同一回退策略，并保留再次点击重试的能力。
+    await expect(state.analyze()).resolves.toBeUndefined()
+    expect(state.analyzing.value).toBe(false)
     expect(state.result.value).toBe('旧正文')
     expect(state.errorMsg.value).toContain('模型服务失败')
     expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
