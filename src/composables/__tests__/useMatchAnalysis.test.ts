@@ -58,7 +58,8 @@ describe('useMatchAnalysis', () => {
     // reasoningCollapsed 是展示层状态，不属于持久化快照，因此每次恢复都应重新收起。
     // 测试必须先清空缓存，才能把隔离结论归因于当前实例的 puuid，而非历史数据残留。
     // 该准备步骤也模拟玩家切换入口后的干净状态，防止跨用例污染缓存契约。
-    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))；错误和 analyzing 状态不应跨实例或跨刷新持久化。
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    // 错误和 analyzing 状态不应跨实例或跨刷新持久化，只恢复最近一次成功快照。
     // 首个实例命中 puuid-a，第二个实例使用 puuid-b，正好验证键空间的最小隔离单位。
     const first = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
     const second = useMatchAnalysis({ gameId: 123, puuid: 'puuid-b' })
