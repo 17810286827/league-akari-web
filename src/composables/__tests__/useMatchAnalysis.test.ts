@@ -1,0 +1,233 @@
+/**
+ * useMatchAnalysis composable 失败测试。
+ * 覆盖缓存隔离、流式临时状态、成功提交、失败回退、存储降级、身份校验与请求竞态。
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AnalyzeStreamHandlers } from '@/api/matches'
+import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
+
+// mock 分析 API：由用例手动驱动 SSE handlers，保持测试只关注 composable 契约。
+vi.mock('@/api/matches', () => ({
+  analyzeMatch: vi.fn()
+}))
+
+// mock 日志器：验证损坏缓存会 warning，同时避免测试输出真实日志。
+const loggerWarn = vi.fn()
+vi.mock('@/utils/logger', () => ({
+  createLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: loggerWarn,
+    error: vi.fn()
+  }))
+}))
+
+import { analyzeMatch } from '@/api/matches'
+
+const cacheKey = 'league-akari:ai-analysis:123:puuid-a'
+const oldSnapshot = {
+  result: '旧正文',
+  reasoning: '旧思考',
+  truncatedTip: '',
+  fromCache: true
+}
+
+/** 等待 composable 的 async 请求 finally 和 Vue ref 更新完成。 */
+async function settle(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+/** 读取指定请求保存的 handler，便于模拟 API 的流式回调。 */
+function handlersAt(index: number): AnalyzeStreamHandlers {
+  const call = vi.mocked(analyzeMatch).mock.calls[index]
+  return call?.[1] as AnalyzeStreamHandlers
+}
+
+describe('useMatchAnalysis', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('按 gameId 和 puuid 隔离缓存，并默认收起 reasoning', () => {
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+
+    const first = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    const second = useMatchAnalysis({ gameId: 123, puuid: 'puuid-b' })
+
+    expect(first.result.value).toBe('旧正文')
+    expect(first.reasoning.value).toBe('旧思考')
+    expect(first.truncatedTip.value).toBe('')
+    expect(first.fromCache.value).toBe(true)
+    expect(first.errorMsg.value).toBe('')
+    expect(first.reasoningCollapsed.value).toBe(true)
+    expect(second.result.value).toBe('')
+    expect(second.reasoning.value).toBe('')
+  })
+
+  it('成功流式请求在完成前保留旧结果，完成后整体提交四个字段', async () => {
+    let resolveRequest!: () => void
+    vi.mocked(analyzeMatch).mockImplementation(
+      async (_gameId, handlers) =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve
+          handlers?.onStart?.(false)
+          handlers?.onReasoning?.('新思考')
+          handlers?.onChunk?.('新正文-1')
+          handlers?.onChunk?.('新正文-2')
+          // 模拟首块已到但 SSE 尚未 done 的中间状态。
+        })
+    )
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+
+    const request = state.analyze()
+    await settle()
+    expect(state.analyzing.value).toBe(true)
+    expect(state.result.value).toBe('旧正文')
+    expect(state.reasoning.value).toBe('旧思考')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+
+    handlersAt(0).onDone?.(false)
+    resolveRequest()
+    await request
+
+    expect(state.analyzing.value).toBe(false)
+    expect(state.result.value).toBe('新正文-1新正文-2')
+    expect(state.reasoning.value).toBe('新思考')
+    expect(state.truncatedTip.value).toBe('')
+    expect(state.fromCache.value).toBe(false)
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual({
+      result: '新正文-1新正文-2',
+      reasoning: '新思考',
+      truncatedTip: '',
+      fromCache: false
+    })
+  })
+
+  it('请求失败时回退旧快照，缓存不变并允许重试', async () => {
+    let rejectRequest!: (reason: Error) => void
+    vi.mocked(analyzeMatch)
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onReasoning?.('临时思考')
+        handlers?.onChunk?.('临时正文')
+        return new Promise<void>((_resolve, reject) => {
+          rejectRequest = reject
+        })
+      })
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onStart?.(false)
+        handlers?.onChunk?.('重试成功')
+        handlers?.onDone?.(false)
+      })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+
+    const failedRequest = state.analyze()
+    await settle()
+    rejectRequest(new Error('网络暂时不可用'))
+    await failedRequest
+
+    expect(state.result.value).toBe('旧正文')
+    expect(state.reasoning.value).toBe('旧思考')
+    expect(state.errorMsg.value).toContain('网络暂时不可用')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+
+    await state.analyze()
+    expect(state.result.value).toBe('重试成功')
+    expect(state.errorMsg.value).toBe('')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string).result).toBe('重试成功')
+  })
+
+  it('存储读写异常时不抛错，仍可在内存中展示结果', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('读取失败')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('写入失败')
+    })
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onChunk?.('内存结果')
+      handlers?.onDone?.(false)
+    })
+
+    expect(() => useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })).not.toThrow()
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    await state.analyze()
+
+    expect(state.result.value).toBe('内存结果')
+    expect(state.errorMsg.value).toBe('')
+  })
+
+  it.each([
+    ['非法 JSON', '{bad-json'],
+    ['缺少字段', JSON.stringify({ result: '正文' })],
+    ['字段类型错误', JSON.stringify({ result: 1, reasoning: '', truncatedTip: '', fromCache: false })]
+  ])('忽略%s缓存并记录 warning', (_label, raw) => {
+    localStorage.setItem(cacheKey, raw)
+
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+
+    expect(state.result.value).toBe('')
+    expect(state.reasoning.value).toBe('')
+    expect(loggerWarn).toHaveBeenCalled()
+  })
+
+  it('缺少 puuid 时不读写缓存且不发起分析请求', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem')
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const state = useMatchAnalysis({ gameId: 123, puuid: '' })
+
+    await state.analyze()
+
+    expect(state.result.value).toBe('')
+    expect(getItem).not.toHaveBeenCalled()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(analyzeMatch).not.toHaveBeenCalled()
+  })
+
+  it('旧请求晚到时不能覆盖新请求的状态', async () => {
+    const resolvers: Array<() => void> = []
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onChunk?.(vi.mocked(analyzeMatch).mock.calls.length === 1 ? '旧请求' : '新请求')
+      await new Promise<void>((resolve) => resolvers.push(resolve))
+      handlers?.onDone?.(false)
+    })
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+
+    const first = state.analyze()
+    await settle()
+    const second = state.analyze()
+    await settle()
+    resolvers[1]?.()
+    await second
+    resolvers[0]?.()
+    await first
+
+    expect(state.result.value).toBe('新请求')
+  })
+
+  it('流内 onError 回退旧快照并允许再次重试', async () => {
+    vi.mocked(analyzeMatch)
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onChunk?.('失败片段')
+        handlers?.onError?.('模型服务失败')
+      })
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onChunk?.('恢复结果')
+        handlers?.onDone?.(false)
+      })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+
+    await state.analyze()
+    expect(state.result.value).toBe('旧正文')
+    expect(state.errorMsg.value).toContain('模型服务失败')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+
+    await state.analyze()
+    expect(state.result.value).toBe('恢复结果')
+    expect(state.errorMsg.value).toBe('')
+  })
+})
