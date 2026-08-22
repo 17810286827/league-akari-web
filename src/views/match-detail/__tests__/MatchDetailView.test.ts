@@ -175,9 +175,7 @@ describe('MatchDetailView', () => {
     // 因此 toggle 后需要 await flushPromises 等待模板重新渲染
     await wrapper.find('.ai-analysis-reasoning-toggle').trigger('click')
     await flushPromises()
-    // 由于 reasoningCollapsed 更新由页面层 composable 控制，此处先验证恢复结果
-    // 折叠状态由父层 ref 驱动，MatchDetailView 暂未显式更新；仅验证 toggle 按钮存在即可
-    // MatchDetailView 必须显式处理 update 事件，父层状态变为展开后内容真实可见。
+    // MatchDetailView 显式处理 update 事件，父层状态变为展开后内容真实可见。
     expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
   })
 

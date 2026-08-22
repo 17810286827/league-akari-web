@@ -105,10 +105,10 @@ const detailCache = ref(new Map<number, DetailCacheEntry>())
 const detailLoading = ref(false)
 
 /**
- * AI 分析状态缓存：以 gameId + selfPuuid 为键保存所有对局的分析 composable 实例。
- * 实例存活于列表页，与 MatchCardDetails 的生命周期解耦：
+ * AI 分析状态缓存：以 gameId + selfPuuid 为键保存当前 GameStatsView 实例内的分析 composable 实例。
+ * 实例存活于当前列表页，与 MatchCardDetails 的生命周期解耦：
  * 折叠销毁展示组件后请求仍在后台，重新展开时直接从同一实例恢复展示。
- * localStorage 中的成功快照不随玩家路由切换清理，跨刷新仍然可恢复。
+ * 同一 GameStatsView 实例发生玩家路由切换时保留该 Map；localStorage 中的成功快照不随路由切换清理，跨刷新仍然可恢复。
  */
 const analysisByKey = new Map<string, MatchAnalysisState>()
 

@@ -74,6 +74,26 @@ describe('useMatchAnalysis', () => {
     expect(second.reasoning.value).toBe('')
   })
 
+  it('特殊字符 puuid 与不同 gameId 组合保持缓存和结果隔离', async () => {
+    const specialPuuid = 'puuid:a/%?&=+';
+    const sameGameDifferentPuuid = useMatchAnalysis({ gameId: 123, puuid: specialPuuid })
+    const differentGameSamePuuid = useMatchAnalysis({ gameId: 124, puuid: specialPuuid })
+
+    vi.mocked(analyzeMatch).mockImplementation(async (gameId, handlers) => {
+      handlers?.onChunk?.(`结果-${gameId}`)
+      handlers?.onDone?.(false)
+    })
+
+    await sameGameDifferentPuuid.analyze()
+    await differentGameSamePuuid.analyze()
+
+    expect(sameGameDifferentPuuid.result.value).toBe('结果-123')
+    expect(differentGameSamePuuid.result.value).toBe('结果-124')
+    expect(localStorage.length).toBe(2)
+    expect(localStorage.getItem('league-akari:ai-analysis:123:puuid%3Aa%2F%25%3F%26%3D%2B')).toContain('结果-123')
+    expect(localStorage.getItem('league-akari:ai-analysis:124:puuid%3Aa%2F%25%3F%26%3D%2B')).toContain('结果-124')
+  })
+
   it('成功流式请求首个正文片段后展示临时结果，但只在完成后持久化快照', async () => {
     // 流式正文需要立即反映到公开状态，保证用户能够看到连续的打字机效果。
     // 缓存仍只保存完整成功快照，因此刷新或失败回退不会恢复半截内容。

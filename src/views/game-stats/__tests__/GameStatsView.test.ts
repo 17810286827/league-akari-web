@@ -11,7 +11,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { h } from 'vue'
+import { h, reactive } from 'vue'
 
 import { analyzeMatch, getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
 import type { AnalyzeStreamHandlers } from '@/api/matches'
@@ -35,11 +35,15 @@ vi.mock('@/api/matches', () => ({
   analyzeMatch: vi.fn()
 }))
 
-// mock 路由：战绩页固定访问 /players/lcu-p1?name=PlayerOne&tag=CN1（puuid 与 fixture 一致）；
+// mock 路由：使用 reactive 对象模拟真实同一页面实例上的路由参数变化；
 // router.push 使用共享 mock，供"侧栏搜索跳转"用例断言
 const routerPush = vi.fn()
+const route = reactive({
+  params: { puuid: 'lcu-p1' },
+  query: { name: 'PlayerOne', tag: 'CN1' }
+})
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { puuid: 'lcu-p1' }, query: { name: 'PlayerOne', tag: 'CN1' } }),
+  useRoute: () => route,
   useRouter: () => ({ push: routerPush })
 }))
 
@@ -212,6 +216,9 @@ describe('GameStatsView', () => {
     // 清空各用例间的 mock 调用历史，保持 mock 实现（实现保留）
     vi.clearAllMocks()
     localStorage.clear()
+    route.params.puuid = 'lcu-p1'
+    route.query.name = 'PlayerOne'
+    route.query.tag = 'CN1'
     // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
       data: [makeSummary()],
@@ -338,18 +345,71 @@ describe('GameStatsView', () => {
     expect(document.body.textContent).toContain('对局 123 详情加载失败')
   })
 
-  it('分析 reasoning 展开事件更新页面持有状态并显示内容', async () => {
+  it('从真实 reasoning toggle 点击后更新列表页面状态并显示内容', async () => {
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onReasoning?.('列表页真实链路思考内容')
+      handlers?.onChunk?.('列表页分析结果')
+      handlers?.onDone?.(false)
+    })
     const wrapper = mountView()
     await flushPromises()
     await wrapper.find('.collapsed').trigger('click')
     await flushPromises()
 
-    // 先注入思考内容，确认事件由 GameCardItem/MatchCard 转发到页面状态。
-    const card = wrapper.findComponent(MatchCard)
-    await card.vm.$emit('update:reasoningCollapsed', false)
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    const toggle = wrapper.find('.ai-analysis-reasoning-toggle')
+    expect(toggle.exists()).toBe(true)
+    await toggle.trigger('click')
     await flushPromises()
 
-    expect(card.props('reasoningCollapsed')).toBe(false)
+    expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
+    expect(wrapper.find('.ai-analysis-reasoning').text()).toContain('列表页真实链路思考内容')
+  })
+
+  it('同一页面实例路由切换后保留 A 分析状态并复用结果', async () => {
+    const summaryA = makeSummary(123)
+    const summaryB = { ...makeSummary(456), selfPuuid: 'lcu-p2' }
+    vi.mocked(listMatches).mockImplementation(async () => ({
+      data: [route.params.puuid === 'lcu-p1' ? summaryA : summaryB],
+      total: 1,
+      page: 1,
+      pageSize: 20
+    }))
+    vi.mocked(getMatchDetail).mockImplementation(async (gameId) => ({
+      ...detailFixture,
+      gameId,
+      selfPuuid: gameId === 123 ? 'lcu-p1' : 'lcu-p2'
+    }))
+    vi.mocked(analyzeMatch).mockImplementation(async (gameId, handlers) => {
+      handlers?.onChunk?.(`分析-${gameId}`)
+      handlers?.onDone?.(false)
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析-123')
+
+    route.params.puuid = 'lcu-p2'
+    await flushPromises()
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').exists()).toBe(false)
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').exists()).toBe(false)
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+
+    route.params.puuid = 'lcu-p1'
+    await flushPromises()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析-123')
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
   })
 
   it('竞态：点 A 后立即点 B，A 详情失败不收起 B（过期响应不改动展开状态）', async () => {
