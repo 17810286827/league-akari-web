@@ -1,19 +1,16 @@
-# 任务 7 类型检查与构建报告
+# 任务 7 定向复审日志修复与验证报告
 
-`npm run typecheck` 与 `npm run build` 均因范围外现有 TypeScript 错误失败。本次未修改以下范围外文件。
+## 修复内容
 
-```text
-src/components/match-card/widgets/RadarChart.vue(219,21): error TS18048: 'chart.options.plugins' is possibly 'undefined'.
-src/components/match-card/widgets/RadarChart.vue(219,43): error TS2339: Property 'radarValueLabels' does not exist on type '_DeepPartialObject<PluginOptionsByType<"radar">>'.
-src/components/match-card/widgets/RadarChart.vue(228,32): error TS2339: Property 'xCenter' does not exist on type 'Scale<CoreScaleOptions>'.
-src/components/match-card/widgets/RadarChart.vue(228,51): error TS2339: Property 'yCenter' does not exist on type 'Scale<CoreScaleOptions>'.
-src/components/match-card/widgets/RadarChart.vue(230,28): error TS2339: Property 'getDistanceFromCenterForValue' does not exist on type 'Scale<CoreScaleOptions>'.
-src/components/match-card/widgets/RadarChart.vue(236,26): error TS2339: Property 'getPointPosition' does not exist on type 'Scale<CoreScaleOptions>'.
-src/views/game-stats/__tests__/adapter.test.ts(74,30): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
-src/views/game-stats/__tests__/adapter.test.ts(86,30): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
-src/views/game-stats/__tests__/adapter.test.ts(110,30): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
-src/views/game-stats/__tests__/adapter.test.ts(124,30): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
-src/views/match-detail/adapter/match-card-participants.ts(406,24): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number | null | undefined'.
-```
+- `src/composables/useMatchAnalysis.ts` 的缓存、请求和失败日志统一补充 `gameId`、`puuid`、`requestId` 以及长度元数据；初始化无请求使用 `requestId: 0`。
+- 无正文阶段使用 `resultLength: 0`、`reasoningLength: 0`、`messageLength: 0`，无效/异常缓存额外记录 `rawLength`；缓存读写成功/失败均记录结果长度、思考长度和提示长度。
+- 保持日志不包含 result、reasoning 或 chunk 正文，未改变业务状态流转。
+- `src/composables/__tests__/useMatchAnalysis.test.ts` 增加缓存命中、缓存写入成功和重复请求日志元数据断言。
 
-`npm run build` 输出同上，因为构建脚本先执行 `vue-tsc -b`。
+## 验证结果
+
+- 四个相关测试：通过，4 个测试文件、40 个测试通过。
+- `npm test`：通过，24 个测试文件、141 个测试通过。
+- `git diff --check`：通过；仅有 Git 关于工作副本换行符的提示，无 whitespace 错误。
+- `npm run typecheck`：失败，原因是范围外既有错误，涉及 `src/components/match-card/widgets/RadarChart.vue`、`src/views/game-stats/__tests__/adapter.test.ts`、`src/views/match-detail/adapter/match-card-participants.ts`，本次未修改这些文件。
+- `npm run build`：因先执行 `vue-tsc -b`，同样被上述范围外既有错误阻断，未修改范围外文件。

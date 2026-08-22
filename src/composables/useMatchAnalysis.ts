@@ -62,7 +62,14 @@ function createCacheKey({ gameId, puuid }: UseMatchAnalysisOptions): string | un
     return `${CACHE_NAMESPACE}:${encodeURIComponent(String(gameId))}:${encodeURIComponent(normalizedPuuid)}`
   } catch {
     // 极端情况下编码失败时禁用本实例，避免缓存键异常或请求副作用。
-      logger.warn('对局分析缓存键编码失败', { gameId, puuid: normalizedPuuid, requestId: 0 })
+    logger.warn('对局分析缓存键编码失败', {
+      gameId,
+      puuid: normalizedPuuid,
+      requestId: 0,
+      resultLength: 0,
+      reasoningLength: 0,
+      messageLength: 0
+    })
     return undefined
   }
 }
@@ -107,7 +114,11 @@ function readSnapshot(
       logger.warn('忽略无效的对局分析缓存', {
         gameId: options?.gameId ?? 0,
         puuid: options?.puuid.trim() ?? '',
-        requestId: 0
+        requestId: 0,
+        resultLength: 0,
+        reasoningLength: 0,
+        messageLength: 0,
+        rawLength: raw.length
       })
       return undefined
     }
@@ -118,6 +129,7 @@ function readSnapshot(
       requestId: 0,
       resultLength: snapshot.result.length,
       reasoningLength: snapshot.reasoning.length,
+      messageLength: 0,
       truncatedTipLength: snapshot.truncatedTip.length
     })
     return snapshot
@@ -126,7 +138,11 @@ function readSnapshot(
     logger.warn('读取对局分析缓存失败', {
       gameId: options?.gameId ?? 0,
       puuid: options?.puuid.trim() ?? '',
-      requestId: 0
+      requestId: 0,
+      resultLength: 0,
+      reasoningLength: 0,
+      messageLength: 0,
+      rawLength: 0
     })
     return undefined
   }
@@ -152,6 +168,7 @@ function writeSnapshot(
       requestId,
       resultLength: snapshot.result.length,
       reasoningLength: snapshot.reasoning.length,
+      messageLength: 0,
       truncatedTipLength: snapshot.truncatedTip.length
     })
   } catch {
@@ -160,7 +177,9 @@ function writeSnapshot(
       puuid: options?.puuid.trim() ?? '',
       requestId,
       resultLength: snapshot.result.length,
-      reasoningLength: snapshot.reasoning.length
+      reasoningLength: snapshot.reasoning.length,
+      messageLength: 0,
+      truncatedTipLength: snapshot.truncatedTip.length
     })
   }
 }
@@ -222,7 +241,10 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
       logger.warn('对局分析因身份信息不完整而跳过', {
         gameId: options.gameId,
         puuid: options.puuid.trim(),
-        requestId: 0
+        requestId: 0,
+        resultLength: 0,
+        reasoningLength: 0,
+        messageLength: 0
       })
       return
     }
@@ -232,7 +254,10 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
       logger.warn('对局分析请求已在进行中，跳过重复请求', {
         gameId: options.gameId,
         puuid: options.puuid.trim(),
-        requestId: 0
+        requestId: 0,
+        resultLength: 0,
+        reasoningLength: 0,
+        messageLength: 0
       })
       return
     }
@@ -259,7 +284,10 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     logger.info('对局分析请求开始', {
       gameId: options.gameId,
       puuid: options.puuid.trim(),
-      requestId
+      requestId,
+      resultLength: 0,
+      reasoningLength: 0,
+      messageLength: 0
     })
 
     /** 仅当前请求可修改状态；失败路径总是恢复本次开始前的成功快照。 */
@@ -277,6 +305,8 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
         gameId: options.gameId,
         puuid: options.puuid.trim(),
         requestId,
+        resultLength: 0,
+        reasoningLength: 0,
         messageLength: errorMsg.value.length
       })
     }
@@ -316,6 +346,9 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
                 gameId: options.gameId,
                 puuid: options.puuid.trim(),
                 requestId,
+                resultLength: content.length,
+                reasoningLength: 0,
+                messageLength: 0,
                 chunkLength: content.length
               })
             }
@@ -346,6 +379,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
             requestId,
             resultLength: snapshot.result.length,
             reasoningLength: snapshot.reasoning.length,
+            messageLength: 0,
             truncated
           })
         },

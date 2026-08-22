@@ -12,11 +12,11 @@ vi.mock('@/api/matches', () => ({
 }))
 
 // mock 日志器：状态必须在 vi.hoisted 中创建，因为 vi.mock 工厂会被提升到导入语句之前。
-const { loggerWarn } = vi.hoisted(() => ({ loggerWarn: vi.fn() }))
+const { loggerInfo, loggerWarn } = vi.hoisted(() => ({ loggerInfo: vi.fn(), loggerWarn: vi.fn() }))
 vi.mock('@/utils/logger', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
-    info: vi.fn(),
+    info: loggerInfo,
     warn: loggerWarn,
     error: vi.fn()
   }))
@@ -73,6 +73,15 @@ describe('useMatchAnalysis', () => {
     expect(first.fromCache.value).toBe(true)
     expect(first.errorMsg.value).toBe('')
     expect(first.reasoningCollapsed.value).toBe(true)
+    expect(loggerInfo).toHaveBeenCalledWith('读取对局分析缓存成功', {
+      gameId: 123,
+      puuid: 'puuid-a',
+      requestId: 0,
+      resultLength: '旧正文'.length,
+      reasoningLength: '旧思考'.length,
+      messageLength: 0,
+      truncatedTipLength: 0
+    })
     expect(second.result.value).toBe('')
     expect(second.reasoning.value).toBe('')
   })
@@ -145,6 +154,15 @@ describe('useMatchAnalysis', () => {
       truncatedTip: expect.any(String),
       fromCache: true
     })
+    expect(loggerInfo).toHaveBeenCalledWith('写入对局分析缓存成功', {
+      gameId: 123,
+      puuid: 'puuid-a',
+      requestId: 1,
+      resultLength: '新正文-1新正文-2'.length,
+      reasoningLength: '新思考'.length,
+      messageLength: 0,
+      truncatedTipLength: expect.any(Number)
+    })
   })
 
   it('reasoning 先到时首个正文 chunk 前仍保持旧公开快照', async () => {
@@ -185,6 +203,14 @@ describe('useMatchAnalysis', () => {
     await settle()
     await second.analyze()
     expect(analyzeMatch).toHaveBeenCalledTimes(1)
+    expect(loggerWarn).toHaveBeenCalledWith('对局分析请求已在进行中，跳过重复请求', {
+      gameId: 123,
+      puuid: 'puuid-a',
+      requestId: 0,
+      resultLength: 0,
+      reasoningLength: 0,
+      messageLength: 0
+    })
     expect(second.result.value).toBe('旧正文')
     release()
     await request
