@@ -79,7 +79,7 @@ GitHub Actions（境外 Runner）
 | `nginx.conf` | 新写 | 见第 6 节 |
 | `docker-compose.yml` | 模板微调 | `league-akari-web`、端口 `8082:80`、`extra_hosts: host.docker.internal:host-gateway`（反代必需）、`env_file` 引 `config/.env`、`${IMAGE_REPOSITORY:?}`/`${IMAGE_TAG:?}` 必填校验、`TZ: Asia/Shanghai` |
 | `deploy.sh` | 复制后端仓库同名文件 | 仅改 2 个常量：`DEPLOY_ROOT=/opt/league-akari/web`、`HEALTH_URL=http://127.0.0.1:8082/`；版本记录/回滚/failed 标签/镜像清理逻辑原样保留 |
-| `.dockerignore` | 新写 | 排除 `node_modules`、`dist`、`.git`、`*.log`、`docs`、`node_modules` 等，避免巨上下文拖慢构建 |
+| `.dockerignore` | 新写 | 排除 `node_modules`、`dist`、`.git`、`*.log`、`docs`、`.worktrees` 等，避免巨上下文拖慢构建 |
 | `.env.example` | 模板 | 基本为空 + 注释（前端无敏感运行时配置；API 地址由 nginx 反代解决，无需构建时注入） |
 
 ## 6. nginx.conf 设计（含三处模板修正）
@@ -147,7 +147,7 @@ server {
 
 - **CI**：不跑 vitest（决策 #3）；`npm run build` 内含 `vue-tsc -b` 类型检查，类型错误阻断部署。
 - **代码改动**：`config.ts` 按 TDD 先写 `src/api/__tests__/config.test.ts`（与被测文件路径一致），红→绿后动 `http.ts`/`matches.ts`。
-- **部署验收**：第 7.4 节清单 + 手动触发 `workflow_dispatch` 验证幂等。
+- **部署验收**：第 7 节第 4 条验证清单 + 手动触发 `workflow_dispatch` 验证幂等。
 
 ## 10. 验收标准
 
