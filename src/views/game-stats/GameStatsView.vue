@@ -13,6 +13,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
 import type { MatchDetail, MatchSummary, RecentOpponent, RiotAccount } from '@/api/types'
 import { createLogger } from '@/utils/logger'
+import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
+import type { MatchAnalysisState } from '@/composables/useMatchAnalysis'
 
 import { computeOverview, computeRecentTeammates, mapRecentOpponents } from './adapter'
 import GameCardItem from './GameCardItem.vue'
@@ -103,9 +105,33 @@ const detailCache = ref(new Map<number, DetailCacheEntry>())
 const detailLoading = ref(false)
 
 /**
+ * AI 分析状态缓存：以 gameId + selfPuuid 为键保存所有对局的分析 composable 实例。
+ * 实例存活于列表页，与 MatchCardDetails 的生命周期解耦：
+ * 折叠销毁展示组件后请求仍在后台，重新展开时直接从同一实例恢复展示。
+ * localStorage 中的成功快照不随玩家路由切换清理，跨刷新仍然可恢复。
+ */
+const analysisByKey = new Map<string, MatchAnalysisState>()
+
+/** 获取/创建对局分析状态：同一对局同一玩家共享同一实例，保证折叠/展开不丢状态 */
+function getAnalysisState(gameId: number, puuid: string): MatchAnalysisState | null {
+  const key = `${gameId}:${puuid}`
+  if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
+    return null
+  }
+  let state = analysisByKey.get(key)
+  if (!state) {
+    state = useMatchAnalysis({ gameId, puuid })
+    analysisByKey.set(key, state)
+    logger.info('Match analysis state created', { gameId })
+  }
+  return state
+}
+
+/**
  * 卡片列表：摘要直传折叠卡（不重复适配，MatchCardOverview 内部消费轻量 participants）；
  * 后端未升级（participants 缺失）的对局被过滤，避免渲染空卡；
- * 已加载的详情按 gameId 注入列表项，展开态直接展示
+ * 已加载的详情按 gameId 注入列表项，展开态直接展示；
+ * 同时注入 AI 分析状态，保证折叠/展开后分析结果不丢失。
  */
 const games = computed<GameListItem[]>(() =>
   matches.value
@@ -113,7 +139,8 @@ const games = computed<GameListItem[]>(() =>
     .map((summary) => ({
       summary,
       detail: detailCache.value.get(summary.gameId)?.detail ?? null,
-      details: null
+      details: null,
+      analysisState: getAnalysisState(summary.gameId, summary.selfPuuid)
     }))
 )
 
@@ -290,7 +317,7 @@ watch(
   () => route.params.puuid,
   (puuid, prev) => {
     if (!puuid || puuid === prev) return
-    // 重置分页/展开态/缓存，按新玩家重新加载
+    // 重置分页/展开态/缓存/AI 分析状态，按新玩家重新加载
     queryPlayer.value = {
       puuid: puuid as string,
       gameName: (route.query.name as string) ?? '',
@@ -299,6 +326,7 @@ watch(
     page.value = 1
     expandedGameId.value = null
     detailCache.value.clear()
+    analysisByKey.clear()
     logger.info('Summoner route changed', { puuid })
     loadMatches()
   }
@@ -355,7 +383,15 @@ watch(
               :game="game"
               :expanded="expandedGameId === game.summary.gameId"
               :detail-loading="detailLoading && expandedGameId === game.summary.gameId"
+              :analyzing="game.analysisState?.analyzing?.value"
+              :result="game.analysisState?.result?.value"
+              :reasoning="game.analysisState?.reasoning?.value"
+              :reasoning-collapsed="game.analysisState?.reasoningCollapsed?.value"
+              :from-cache="game.analysisState?.fromCache?.value"
+              :error-msg="game.analysisState?.errorMsg?.value"
+              :truncated-tip="game.analysisState?.truncatedTip?.value"
               @toggle="toggleGame"
+              @analyze="game.analysisState?.analyze()"
             />
             <!-- 空态：加载失败显示错误；查询后无数据显示暂无对局 -->
             <p v-if="!loading && games.length === 0" class="empty">
