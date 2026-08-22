@@ -16,6 +16,11 @@ export default defineConfig({
   },
   server: {
     // 开发服务器端口：固定 5177，便于本地调试
-    port: 5177
+    port: 5177,
+    // 开发环境 API 代理：前端代码用相对路径 /api，开发时转发到本机后端 8081
+    // （与生产环境容器内 nginx 反代行为对齐，代码无需区分环境）
+    proxy: {
+      '/api': 'http://localhost:8081'
+    }
   }
 })

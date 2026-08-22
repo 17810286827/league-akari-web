@@ -2,6 +2,7 @@
  * 对局相关 API：召唤师搜索、分页列表、详情查询
  * 所有函数返回 Promise，失败时抛出错误（如 404），由调用方决定如何处理
  */
+import { API_BASE_URL } from '@/api/config'
 import http from './http'
 import { createLogger } from '@/utils/logger'
 import type { MatchDetail, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
@@ -84,8 +85,8 @@ export async function analyzeMatch(
   gameId: number,
   handlers: AnalyzeStreamHandlers = {}
 ): Promise<void> {
-  const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081'
-  const url = `${baseURL}/api/matches/${gameId}/ai-analysis`
+  // 统一从 config 模块取基础地址（默认相对路径，走 nginx 反代/vite proxy）
+  const url = `${API_BASE_URL}/api/matches/${gameId}/ai-analysis`
   // 请求发出前打日志：若此处之后长时间无 "response received"，说明后端响应头迟迟未返回
   logger.info('AI analysis fetch starting', { gameId, url })
   // Accept: text/event-stream 让后端按 SSE 协议返回（fetch 天然支持流式读取响应体）
