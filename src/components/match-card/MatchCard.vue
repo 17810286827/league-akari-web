@@ -15,14 +15,15 @@
     <KeepAlive>
       <MatchCardDetails
         v-if="!puuid || isExpanded"
-        v-model:analyzing="analyzing"
-        v-model:result="result"
-        v-model:reasoning="reasoning"
-        v-model:reasoning-collapsed="reasoningCollapsed"
-        v-model:from-cache="fromCache"
-        v-model:error-msg="errorMsg"
-        v-model:truncated-tip="truncatedTip"
-        @analyze="emit('analyze')"
+        :analyzing="analyzing"
+        :result="result"
+        :reasoning="reasoning"
+        :reasoning-collapsed="reasoningCollapsed"
+        :from-cache="fromCache"
+        :error-msg="errorMsg"
+        :truncated-tip="truncatedTip"
+        @analyze="emits('analyze')"
+        @update:reasoning-collapsed="(v: boolean) => emits('update:reasoningCollapsed', v)"
       />
     </KeepAlive>
   </div>
@@ -43,7 +44,14 @@ const {
   puuid,
   details = null,
   hidePrivacy = false,
-  loadingDetails = false
+  loadingDetails = false,
+  analyzing = false,
+  result = '',
+  reasoning = '',
+  reasoningCollapsed = true,
+  fromCache = false,
+  errorMsg = '',
+  truncatedTip = ''
 } = defineProps<{
   /** 对局详情（web 的 summary 即完整 MatchDetail，参与者/队伍快照均在内） */
   summary: MatchDetail
@@ -55,6 +63,15 @@ const {
   hidePrivacy?: boolean
   /** 详情（时间线）加载中标记（任务 11 详情面板消费） */
   loadingDetails?: boolean
+
+  /** 以下为 AI 分析受控状态：由页面层持有，读入后透传给 MatchCardDetails */
+  analyzing?: boolean
+  result?: string
+  reasoning?: string
+  reasoningCollapsed?: boolean
+  fromCache?: boolean
+  errorMsg?: string
+  truncatedTip?: string
 }>()
 
 const emits = defineEmits<{
@@ -62,21 +79,13 @@ const emits = defineEmits<{
   navigateToSummonerByPuuid: [puuid: string, setCurrent?: boolean]
   /** 分析触发通知（由 MatchCardDetails 转发至页面层） */
   analyze: []
+  'update:reasoningCollapsed': [collapsed: boolean]
 }>()
 
 const isExpanded = defineModel<boolean>('isExpanded', {
   required: false,
   default: false
 })
-
-// AI 分析状态全部以 model 转发：展示组件通过 v-model 双向同步，页面层持有最终来源
-const analyzing = defineModel<boolean>('analyzing', { default: false })
-const result = defineModel<string>('result', { default: '' })
-const reasoning = defineModel<string>('reasoning', { default: '' })
-const reasoningCollapsed = defineModel<boolean>('reasoningCollapsed', { default: true })
-const fromCache = defineModel<boolean>('fromCache', { default: false })
-const errorMsg = defineModel<string>('errorMsg', { default: '' })
-const truncatedTip = defineModel<string>('truncatedTip', { default: '' })
 
 provideMatchCard({
   isExpanded: () => isExpanded.value,

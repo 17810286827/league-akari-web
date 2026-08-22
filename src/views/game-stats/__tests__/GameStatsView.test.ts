@@ -13,13 +13,27 @@ import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 
-import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import { analyzeMatch, getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import type { AnalyzeStreamHandlers } from '@/api/matches'
 import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
 import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fixtures'
 
 import GameStatsView from '../GameStatsView.vue'
+
+/** 读取指定索引的 analyzeMatch 调用所保存的 SSE 回调，供测试驱动流式行为 */
+function analysisHandlersAt(index: number): AnalyzeStreamHandlers {
+  return vi.mocked(analyzeMatch).mock.calls[index]?.[1] ?? {}
+}
+
+// mock 分析 SSE：GameStatsView 内 useMatchAnalysis 的 analyzeMatch 由各用例手动驱动
+vi.mock('@/api/matches', () => ({
+  listMatches: vi.fn(),
+  getMatchDetail: vi.fn(),
+  searchRiotAccount: vi.fn(),
+  analyzeMatch: vi.fn()
+}))
 
 // mock 路由：战绩页固定访问 /players/lcu-p1?name=PlayerOne&tag=CN1（puuid 与 fixture 一致）；
 // router.push 使用共享 mock，供"侧栏搜索跳转"用例断言
@@ -52,13 +66,6 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
     spellDisplay: vi.fn().mockResolvedValue(null)
   }
 })
-
-// mock API 层：接口由各用例经 beforeEach 注入返回值（时间线接口已不再调用）
-vi.mock('@/api/matches', () => ({
-  listMatches: vi.fn(),
-  getMatchDetail: vi.fn(),
-  searchRiotAccount: vi.fn()
-}))
 
 /**
  * 构造一名轻量参与者档案（与 server ParticipantLight 契约字段逐一对应）：
@@ -202,8 +209,8 @@ function mountView() {
 
 describe('GameStatsView', () => {
   beforeEach(() => {
-    // 清空各用例间的 mock 调用历史（实现保留），保证 toHaveBeenCalledTimes 按用例独立计数
-    vi.clearAllMocks()
+    // 重置 mock 实现并清空调用历史（否则用例间 mockImplementation 会残留串用）
+    vi.resetAllMocks()
     // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
       data: [makeSummary()],
@@ -371,5 +378,76 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
     expect(wrapper.findComponent(MatchCard).props('loadingDetails')).toBe(false)
     expect(document.body.textContent).toBe(bodyTextBeforeReject)
+  })
+
+  it('展开后触发分析，收起再展开后分析结果仍在', async () => {
+    // 模拟分析成功：响应 SSE 流式回调，完成后保留结果
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onStart?.(false)
+      handlers?.onChunk?.('分析结果正文')
+      handlers?.onDone?.(false)
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 展开卡片，触发分析
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    const card = wrapper.findComponent(MatchCard)
+    expect(card.exists()).toBe(true)
+
+    // 点击分析按钮触发 analyzeMock
+    const analysisBtn = wrapper.find('.ai-analysis-button')
+    expect(analysisBtn.exists()).toBe(true)
+    await analysisBtn.trigger('click')
+    await flushPromises()
+
+    // 分析完成：结果应展示在卡片中
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析结果正文')
+
+    // 收起卡片（箭头点击）
+    await wrapper.find('.rotate-90').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+
+    // 再次展开卡片：分析结果应在（因为 composable 状态由页面层持有，不随组件销毁丢失）
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(true)
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析结果正文')
+  })
+
+  it('流式期间折叠卡片，chunk 继续到达，再展开后新片段可见', async () => {
+    // 保存 handlers 手动驱动，模拟流式期间折叠
+    let savedHandlers: AnalyzeStreamHandlers | undefined
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      savedHandlers = handlers
+      handlers?.onStart?.(false)
+      handlers?.onChunk?.('第一段')
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 展开并点击分析
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toBe('第一段')
+
+    // 折叠卡片（此时 composable 仍存活，请求继续后台进行）
+    await wrapper.find('.rotate-90').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+
+    // 后台继续推送 chunk（折叠期间请求未中断）
+    savedHandlers?.onChunk?.('第二段')
+    savedHandlers?.onDone?.(false)
+    await flushPromises()
+
+    // 再次展开：能看到拼接后的完整结果
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toBe('第一段第二段')
   })
 })

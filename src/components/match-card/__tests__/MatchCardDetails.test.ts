@@ -82,7 +82,13 @@ function mountView(overrides: Partial<AnalysisProps> = {}, onAnalyze = vi.fn()) 
                     })
                     return () =>
                       h(MatchCardDetails, {
-                        ...state,
+                        analyzing: state.analyzing,
+                        result: state.result,
+                        reasoning: state.reasoning,
+                        reasoningCollapsed: state.reasoningCollapsed,
+                        fromCache: state.fromCache,
+                        errorMsg: state.errorMsg,
+                        truncatedTip: state.truncatedTip,
                         onAnalyze,
                         'onUpdate:reasoningCollapsed': (collapsed: boolean) => {
                           state.reasoningCollapsed = collapsed

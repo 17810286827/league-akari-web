@@ -27,7 +27,7 @@
         v-if="reasoning"
         type="button"
         class="ai-analysis-reasoning-toggle"
-        @click="reasoningCollapsed = !reasoningCollapsed"
+        @click="toggleReasoning"
       >
         {{ reasoningCollapsed ? '🧠 模型思考过程（点击展开）' : '🧠 模型思考过程（点击收起）' }}
       </button>
@@ -64,33 +64,41 @@ const markdown = new MarkdownIt({ html: false, linkify: false })
 // 对局上下文：gameId 用于触发分析时通知父层
 const { summary } = useMatchCard()
 
-/** AI 分析是否进行中，由父层控制 */
-const analyzing = defineModel<boolean>('analyzing', { required: true })
-/** 分析结果 markdown 正文 */
-const result = defineModel<string>('result', { required: true })
-/** 模型思考过程（思维链） */
-const reasoning = defineModel<string>('reasoning', { required: true })
-/** 思考过程折叠状态，双向绑定由父层同步 */
-const reasoningCollapsed = defineModel<boolean>('reasoningCollapsed', { required: true })
-/** 是否命中后端缓存 */
-const fromCache = defineModel<boolean>('fromCache', { required: true })
-/** 分析失败错误提示 */
-const errorMsg = defineModel<string>('errorMsg', { required: true })
-/** 输出被截断提示 */
-const truncatedTip = defineModel<string>('truncatedTip', { required: true })
+const props = defineProps<{
+  /** AI 分析是否进行中，由父层控制 */
+  analyzing: boolean
+  /** 分析结果 markdown 正文 */
+  result: string
+  /** 模型思考过程（思维链） */
+  reasoning: string
+  /** 思考过程折叠状态 */
+  reasoningCollapsed: boolean
+  /** 是否命中后端缓存 */
+  fromCache: boolean
+  /** 分析失败错误提示 */
+  errorMsg: string
+  /** 输出被截断提示 */
+  truncatedTip: string
+}>()
 
-/** 通知父层发起分析 */
+/** 通知父层发起分析或更新 reasoning 折叠状态 */
 const emit = defineEmits<{
   analyze: []
+  'update:reasoningCollapsed': [collapsed: boolean]
 }>()
 
 /** 结果区 markdown 渲染（流式逐块追加时自动重算；html:false 保证输出安全） */
-const renderedResult = computed(() => markdown.render(result.value))
+const renderedResult = computed(() => markdown.render(props.result))
 
 /** 点击分析按钮，通知父层触发 AI 分析请求 */
 function handleAnalyze(): void {
-  if (analyzing.value) return
+  if (props.analyzing) return
   emit('analyze')
+}
+
+/** 切换思考过程折叠状态，通知父层同步 */
+function toggleReasoning(): void {
+  emit('update:reasoningCollapsed', !props.reasoningCollapsed)
 }
 </script>
 
