@@ -259,6 +259,8 @@ describe('GameStatsView', () => {
     expect(getMatchDetail).not.toHaveBeenCalled()
     // 展开态卡片（MatchCard）与详情面板均未挂载
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    // 详情未成功前不能创建分析实例，也不能读取任何 AI 缓存。
+    expect(vi.spyOn(Storage.prototype, 'getItem')).not.toHaveBeenCalled()
   })
 
   it('顶部搜索框搜索召唤师：搜索成功后跳转到新玩家的战绩页路由', async () => {
@@ -334,6 +336,20 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
     expect(wrapper.findComponent(MatchCardOverview).exists()).toBe(true)
     expect(document.body.textContent).toContain('对局 123 详情加载失败')
+  })
+
+  it('分析 reasoning 展开事件更新页面持有状态并显示内容', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+
+    // 先注入思考内容，确认事件由 GameCardItem/MatchCard 转发到页面状态。
+    const card = wrapper.findComponent(MatchCard)
+    await card.vm.$emit('update:reasoningCollapsed', false)
+    await flushPromises()
+
+    expect(card.props('reasoningCollapsed')).toBe(false)
   })
 
   it('竞态：点 A 后立即点 B，A 详情失败不收起 B（过期响应不改动展开状态）', async () => {

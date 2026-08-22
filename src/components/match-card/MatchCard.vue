@@ -30,7 +30,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onErrorCaptured, toRefs } from 'vue'
+import { onErrorCaptured } from 'vue'
 
 import type { MatchDetail } from '@/api/types'
 import type { MatchCardGameDetails } from '@/views/match-detail/adapter/types'

@@ -8,7 +8,7 @@
  * 与战绩列表共享同一份 localStorage 缓存键，两个入口恢复完全相同的成功快照。
  */
 import { NEmpty, NSpin, useMessage } from 'naive-ui'
-import { onMounted, ref } from 'vue'
+import { isRef, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { getMatchDetail } from '@/api/matches'
@@ -30,6 +30,17 @@ const loading = ref(false)
 const summary = ref<MatchDetail | null>(null)
 /** AI 分析状态：详情加载成功后创建（加载前不读写任何无效缓存键） */
 const analysisState = ref<MatchAnalysisState | null>(null)
+
+/** 显式同步 reasoning 折叠状态，保证详情页父层状态是唯一来源。 */
+function handleReasoningCollapsed(collapsed: boolean): void {
+  const state = analysisState.value
+  if (!state) return
+  // MatchCard props 会自动解包 Ref，使用 composable 的切换操作避免直接写入布尔值。
+  const current = isRef(state.reasoningCollapsed)
+    ? state.reasoningCollapsed.value
+    : state.reasoningCollapsed
+  if (current !== collapsed) state.toggleReasoning()
+}
 
 onMounted(async () => {
   loading.value = true
@@ -74,6 +85,7 @@ onMounted(async () => {
           :error-msg="analysisState?.errorMsg"
           :truncated-tip="analysisState?.truncatedTip"
           @analyze="analysisState?.analyze()"
+          @update:reasoning-collapsed="handleReasoningCollapsed"
         />
 
         <!-- 加载失败空态 -->

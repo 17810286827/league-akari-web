@@ -38,6 +38,8 @@ const emit = defineEmits<{
   toggle: [gameId: number]
   /** 分析触发通知：继续向上转发到页面层 */
   analyze: []
+  /** reasoning 折叠状态：继续向上转发到页面层 */
+  'update:reasoningCollapsed': [collapsed: boolean]
 }>()
 
 /** 折叠态 context 数据：轻量摘要 → MatchDetail 形状（participants 已归一 statsJson） */
@@ -102,6 +104,7 @@ const expandedModel = computed({
       :error-msg="errorMsg"
       :truncated-tip="truncatedTip"
       @analyze="emit('analyze')"
+      @update:reasoning-collapsed="emit('update:reasoningCollapsed', $event)"
     />
   </article>
 </template>

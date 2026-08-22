@@ -6,7 +6,7 @@
  *         侧栏查询框可切换玩家（搜索成功后跳转到新玩家的战绩页）；
  *         点击卡片 → getMatchDetail 懒加载 → 注入展开态（组件内缓存已加载详情）
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, isRef, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -114,27 +114,44 @@ const analysisByKey = new Map<string, MatchAnalysisState>()
 
 /** 获取/创建对局分析状态：同一对局同一玩家共享同一实例，保证折叠/展开不丢状态 */
 function getAnalysisState(gameId: number, puuid: string): MatchAnalysisState | null {
-  const key = `${gameId}:${puuid}`
   if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
     return null
   }
+  const key = `${encodeURIComponent(String(gameId))}:${encodeURIComponent(puuid)}`
   let state = analysisByKey.get(key)
   if (!state) {
     state = useMatchAnalysis({ gameId, puuid })
     analysisByKey.set(key, state)
-    logger.info('Match analysis state created', { gameId })
+    logger.info('Match analysis state created', { gameId, puuid })
   }
   return state
 }
 
-function getAnalysisValue<T extends keyof MatchAnalysisState>(
+function getAnalysisBoolean(
   game: GameListItem,
-  field: T,
-  fallback: T extends 'analyzing' | 'reasoningCollapsed' | 'fromCache' ? boolean : string
-): boolean | string {
+  field: 'analyzing' | 'reasoningCollapsed' | 'fromCache',
+  fallback: boolean
+): boolean {
   const state = game.analysisState
   if (!state) return fallback
-  return state[field].value as boolean | string
+  return state[field].value
+}
+
+function getAnalysisText(game: GameListItem, field: 'result' | 'reasoning' | 'errorMsg' | 'truncatedTip'): string {
+  const state = game.analysisState
+  if (!state) return ''
+  return state[field].value
+}
+
+/** 显式同步列表卡片的 reasoning 折叠状态，避开模板 Ref 自动解包。 */
+function updateAnalysisReasoning(game: GameListItem, collapsed: boolean): void {
+  const state = game.analysisState
+  if (!state) return
+  // 模板边界可能自动解包 Ref；统一通过 composable 操作保证两种形态都安全。
+  const current = isRef(state.reasoningCollapsed)
+    ? state.reasoningCollapsed.value
+    : state.reasoningCollapsed
+  if (current !== collapsed) state.toggleReasoning()
 }
 
 /**
@@ -150,7 +167,10 @@ const games = computed<GameListItem[]>(() =>
       summary,
       detail: detailCache.value.get(summary.gameId)?.detail ?? null,
       details: null,
-      analysisState: getAnalysisState(summary.gameId, summary.selfPuuid)
+      // 详情成功后才创建分析实例；摘要列表阶段保持完全无副作用。
+      analysisState: detailCache.value.has(summary.gameId)
+        ? getAnalysisState(summary.gameId, summary.selfPuuid)
+        : null
     }))
 )
 
@@ -168,8 +188,8 @@ const playerProfile = computed(() => {
     .find(Boolean)
   return {
     name: target,
-    profileIconId: me?.profileIcon,
-    summonerLevel: me?.summonerLevel
+    profileIconId: me?.profileIcon ?? undefined,
+    summonerLevel: me?.summonerLevel ?? undefined
   }
 })
 
@@ -327,7 +347,7 @@ watch(
   () => route.params.puuid,
   (puuid, prev) => {
     if (!puuid || puuid === prev) return
-    // 重置分页/展开态/缓存/AI 分析状态，按新玩家重新加载
+    // 重置分页/展开态/详情缓存引用，保留 AI 实例和 localStorage，按新玩家重新加载
     queryPlayer.value = {
       puuid: puuid as string,
       gameName: (route.query.name as string) ?? '',
@@ -336,7 +356,6 @@ watch(
     page.value = 1
     expandedGameId.value = null
     detailCache.value.clear()
-    analysisByKey.clear()
     logger.info('Summoner route changed', { puuid })
     loadMatches()
   }
@@ -393,15 +412,16 @@ watch(
               :game="game"
               :expanded="expandedGameId === game.summary.gameId"
               :detail-loading="detailLoading && expandedGameId === game.summary.gameId"
-              :analyzing="getAnalysisValue(game, 'analyzing', false)"
-              :result="getAnalysisValue(game, 'result', '')"
-              :reasoning="getAnalysisValue(game, 'reasoning', '')"
-              :reasoning-collapsed="getAnalysisValue(game, 'reasoningCollapsed', true)"
-              :from-cache="getAnalysisValue(game, 'fromCache', false)"
-              :error-msg="getAnalysisValue(game, 'errorMsg', '')"
-              :truncated-tip="getAnalysisValue(game, 'truncatedTip', '')"
+              :analyzing="getAnalysisBoolean(game, 'analyzing', false)"
+              :result="getAnalysisText(game, 'result')"
+              :reasoning="getAnalysisText(game, 'reasoning')"
+              :reasoning-collapsed="getAnalysisBoolean(game, 'reasoningCollapsed', true)"
+              :from-cache="getAnalysisBoolean(game, 'fromCache', false)"
+              :error-msg="getAnalysisText(game, 'errorMsg')"
+              :truncated-tip="getAnalysisText(game, 'truncatedTip')"
               @toggle="toggleGame"
               @analyze="game.analysisState?.analyze()"
+              @update:reasoning-collapsed="updateAnalysisReasoning(game, $event)"
             />
             <!-- 空态：加载失败显示错误；查询后无数据显示暂无对局 -->
             <p v-if="!loading && games.length === 0" class="empty">

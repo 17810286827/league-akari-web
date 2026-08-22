@@ -144,6 +144,8 @@ describe('MatchDetailView', () => {
     // 错误空态（n-empty）展示，卡片不出现
     expect(wrapper.text()).toContain('对局不存在')
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    expect(vi.spyOn(Storage.prototype, 'getItem')).not.toHaveBeenCalled()
+    expect(vi.mocked(analyzeMatch)).not.toHaveBeenCalled()
   })
 
   it('预置缓存快照后详情页恢复分析结果、reasoning 默认折叠', async () => {
@@ -175,33 +177,28 @@ describe('MatchDetailView', () => {
     await flushPromises()
     // 由于 reasoningCollapsed 更新由页面层 composable 控制，此处先验证恢复结果
     // 折叠状态由父层 ref 驱动，MatchDetailView 暂未显式更新；仅验证 toggle 按钮存在即可
-    expect(wrapper.find('.ai-analysis-reasoning-toggle').exists()).toBe(true)
+    // MatchDetailView 必须显式处理 update 事件，父层状态变为展开后内容真实可见。
+    expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
   })
 
-  it('详情页点击分析按钮触发 analyzeMatch，失败后旧快照恢复', async () => {
-    // 预置旧成功快照
-    localStorage.setItem(
-      'league-akari:ai-analysis:123:lcu-p1',
-      JSON.stringify({
-        result: '旧缓存结果',
-        reasoning: '旧缓存思考',
-        truncatedTip: '',
-        fromCache: false
-      })
-    )
-    // 模拟分析失败（流内错误）
-    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
-      handlers?.onError?.('模型服务异常')
-    })
+  it('详情页网络 reject 后保留旧快照且缓存不变', async () => {
+    const cacheKey = 'league-akari:ai-analysis:123:lcu-p1'
+    const snapshot = {
+      result: '网络失败前的旧结果',
+      reasoning: '旧思考',
+      truncatedTip: '',
+      fromCache: false
+    }
+    localStorage.setItem(cacheKey, JSON.stringify(snapshot))
+    vi.mocked(analyzeMatch).mockRejectedValue(new Error('network down'))
     const wrapper = mountView()
     await flushPromises()
 
-    // 点击分析按钮
     await wrapper.find('.ai-analysis-button').trigger('click')
     await flushPromises()
 
-    // 失败后旧快照恢复，错误提示出现
-    expect(wrapper.find('.ai-analysis-result').text()).toContain('旧缓存结果')
-    expect(wrapper.find('.ai-analysis-error').text()).toContain('模型服务异常')
+    expect(wrapper.find('.ai-analysis-result').text()).toContain(snapshot.result)
+    expect(wrapper.find('.ai-analysis-error').text()).toContain('network down')
+    expect(localStorage.getItem(cacheKey)).toBe(JSON.stringify(snapshot))
   })
 })

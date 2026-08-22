@@ -174,4 +174,13 @@ describe('MatchCardDetails AI 分析展示', () => {
     expect(state.reasoningCollapsed).toBe(true)
     expect(wrapper.find('.ai-analysis-reasoning').exists()).toBe(false)
   })
+
+  it('展开 reasoning 后内容真实可见', async () => {
+    const { wrapper } = mountView({ reasoning: '父层应看到这段思考' })
+
+    await wrapper.find('.ai-analysis-reasoning-toggle').trigger('click')
+
+    expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
+    expect(wrapper.find('.ai-analysis-reasoning').text()).toContain('父层应看到这段思考')
+  })
 })
