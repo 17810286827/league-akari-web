@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-后端仓库（league-akari-server）已完成「推送 GitHub → 自动部署云服务器 Docker」的 CI/CD 落地。本设计将同一套架构迁移到前端仓库（league-akari-web），并修正交接文档模板中不适配前端实际的三处问题。
+后端仓库（league-akari-server）已完成「推送 GitHub → 自动部署云服务器 Docker」的 CI/CD 落地。本设计将同一套架构迁移到前端仓库（league-akari-web），并修正交接文档模板中不适配前端实际的四处问题。
 
 **目标**：`git push main` 后自动构建前端 Docker 镜像 → 推送阿里云 ACR → SSH 部署到云服务器 `/opt/league-akari/web/`，健康检查失败自动回滚。
 
@@ -17,7 +17,7 @@
 | # | 决策 | 选择 | 理由 |
 |---|---|---|---|
 | 1 | API 连通方式 | **nginx 反代 `/api`**（容器内 nginx → 宿主机 8081） | 免 CORS；API 地址不烧进镜像，换环境无需重新构建；前端代码统一相对路径 |
-| 2 | 实施方式 | **模板 + 前端修正** | 照搬后端架构保持运维心智统一，同时修正模板三处不适配点（见第 6 节） |
+| 2 | 实施方式 | **模板 + 前端修正** | 照搬后端架构保持运维心智统一，同时修正模板四处不适配点（见第 6 节） |
 | 3 | CI 测试 | **跳过测试，只构建** | 与后端一致，追求 CI 最快；`vue-tsc -b` 类型检查内置于构建命令，作为隐性质量闸 |
 | 4 | GitHub 现状 | 仓库已有，Variables/Secrets 未配 | 实现计划须包含手工配置 checklist（第 7 节） |
 
@@ -74,11 +74,11 @@ GitHub Actions（境外 Runner）
 
 | 文件 | 来源 | 关键差异点 |
 |---|---|---|
-| `.github/workflows/deploy.yml` | 照搬交接文档 3.1 模板 | 删掉「Runner 上 npm ci + build」与 Node setup 步骤（Docker 内构建，避免重复构建约 2 分钟）；保留配置预检、concurrency、SHA+latest 标签、scp/ssh 两步结构 |
+| `.github/workflows/deploy.yml` | 照搬交接文档 3.1 模板 | 删掉「Runner 上 npm ci + build」与 Node setup 步骤（Docker 内构建，避免重复构建约 2 分钟）；**scp 从全量同步改为精确同步 `deploy.sh,docker-compose.yml`**（模板 `source: "."` 会把前端仓库 node_modules 数百 MB 从境外 Runner 传到国内服务器，Java 仓库无此问题、前端必须改）；保留配置预检、concurrency、SHA+latest 标签、scp/ssh 两步结构 |
 | `Dockerfile` | 模板微调 | 多阶段：`node:20-alpine`（`npm ci` + `npm run build`）→ `nginx:alpine`；COPY `nginx.conf` 到 `/etc/nginx/conf.d/default.conf`；HEALTHCHECK 用 wget `/` |
 | `nginx.conf` | 新写 | 见第 6 节 |
-| `docker-compose.yml` | 模板微调 | `league-akari-web`、端口 `8082:80`、`extra_hosts: host.docker.internal:host-gateway`（反代必需）、`env_file` 引 `config/.env`、`${IMAGE_REPOSITORY:?}`/`${IMAGE_TAG:?}` 必填校验、`TZ: Asia/Shanghai` |
-| `deploy.sh` | 复制后端仓库同名文件 | 仅改 2 个常量：`DEPLOY_ROOT=/opt/league-akari/web`、`HEALTH_URL=http://127.0.0.1:8082/`；版本记录/回滚/failed 标签/镜像清理逻辑原样保留 |
+| `docker-compose.yml` | 模板微调 | `league-akari-web`、端口 `8082:80`、`extra_hosts: host.docker.internal:host-gateway`（反代必需）、`${IMAGE_REPOSITORY:?}`/`${IMAGE_TAG:?}` 必填校验、`TZ: Asia/Shanghai`；变量注入沿用后端模式（deploy.sh `--env-file` 传入服务器 `config/.env`，compose 不写 `env_file` 指令） |
+| `deploy.sh` | 复制后端仓库同名文件 | 改 2 个常量：`DEPLOY_ROOT=/opt/league-akari/web`、`HEALTH_URL=http://127.0.0.1:8082/`；**另需替换 4 处硬编码 compose 服务名 `league-akari-server` → `league-akari-web`**（`compose pull`/`up`/`logs`/回滚 `up`，交接文档未提及）；回滚日志文案去掉数据库表述；版本记录/回滚/failed 标签/镜像清理逻辑原样保留 |
 | `.dockerignore` | 新写 | 排除 `node_modules`、`dist`、`.git`、`*.log`、`docs`、`.worktrees` 等，避免巨上下文拖慢构建 |
 | `.env.example` | 模板 | 基本为空 + 注释（前端无敏感运行时配置；API 地址由 nginx 反代解决，无需构建时注入） |
 
@@ -121,6 +121,7 @@ server {
 | ① | 第 7 章示例 `proxy_pass ...:8081/;` 带尾斜杠，会把 `/api/matches` 剥成 `/matches` → 404 | 去掉尾斜杠，原样转发（已核实后端 `MatchController` 为 `@RequestMapping("/api/matches")`） |
 | ② | 未覆盖 SSE；nginx 默认 `proxy_buffering on` 会缓冲流式响应 | `proxy_buffering off` + `proxy_read_timeout 300s` |
 | ③ | history 兜底在 Dockerfile 模板中是注释掉的可选项 | 必配 `try_files ... /index.html`（前端路由为 `createWebHistory()`） |
+| ④ | workflow 模板 `scp source: "."` 全量同步（Java 仓库无副作用，前端仓库会把 node_modules 数百 MB 传到国内服务器） | scp 精确同步 `deploy.sh,docker-compose.yml`（部署仅需这 2 个文件，KB 级秒传；nginx.conf/Dockerfile 只在 GitHub Runner 构建镜像时使用，无需上服务器） |
 
 ## 7. 一次性手工步骤 checklist（不进仓库）
 
