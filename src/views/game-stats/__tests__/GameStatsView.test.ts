@@ -209,8 +209,9 @@ function mountView() {
 
 describe('GameStatsView', () => {
   beforeEach(() => {
-    // 重置 mock 实现并清空调用历史（否则用例间 mockImplementation 会残留串用）
-    vi.resetAllMocks()
+    // 清空各用例间的 mock 调用历史，保持 mock 实现（实现保留）
+    vi.clearAllMocks()
+    localStorage.clear()
     // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
       data: [makeSummary()],
