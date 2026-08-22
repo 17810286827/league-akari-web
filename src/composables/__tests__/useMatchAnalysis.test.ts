@@ -119,8 +119,8 @@ describe('useMatchAnalysis', () => {
 
     const request = state.analyze()
     await settle()
-    // 收到正文片段后，页面应展示当前临时缓冲，但缓存必须仍保留上次完整成功结果。
-    // reasoning 同样来自当前流，截断提示和后端缓存标记仍等待 done 事件统一确认。
+    // 收到正文片段后，正文展示当前临时缓冲，但缓存必须仍保留上次完整成功结果。
+    // reasoning 和 fromCache 在首个正文 chunk 前已被暂存，首块到达时才与正文一起公开。
     expect(state.analyzing.value).toBe(true)
     expect(state.result.value).toBe('新正文-1新正文-2')
     expect(state.reasoning.value).toBe('新思考')
@@ -145,6 +145,52 @@ describe('useMatchAnalysis', () => {
       truncatedTip: expect.any(String),
       fromCache: true
     })
+  })
+
+  it('reasoning 先到时首个正文 chunk 前仍保持旧公开快照', async () => {
+    let release!: () => void
+    let state!: ReturnType<typeof useMatchAnalysis>
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onStart?.(false)
+      handlers?.onReasoning?.('新思考')
+      expect(state.result.value).toBe('旧正文')
+      expect(state.reasoning.value).toBe('旧思考')
+      expect(state.fromCache.value).toBe(true)
+      handlers?.onChunk?.('新正文')
+      await new Promise<void>((resolve) => {
+        release = () => { handlers?.onDone?.(false); resolve() }
+      })
+    })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    const request = state.analyze()
+    await settle()
+    expect(state.result.value).toBe('新正文')
+    expect(state.reasoning.value).toBe('新思考')
+    release()
+    await request
+  })
+
+  it('相同缓存键的不同 composable 实例只允许一个活动请求', async () => {
+    let release!: () => void
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onChunk?.('第一实例结果')
+      await new Promise<void>((resolve) => { release = resolve })
+      handlers?.onDone?.(false)
+    })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const first = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    const second = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    const request = first.analyze()
+    await settle()
+    await second.analyze()
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+    expect(second.result.value).toBe('旧正文')
+    release()
+    await request
+    expect(first.result.value).toBe('第一实例结果')
+    expect(second.result.value).toBe('旧正文')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string).result).toBe('第一实例结果')
   })
 
   it('请求失败时回退旧快照，缓存不变并允许重试', async () => {
