@@ -100,6 +100,8 @@ server {
   location /api/ {
     # 修正①：不带尾部斜杠——后端 controller 自带 /api 前缀（@RequestMapping("/api/matches")），必须原样转发
     proxy_pass http://host.docker.internal:8081;
+    # SSE 流式依赖 HTTP/1.1 与上游保持长连接（nginx 默认 1.0 靠 connection-close 分帧，依赖后端实现细节）
+    proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     # 修正②：SSE 流式必需——禁用缓冲，否则 AI 分析前端收不到实时数据
@@ -119,7 +121,7 @@ server {
 | # | 交接文档模板问题 | 本设计的修正 |
 |---|---|---|
 | ① | 第 7 章示例 `proxy_pass ...:8081/;` 带尾斜杠，会把 `/api/matches` 剥成 `/matches` → 404 | 去掉尾斜杠，原样转发（已核实后端 `MatchController` 为 `@RequestMapping("/api/matches")`） |
-| ② | 未覆盖 SSE；nginx 默认 `proxy_buffering on` 会缓冲流式响应 | `proxy_buffering off` + `proxy_read_timeout 300s` |
+| ② | 未覆盖 SSE；nginx 默认 `proxy_buffering on` 会缓冲流式响应 | `proxy_buffering off` + `proxy_http_version 1.1` + `proxy_read_timeout 300s` |
 | ③ | history 兜底在 Dockerfile 模板中是注释掉的可选项 | 必配 `try_files ... /index.html`（前端路由为 `createWebHistory()`） |
 | ④ | workflow 模板 `scp source: "."` 全量同步（Java 仓库无副作用，前端仓库会把 node_modules 数百 MB 传到国内服务器） | scp 精确同步 `deploy.sh,docker-compose.yml`（部署仅需这 2 个文件，KB 级秒传；nginx.conf/Dockerfile 只在 GitHub Runner 构建镜像时使用，无需上服务器） |
 

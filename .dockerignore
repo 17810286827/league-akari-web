@@ -4,9 +4,10 @@ dist
 # 版本控制与本地状态
 .git
 .worktrees
+.superpowers
 # 文档与临时文件
 docs
 *.log
-*.md
+**/*.md
 # 环境文件（生产配置在服务器 config/ 目录，永不进镜像）
 .env*
