@@ -166,6 +166,45 @@ describe('useMatchAnalysis', () => {
     expect(JSON.parse(localStorage.getItem(cacheKey) as string).result).toBe('重试成功')
   })
 
+  it('并发请求中后发失败时恢复初始化成功快照且缓存不变', async () => {
+    // 请求 A 的临时正文会覆盖公开 refs，但不能成为请求 B 失败时的回退基线。
+    let resolveFirst!: () => void
+    let rejectSecond!: (reason: Error) => void
+    vi.mocked(analyzeMatch)
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onReasoning?.('请求 A 临时思考')
+        handlers?.onChunk?.('请求 A 临时正文')
+        await new Promise<void>((resolve) => {
+          resolveFirst = resolve
+        })
+      })
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onChunk?.('请求 B 临时正文')
+        await new Promise<void>((_resolve, reject) => {
+          rejectSecond = reject
+        })
+      })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    const firstRequest = state.analyze()
+    await settle()
+
+    const secondRequest = state.analyze()
+    await settle()
+    rejectSecond(new Error('请求 B 失败'))
+    await expect(secondRequest).resolves.toBeUndefined()
+
+    // B 失败后必须回到初始化时的最近成功快照，而不是 A 或 B 的半截输出；缓存也不能改变。
+    expect(state.result.value).toBe(oldSnapshot.result)
+    expect(state.reasoning.value).toBe(oldSnapshot.reasoning)
+    expect(state.truncatedTip.value).toBe(oldSnapshot.truncatedTip)
+    expect(state.fromCache.value).toBe(oldSnapshot.fromCache)
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+
+    resolveFirst()
+    await firstRequest
+  })
+
   it('存储读写异常时不抛错，仍可在内存中展示结果', async () => {
     // localStorage 是可选持久化层，浏览器隐私模式或配额限制不应阻塞内存中的分析体验。
     // 这里让读写都抛异常，要求实现分别捕获并继续完成请求，而不是把存储错误当作分析失败。

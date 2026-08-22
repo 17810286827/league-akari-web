@@ -136,6 +136,14 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
   const fromCache = ref(cachedSnapshot?.fromCache ?? false)
   const errorMsg = ref('')
   const truncatedTip = ref(cachedSnapshot?.truncatedTip ?? '')
+  // 这是整个实例唯一的失败回退基线，只接受初始化缓存或当前请求 onDone 的完整快照。
+  // 公开 refs 会被流式临时内容覆盖，因此不能在 analyze() 开始时从 refs 反向取基线。
+  let latestSuccessfulSnapshot: MatchAnalysisSnapshot = cachedSnapshot ?? {
+    result: '',
+    reasoning: '',
+    truncatedTip: '',
+    fromCache: false
+  }
   let latestRequestId = 0
 
   /** 用户主动切换思考过程的可见性，不改变已缓存的业务结果。 */
@@ -154,16 +162,11 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     }
 
     const requestId = ++latestRequestId
-    const previousSnapshot: MatchAnalysisSnapshot = {
-      result: result.value,
-      reasoning: reasoning.value,
-      truncatedTip: truncatedTip.value,
-      fromCache: fromCache.value
-    }
+    // 失败回退必须使用最近一次完整成功快照，不能读取可能已被其他请求临时覆盖的公开 refs。
+    const previousSnapshot = latestSuccessfulSnapshot
     let temporaryResult = ''
     let temporaryReasoning = ''
     let temporaryFromCache = false
-    let temporaryTruncatedTip = ''
     let streamFailed = false
     let completed = false
 
@@ -219,6 +222,8 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
             fromCache: temporaryFromCache
           }
           applySnapshot({ result, reasoning, truncatedTip, fromCache }, snapshot)
+          // 只有当前请求收到完整 done 才能推进基线和缓存，半截流内容永远没有提交资格。
+          latestSuccessfulSnapshot = snapshot
           writeSnapshot(cacheKey, snapshot)
           completed = true
           logger.info('Match analysis request committed', { gameId: options.gameId, truncated })
