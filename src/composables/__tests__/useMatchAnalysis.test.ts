@@ -74,9 +74,9 @@ describe('useMatchAnalysis', () => {
     expect(second.reasoning.value).toBe('')
   })
 
-  it('成功流式请求在完成前保留旧结果，完成后整体提交四个字段', async () => {
-    // 流中允许积累临时 reasoning 和正文，但成功快照仍代表上一份可用结果。
-    // 只有 done 到达后才能提交，避免刷新、折叠或失败重试时恢复半截内容。
+  it('成功流式请求首个正文片段后展示临时结果，但只在完成后持久化快照', async () => {
+    // 流式正文需要立即反映到公开状态，保证用户能够看到连续的打字机效果。
+    // 缓存仍只保存完整成功快照，因此刷新或失败回退不会恢复半截内容。
     let resolveRequest!: () => void
     vi.mocked(analyzeMatch).mockImplementation(
       async (_gameId, handlers) =>
@@ -94,16 +94,15 @@ describe('useMatchAnalysis', () => {
     localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
 
-    // 初始化快照代表用户仍在看的最近一次成功结果，新流不能因首块到达而提前污染它。
     const request = state.analyze()
     await settle()
-    // 首块到达也不能改写 localStorage；持久化只接受完整成功快照。
-    // 因此这里同时检查内存展示和存储内容，防止实现只满足其中一条路径。
-    // 四个字段必须作为一个快照比较，避免只校验正文而遗漏 reasoning、截断提示或缓存命中标记。
-    // 旧缓存保持原样是关键回退条件，说明流式中间态没有越过成功提交边界。
+    // 收到正文片段后，页面应展示当前临时缓冲，但缓存必须仍保留上次完整成功结果。
+    // reasoning 同样来自当前流，截断提示和后端缓存标记仍等待 done 事件统一确认。
     expect(state.analyzing.value).toBe(true)
-    expect(state.result.value).toBe('旧正文')
-    expect(state.reasoning.value).toBe('旧思考')
+    expect(state.result.value).toBe('新正文-1新正文-2')
+    expect(state.reasoning.value).toBe('新思考')
+    expect(state.truncatedTip.value).toBe('')
+    expect(state.fromCache.value).toBe(true)
     expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
 
     // 完成事件是事务边界：四个字段必须来自同一轮请求，不能留下旧 reasoning 或旧提示。
@@ -219,6 +218,19 @@ describe('useMatchAnalysis', () => {
     await state.analyze()
 
     expect(state.result.value).toBe('')
+    expect(getItem).not.toHaveBeenCalled()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(analyzeMatch).not.toHaveBeenCalled()
+  })
+
+  it.each([0, -1])('非正 gameId=%s 时不读写缓存且不发起分析请求', async (gameId) => {
+    // 对局 ID 必须是正整数；无效值不能形成缓存键，也不能发送无意义请求。
+    const getItem = vi.spyOn(Storage.prototype, 'getItem')
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const state = useMatchAnalysis({ gameId, puuid: 'puuid-a' })
+
+    await state.analyze()
+
     expect(getItem).not.toHaveBeenCalled()
     expect(setItem).not.toHaveBeenCalled()
     expect(analyzeMatch).not.toHaveBeenCalled()

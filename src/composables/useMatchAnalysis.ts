@@ -1,6 +1,9 @@
 /**
- * 对局 AI 分析状态：负责隔离流式临时数据与最近一次成功快照。
+ * 对局 AI 分析状态：分离“正在展示的流式缓冲”与“可跨刷新恢复的成功快照”。
  * 网络和存储均为可选能力，异常统一转换为可重试的页面状态。
+ *
+ * 约束说明：正文首块抵达后必须立即更新公开 refs，以保留打字机体验；
+ * localStorage 只接收 done 后的完整快照，避免任何半截模型输出被持久化。
  */
 import { ref, type Ref } from 'vue'
 import { analyzeMatch } from '@/api/matches'
@@ -37,9 +40,12 @@ export interface MatchAnalysisState {
   toggleReasoning: () => void
 }
 
-/** 生成按对局和玩家身份隔离的稳定缓存键。 */
+/**
+ * 生成按对局和玩家身份隔离的稳定缓存键。
+ * 非正整数对局 ID 不具备业务语义，必须在创建实例时阻断全部缓存与网络副作用。
+ */
 function createCacheKey({ gameId, puuid }: UseMatchAnalysisOptions): string | undefined {
-  if (!Number.isFinite(gameId) || !puuid) {
+  if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
     return undefined
   }
 
@@ -157,9 +163,11 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     let temporaryResult = ''
     let temporaryReasoning = ''
     let temporaryFromCache = false
+    let temporaryTruncatedTip = ''
     let streamFailed = false
     let completed = false
 
+    // previousSnapshot 是失败回退基线；临时 refs 可以被覆盖，但它永远不参与缓存写入。
     errorMsg.value = ''
     analyzing.value = true
     logger.info('Match analysis request started', { gameId: options.gameId })
@@ -181,16 +189,22 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
         onStart: (hitCache) => {
           if (requestId === latestRequestId && !streamFailed) {
             temporaryFromCache = hitCache
+            // 后端缓存标记属于本轮临时展示，直到 done 才和正文一起成为成功快照。
+            fromCache.value = hitCache
           }
         },
         onReasoning: (content) => {
           if (requestId === latestRequestId && !streamFailed) {
             temporaryReasoning += content
+            // 思考过程也实时展示；失败时由 fail() 用 previousSnapshot 一次性恢复。
+            reasoning.value = temporaryReasoning
           }
         },
         onChunk: (content) => {
           if (requestId === latestRequestId && !streamFailed) {
             temporaryResult += content
+            // 公开正文跟随每个 chunk 更新，形成打字机效果；这里严禁写 localStorage。
+            result.value = temporaryResult
           }
         },
         onDone: (truncated) => {
