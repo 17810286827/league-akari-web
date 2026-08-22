@@ -13,7 +13,17 @@
     <MatchCardOverview @toggle-expand="isExpanded = !isExpanded" />
 
     <KeepAlive>
-      <MatchCardDetails v-if="!puuid || isExpanded" />
+      <MatchCardDetails
+        v-if="!puuid || isExpanded"
+        v-model:analyzing="analyzing"
+        v-model:result="result"
+        v-model:reasoning="reasoning"
+        v-model:reasoning-collapsed="reasoningCollapsed"
+        v-model:from-cache="fromCache"
+        v-model:error-msg="errorMsg"
+        v-model:truncated-tip="truncatedTip"
+        @analyze="emit('analyze')"
+      />
     </KeepAlive>
   </div>
 </template>
@@ -33,7 +43,14 @@ const {
   puuid,
   details = null,
   hidePrivacy = false,
-  loadingDetails = false
+  loadingDetails = false,
+  analyzing = false,
+  result = '',
+  reasoning = '',
+  reasoningCollapsed = true,
+  fromCache = false,
+  errorMsg = '',
+  truncatedTip = ''
 } = defineProps<{
   /** 对局详情（web 的 summary 即完整 MatchDetail，参与者/队伍快照均在内） */
   summary: MatchDetail
@@ -45,11 +62,22 @@ const {
   hidePrivacy?: boolean
   /** 详情（时间线）加载中标记（任务 11 详情面板消费） */
   loadingDetails?: boolean
+
+  /** 以下为 AI 分析受控状态：由页面层持有，通过 v-model 双向同步 */
+  analyzing?: boolean
+  result?: string
+  reasoning?: string
+  reasoningCollapsed?: boolean
+  fromCache?: boolean
+  errorMsg?: string
+  truncatedTip?: string
 }>()
 
 const emits = defineEmits<{
   loadDetails: [gameId: number]
   navigateToSummonerByPuuid: [puuid: string, setCurrent?: boolean]
+  /** 分析触发通知（由 MatchCardDetails 转发至页面层） */
+  analyze: []
 }>()
 
 const isExpanded = defineModel<boolean>('isExpanded', {

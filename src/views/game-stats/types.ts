@@ -5,6 +5,7 @@
  */
 import type { MatchDetail, MatchSummary } from '@/api/types'
 import type { MatchCardGameDetails } from '@/views/match-detail/adapter/types'
+import type { MatchAnalysisState } from '@/composables/useMatchAnalysis'
 
 /** 顶部导航的段位板块（如 单双排位 / 灵活排位） */
 export interface RankSection {
@@ -68,6 +69,8 @@ export interface GameListItem {
   detail: MatchDetail | null
   /** 时间线数据（与详情并行加载；失败保持 null，时间线 Tab 空态） */
   details: MatchCardGameDetails | null
+  /** AI 分析状态实例（页面层持有；详情未加载或 puuid 缺失时为 null） */
+  analysisState?: MatchAnalysisState | null
 }
 
 /** 战绩分析页面数据根对象 */
