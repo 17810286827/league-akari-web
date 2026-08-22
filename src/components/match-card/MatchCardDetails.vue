@@ -52,7 +52,6 @@
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 
-import { useMatchCard } from './context'
 import { useCardBorderClass } from './utils/theme'
 import MatchCardSummaryTab from './tabs/MatchCardSummaryTab.vue'
 
@@ -60,9 +59,6 @@ const cardBorderClass = useCardBorderClass()
 
 // markdown 渲染器：关闭内联 HTML（模型输出转义，防 XSS），只渲染标准 markdown 语法
 const markdown = new MarkdownIt({ html: false, linkify: false })
-
-// 对局上下文：gameId 用于触发分析时通知父层
-const { summary } = useMatchCard()
 
 const props = defineProps<{
   /** AI 分析是否进行中，由父层控制 */

@@ -25,6 +25,8 @@ export interface MatchAnalysisSnapshot {
 export interface UseMatchAnalysisOptions {
   gameId: number
   puuid: string
+  /** 网络请求 reject 时通知页面层展示 Toast；流内 onError 不触发该回调。 */
+  onNetworkError?: (message: string) => void
 }
 
 /** 暴露给组件的响应式状态和操作。 */
@@ -47,12 +49,19 @@ export interface MatchAnalysisState {
 function createCacheKey({ gameId, puuid }: UseMatchAnalysisOptions): string | undefined {
   // 缓存键是页面入口之间共享结果的唯一边界，身份不完整时宁可禁用也不能猜测归属。
   // gameId 采用正整数约束，避免把占位值、默认值或错误路由参数写入持久化空间。
-  if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
+  const normalizedPuuid = puuid.trim()
+  if (!Number.isInteger(gameId) || gameId <= 0 || !normalizedPuuid) {
     return undefined
   }
 
   // 编码玩家身份，防止 puuid 中的特殊字符改变键的层级或与其他身份发生碰撞。
-  return `${CACHE_NAMESPACE}:${encodeURIComponent(String(gameId))}:${encodeURIComponent(puuid)}`
+  try {
+    return `${CACHE_NAMESPACE}:${encodeURIComponent(String(gameId))}:${encodeURIComponent(normalizedPuuid)}`
+  } catch {
+    // 极端情况下编码失败时禁用本实例，避免缓存键异常或请求副作用。
+    logger.warn('Match analysis cache key encoding failed', { gameId })
+    return undefined
+  }
 }
 
 /** 防御性校验 localStorage 中的历史数据，避免坏数据污染页面状态。 */
@@ -90,7 +99,14 @@ function readSnapshot(key: string | undefined): MatchAnalysisSnapshot | undefine
     const snapshot = parseSnapshot(raw)
     if (!snapshot) {
       logger.warn('Ignoring invalid match analysis cache entry')
+      return undefined
     }
+    // 缓存命中只记录元数据与正文长度，不记录任何模型正文。
+    logger.info('Match analysis cache loaded', {
+      resultLength: snapshot.result.length,
+      reasoningLength: snapshot.reasoning.length,
+      truncated: Boolean(snapshot.truncatedTip)
+    })
     return snapshot
   } catch {
     // 存储被隐私模式禁用或数据损坏时不阻塞本次页面初始化。
@@ -151,6 +167,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     fromCache: false
   }
   let latestRequestId = 0
+  let activeRequest = false
 
   /** 用户主动切换思考过程的可见性，不改变已缓存的业务结果。 */
   function toggleReasoning(): void {
@@ -169,6 +186,14 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
       return
     }
 
+    // 同一 composable/cache key 只允许一个活动请求，重复点击不应使原请求失去完成机会。
+    if (activeRequest) {
+      logger.warn('Match analysis request skipped because another request is active', {
+        gameId: options.gameId
+      })
+      return
+    }
+
     // 每次调用都递增序列；即使旧 SSE 仍在运行，它的回调也会因 id 过期而失去提交资格。
     const requestId = ++latestRequestId
     // 失败回退必须使用最近一次完整成功快照，不能读取可能已被其他请求临时覆盖的公开 refs。
@@ -182,8 +207,14 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     // previousSnapshot 是失败回退基线；临时 refs 可以被覆盖，但它永远不参与缓存写入。
     // 临时缓冲按请求局部维护，避免并发请求把彼此的 chunk 拼成一份不存在的结果。
     errorMsg.value = ''
+    reasoningCollapsed.value = true
+    activeRequest = true
     analyzing.value = true
-    logger.info('Match analysis request started', { gameId: options.gameId })
+    logger.info('Match analysis request started', {
+      gameId: options.gameId,
+      puuid: options.puuid.trim(),
+      requestId
+    })
 
     /** 仅当前请求可修改状态；失败路径总是恢复本次开始前的成功快照。 */
     const fail = (message: string): void => {
@@ -196,7 +227,12 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
       streamFailed = true
       applySnapshot({ result, reasoning, truncatedTip, fromCache }, previousSnapshot)
       errorMsg.value = message || 'AI 分析失败，请稍后重试'
-      logger.warn('Match analysis request failed', { gameId: options.gameId })
+      logger.warn('Match analysis request failed', {
+        gameId: options.gameId,
+        puuid: options.puuid.trim(),
+        requestId,
+        messageLength: errorMsg.value.length
+      })
     }
 
     try {
@@ -221,6 +257,15 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           // 每个 chunk 到达时都重新确认请求归属，因为回调可能在新请求启动后才执行。
           if (requestId === latestRequestId && !streamFailed) {
             temporaryResult += content
+            // 首块日志只记录长度，不记录模型正文，便于定位流式链路而不泄露内容。
+            if (temporaryResult === content) {
+              logger.info('Match analysis first chunk received', {
+                gameId: options.gameId,
+                puuid: options.puuid.trim(),
+                requestId,
+                chunkLength: content.length
+              })
+            }
             // 公开正文跟随每个 chunk 更新，形成打字机效果；这里严禁写 localStorage。
             result.value = temporaryResult
           }
@@ -242,7 +287,14 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           latestSuccessfulSnapshot = snapshot
           writeSnapshot(cacheKey, snapshot)
           completed = true
-          logger.info('Match analysis request committed', { gameId: options.gameId, truncated })
+          logger.info('Match analysis request committed', {
+            gameId: options.gameId,
+            puuid: options.puuid.trim(),
+            requestId,
+            resultLength: snapshot.result.length,
+            reasoningLength: snapshot.reasoning.length,
+            truncated
+          })
         },
         onError: (message) => fail(message)
       })
@@ -255,9 +307,12 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
       // 网络异常与流内 onError 统一进入 fail，保证调用方可重试且不会收到未处理 reject。
       const message = error instanceof Error ? error.message : 'AI 分析失败，请稍后重试'
       fail(message)
+      // 仅 catch 的网络 reject 通知页面层，流内 onError 不会进入此分支。
+      options.onNetworkError?.(message)
     } finally {
       // 只有最新请求可以结束 loading；旧请求收尾不能让新请求提前恢复可点击状态。
       if (requestId === latestRequestId) {
+        activeRequest = false
         analyzing.value = false
       }
     }

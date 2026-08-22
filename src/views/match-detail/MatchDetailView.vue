@@ -55,7 +55,8 @@ onMounted(async () => {
     // 列表页生成过的成功快照会直接恢复（reasoning 默认折叠）。
     analysisState.value = useMatchAnalysis({
       gameId,
-      puuid: summary.value.selfPuuid
+      puuid: summary.value.selfPuuid,
+      onNetworkError: (messageText) => message.error(messageText)
     })
   } catch (error) {
     logger.error('Failed to load match detail', { gameId, error })

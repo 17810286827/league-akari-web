@@ -2,7 +2,7 @@
  * useMatchAnalysis composable 失败测试。
  * 覆盖缓存隔离、流式临时状态、成功提交、失败回退、存储降级、身份校验与请求竞态。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnalyzeStreamHandlers } from '@/api/matches'
 import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
 
@@ -46,10 +46,13 @@ function handlersAt(index: number): AnalyzeStreamHandlers {
 
 describe('useMatchAnalysis', () => {
   beforeEach(() => {
-    // 初始清理只影响本用例，避免前一个场景的缓存或 mock 调用改变当前契约判断。
-    // restoreMocks 会恢复 spy，但 localStorage 仍需显式清空以保持测试相互独立。
+    // 每个用例清理缓存和 mock，避免分析快照或调用历史互相污染。
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('按 gameId 和 puuid 隔离缓存，并默认收起 reasoning', () => {
@@ -186,43 +189,30 @@ describe('useMatchAnalysis', () => {
     expect(JSON.parse(localStorage.getItem(cacheKey) as string).result).toBe('重试成功')
   })
 
-  it('并发请求中后发失败时恢复初始化成功快照且缓存不变', async () => {
-    // 请求 A 的临时正文会覆盖公开 refs，但不能成为请求 B 失败时的回退基线。
+  it('活动请求完成前重复调用不改变原请求状态', async () => {
+    // 单活动请求策略下，重复调用必须被忽略，原请求仍可完成并提交结果。
     let resolveFirst!: () => void
-    let rejectSecond!: (reason: Error) => void
-    vi.mocked(analyzeMatch)
-      .mockImplementationOnce(async (_gameId, handlers) => {
-        handlers?.onReasoning?.('请求 A 临时思考')
-        handlers?.onChunk?.('请求 A 临时正文')
-        await new Promise<void>((resolve) => {
-          resolveFirst = resolve
-        })
+    vi.mocked(analyzeMatch).mockImplementationOnce(async (_gameId, handlers) => {
+      handlers?.onReasoning?.('请求 A 临时思考')
+      handlers?.onChunk?.('请求 A 临时正文')
+      await new Promise<void>((resolve) => {
+        resolveFirst = resolve
       })
-      .mockImplementationOnce(async (_gameId, handlers) => {
-        handlers?.onChunk?.('请求 B 临时正文')
-        await new Promise<void>((_resolve, reject) => {
-          rejectSecond = reject
-        })
-      })
+      handlers?.onDone?.(false)
+    })
     localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
     const firstRequest = state.analyze()
     await settle()
 
-    const secondRequest = state.analyze()
-    await settle()
-    rejectSecond(new Error('请求 B 失败'))
-    await expect(secondRequest).resolves.toBeUndefined()
-
-    // B 失败后必须回到初始化时的最近成功快照，而不是 A 或 B 的半截输出；缓存也不能改变。
-    expect(state.result.value).toBe(oldSnapshot.result)
-    expect(state.reasoning.value).toBe(oldSnapshot.reasoning)
-    expect(state.truncatedTip.value).toBe(oldSnapshot.truncatedTip)
-    expect(state.fromCache.value).toBe(oldSnapshot.fromCache)
-    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+    await state.analyze()
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+    expect(state.result.value).toBe('请求 A 临时正文')
 
     resolveFirst()
     await firstRequest
+    expect(state.result.value).toBe('请求 A 临时正文')
+    expect(JSON.parse(localStorage.getItem(cacheKey) as string).result).toBe('请求 A 临时正文')
   })
 
   it('存储读写异常时不抛错，仍可在内存中展示结果', async () => {
@@ -246,6 +236,28 @@ describe('useMatchAnalysis', () => {
     // 读写异常都应被隔离在存储适配层；业务状态仍以 ref 为准，结果不能因为持久化失败而丢失。
     expect(state.result.value).toBe('内存结果')
     expect(state.errorMsg.value).toBe('')
+  })
+
+  it('流内 onError 回退旧快照并允许再次重试', async () => {
+    // SSE 流内错误仍由 composable 展示，不触发网络 Toast 回调。
+    const onNetworkError = vi.fn()
+    vi.mocked(analyzeMatch)
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onChunk?.('失败片段')
+        handlers?.onError?.('模型服务失败')
+      })
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onChunk?.('恢复结果')
+        handlers?.onDone?.(false)
+      })
+    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a', onNetworkError })
+
+    await state.analyze()
+    expect(state.errorMsg.value).toContain('模型服务失败')
+    expect(onNetworkError).not.toHaveBeenCalled()
+    await state.analyze()
+    expect(state.result.value).toBe('恢复结果')
   })
 
   it.each([
@@ -295,56 +307,98 @@ describe('useMatchAnalysis', () => {
     expect(analyzeMatch).not.toHaveBeenCalled()
   })
 
-  it('旧请求晚到时不能覆盖新请求的状态', async () => {
-    // 两次请求共享同一个 composable 实例，后发请求代表用户最新意图。
-    // deferred 完成顺序刻意反转，验证旧回调即使晚到也不会覆盖新结果。
-    const resolvers: Array<() => void> = []
+  it('活动请求期间重复调用保留 request id 和原请求结果', async () => {
+    // 单活动请求策略不再启动第二条 SSE；原请求的 request id 和提交边界保持完整。
+    let resolveRequest!: () => void
     vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
-      handlers?.onChunk?.(vi.mocked(analyzeMatch).mock.calls.length === 1 ? '旧请求' : '新请求')
-      await new Promise<void>((resolve) => resolvers.push(resolve))
+      handlers?.onChunk?.('原请求')
+      await new Promise<void>((resolve) => {
+        resolveRequest = resolve
+      })
       handlers?.onDone?.(false)
     })
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
-
     const first = state.analyze()
     await settle()
-    // 第二次请求拥有更新的 request id，旧流即使晚完成也只能被丢弃。
-    const second = state.analyze()
-    await settle()
-    resolvers[1]?.()
-    await second
-    resolvers[0]?.()
+    await state.analyze()
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+    resolveRequest()
     await first
-
-    // 竞态保护不仅影响正文，也影响 reasoning、截断提示和缓存写入等全部请求回调。
-    // 只断言最终正文仍是新请求，代表旧请求没有机会完成一次整体提交。
-    expect(state.result.value).toBe('新请求')
+    expect(state.result.value).toBe('原请求')
   })
 
-  it('流内 onError 回退旧快照并允许再次重试', async () => {
-    // SSE 的 error 事件不会以 reject 形式离开 API，但对页面而言同样表示本轮不可提交。
-    // 旧快照必须保留，errorMsg 只描述本轮失败，并且下一次调用仍可生成并提交新结果。
-    vi.mocked(analyzeMatch)
-      .mockImplementationOnce(async (_gameId, handlers) => {
-        handlers?.onChunk?.('失败片段')
-        handlers?.onError?.('模型服务失败')
-      })
-      .mockImplementationOnce(async (_gameId, handlers) => {
-        handlers?.onChunk?.('恢复结果')
-        handlers?.onDone?.(false)
-      })
-    localStorage.setItem(cacheKey, JSON.stringify(oldSnapshot))
+  it('新请求开始时立即收起已展开的 reasoning', async () => {
+    // 用户展开思考过程后再次点击重试，新的分析流开始就应回到默认折叠状态。
+    let resolveRequest!: () => void
+    vi.mocked(analyzeMatch).mockImplementation(
+      async (_gameId, handlers) =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve
+          handlers?.onReasoning?.('新思考')
+          handlers?.onChunk?.('新正文')
+        })
+    )
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
+    state.toggleReasoning()
+    expect(state.reasoningCollapsed.value).toBe(false)
+
+    const request = state.analyze()
+    await settle()
+
+    expect(state.reasoningCollapsed.value).toBe(true)
+    resolveRequest()
+    await request
+  })
+
+  it('重复调用时只保留一个活动请求且原请求仍可完成', async () => {
+    // 同一 composable/cache key 只能有一个活动请求，重复点击不得取消或覆盖原请求。
+    let resolveRequest!: () => void
+    vi.mocked(analyzeMatch).mockImplementation(
+      async (_gameId, handlers) =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve
+          handlers?.onChunk?.('原请求结果')
+          handlers?.onDone?.(false)
+        })
+    )
     const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
 
-    // 流内错误与网络 reject 采用同一回退策略，并保留再次点击重试的能力。
-    await expect(state.analyze()).resolves.toBeUndefined()
-    expect(state.analyzing.value).toBe(false)
-    expect(state.result.value).toBe('旧正文')
-    expect(state.errorMsg.value).toContain('模型服务失败')
-    expect(JSON.parse(localStorage.getItem(cacheKey) as string)).toEqual(oldSnapshot)
+    const firstRequest = state.analyze()
+    await settle()
+    const duplicateRequest = state.analyze()
+    await duplicateRequest
 
-    // 成功重试应清除仅属于上一轮的错误，并把新正文写入对应缓存键。
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+    resolveRequest()
+    await firstRequest
+    expect(state.analyzing.value).toBe(false)
+    expect(state.result.value).toBe('原请求结果')
+  })
+
+  it('网络 reject 时调用 onNetworkError，但流内 onError 不调用', async () => {
+    // 网络层 reject 需要由页面 Toast 展示；SSE 流内错误已经通过 errorMsg 展示，避免重复提示。
+    const onNetworkError = vi.fn()
+    vi.mocked(analyzeMatch)
+      .mockRejectedValueOnce(new Error('网络暂时不可用'))
+      .mockImplementationOnce(async (_gameId, handlers) => {
+        handlers?.onError?.('模型服务失败')
+      })
+    const state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a', onNetworkError })
+
     await state.analyze()
-    expect(state.errorMsg.value).toBe('')
+    expect(onNetworkError).toHaveBeenCalledWith('网络暂时不可用')
+    await state.analyze()
+    expect(onNetworkError).toHaveBeenCalledTimes(1)
+  })
+
+  it('空白 puuid 不产生缓存和网络副作用', async () => {
+    // 只有 trim 后仍有内容的 puuid 才能形成稳定身份，空白输入必须在所有副作用前返回。
+    const getItem = vi.spyOn(Storage.prototype, 'getItem')
+    const state = useMatchAnalysis({ gameId: 123, puuid: '   ' })
+
+    await state.analyze()
+
+    expect(getItem).not.toHaveBeenCalled()
+    expect(analyzeMatch).not.toHaveBeenCalled()
   })
 })

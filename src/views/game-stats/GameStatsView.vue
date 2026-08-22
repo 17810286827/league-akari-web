@@ -114,13 +114,24 @@ const analysisByKey = new Map<string, MatchAnalysisState>()
 
 /** 获取/创建对局分析状态：同一对局同一玩家共享同一实例，保证折叠/展开不丢状态 */
 function getAnalysisState(gameId: number, puuid: string): MatchAnalysisState | null {
-  if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
+  const normalizedPuuid = puuid.trim()
+  if (!Number.isInteger(gameId) || gameId <= 0 || !normalizedPuuid) {
     return null
   }
-  const key = `${encodeURIComponent(String(gameId))}:${encodeURIComponent(puuid)}`
+  let key: string
+  try {
+    key = `${encodeURIComponent(String(gameId))}:${encodeURIComponent(normalizedPuuid)}`
+  } catch {
+    logger.warn('Match analysis state key encoding failed', { gameId })
+    return null
+  }
   let state = analysisByKey.get(key)
   if (!state) {
-    state = useMatchAnalysis({ gameId, puuid })
+    state = useMatchAnalysis({
+      gameId,
+      puuid,
+      onNetworkError: (messageText) => message.error(messageText)
+    })
     analysisByKey.set(key, state)
     logger.info('Match analysis state created', { gameId, puuid })
   }
