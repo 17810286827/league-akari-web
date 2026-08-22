@@ -47,6 +47,8 @@ export interface ParticipantStatsJson {
   assists?: number
   win?: boolean
   champLevel?: number
+  // 召唤师账号等级（SGP 整体透传携带；LCU stats 无此字段，缺失由 num 兜底为 0）
+  summonerLevel?: number
   roleBoundItem?: number
   // 海克斯强化（双源字段名一致）
   playerAugment1?: number

@@ -67,11 +67,19 @@ function makeLight(partial: Partial<MatchParticipantLight>): MatchParticipantLig
   }
 }
 
+/**
+ * 解析首个参与者的 statsJson：summaryToDetail 的产物总会为参与者写入 statsJson 字符串
+ * （见 adapter 实现），此处用非空断言把 string | null 收窄为 string——仅类型层面收窄，无运行时差异
+ */
+function parseFirstStatsJson(detail: ReturnType<typeof summaryToDetail>): Record<string, unknown> {
+  return JSON.parse(detail.participants[0].statsJson!) as Record<string, unknown>
+}
+
 describe('summaryToDetail 字段归一', () => {
   it('将轻量档案的 totalDamageDealtToChampions 写入 statsJson（雷达图伤害轴数据源）', () => {
     const detail = summaryToDetail(makeSummary([makeLight({})]))
 
-    const stats = JSON.parse(detail.participants[0].statsJson) as Record<string, unknown>
+    const stats = parseFirstStatsJson(detail)
     expect(stats.totalDamageDealtToChampions).toBe(25472)
     // 同批统计字段一并归一，防止回归
     expect(stats.totalDamageTaken).toBe(33200)
@@ -83,7 +91,7 @@ describe('summaryToDetail 字段归一', () => {
   it('将成就标签字段写入 statsJson：多杀/拆塔走顶层，单杀/塔杀走 challenges 嵌套', () => {
     const detail = summaryToDetail(makeSummary([makeLight({})]))
 
-    const stats = JSON.parse(detail.participants[0].statsJson) as Record<string, unknown>
+    const stats = parseFirstStatsJson(detail)
     // 顶层字段（ManyTags 直接消费）；拆塔键名对齐 statsJson 的 damageDealtToTurrets
     expect(stats.damageDealtToTurrets).toBe(4600)
     expect(stats.doubleKills).toBe(5)
@@ -107,7 +115,7 @@ describe('summaryToDetail 字段归一', () => {
     delete light.totalDamageDealtToChampions
 
     const detail = summaryToDetail(makeSummary([light]))
-    const stats = JSON.parse(detail.participants[0].statsJson) as Record<string, unknown>
+    const stats = parseFirstStatsJson(detail)
 
     expect(stats.totalDamageDealtToChampions).toBeUndefined()
   })
@@ -121,7 +129,7 @@ describe('summaryToDetail 字段归一', () => {
     delete light.knockEnemyIntoTeamAndKill
 
     const detail = summaryToDetail(makeSummary([light]))
-    const stats = JSON.parse(detail.participants[0].statsJson) as Record<string, unknown>
+    const stats = parseFirstStatsJson(detail)
 
     expect(stats.challenges).toBeUndefined()
   })

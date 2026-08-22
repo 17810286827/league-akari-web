@@ -204,6 +204,14 @@ const diffs = computed(() => {
   ]
 })
 
+/** 轴外标签插件的配置项类型（自定义插件 id 未收录于 chart.js 类型，文件内局部声明，仅用于收窄） */
+interface RadarValueLabelsOptions {
+  names?: string[]
+  values?: string[]
+  diffs?: number[]
+  legend?: { player: string; team: string }
+}
+
 /**
  * 轴外标签插件（方案 A 形态 + D 差值标注）：
  * 每个轴的最大半径外侧绘制三行文本——玩家数值（大字白）、
@@ -216,15 +224,16 @@ const radarValueLabelsPlugin = {
     const meta = chart.getDatasetMeta(0)
     const points = meta.data
     if (!points.length) return
-    const labels = (chart.options.plugins.radarValueLabels ?? {}) as {
-      names?: string[]
-      values?: string[]
-      diffs?: number[]
-      legend?: { player: string; team: string }
-    }
+    // 局部收窄：radarValueLabels 是本文件自定义插件的配置项，chart.js 的插件选项类型未收录该 id，
+    // 用 as 断言到局部类型读取（?: 仅满足类型的空值检查；chart.js 运行时 options.plugins 恒存在，行为不变）
+    const labels =
+      (chart.options.plugins as { radarValueLabels?: RadarValueLabelsOptions } | undefined)
+        ?.radarValueLabels ?? {}
     if (!labels.names?.length) return
 
-    const rScale = chart.scales.r
+    // radar 的 r 轴实际是 RadialLinearScale（含 xCenter/getPointPosition 等径向专用成员），
+    // chart.scales 的索引签名只暴露基类 Scale，这里 as 向下断言收窄（运行时对象即该实例）
+    const rScale = chart.scales.r as RadialLinearScale
     const center = { x: rScale.xCenter, y: rScale.yCenter }
     // 标签基准：固定在最大半径外侧（不受数据值大小影响，避免小数值时标签挤到中心）
     const maxDist = rScale.getDistanceFromCenterForValue(rScale.max)
