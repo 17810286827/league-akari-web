@@ -10,7 +10,7 @@ COMPOSE_FILE="${REPO_DIR}/docker-compose.yml"
 CURRENT_FILE="${CONFIG_DIR}/current-image"
 PREVIOUS_FILE="${CONFIG_DIR}/previous-image"
 FAILED_PREFIX="failed-$(date +%Y%m%d%H%M%S)-"
-HEALTH_URL="http://127.0.0.1:8082/" # ← 前端适配：nginx 首页即健康检查
+HEALTH_URL="http://127.0.0.1:8002/" # ← 前端适配：nginx 首页即健康检查（对外端口 8002，与安全组放行一致）
 HEALTH_TIMEOUT_SECONDS=120
 HEALTH_INTERVAL_SECONDS=10
 

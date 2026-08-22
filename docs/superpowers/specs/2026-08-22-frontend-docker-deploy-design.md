@@ -39,17 +39,17 @@ GitHub Actions（境外 Runner）
         └─ ./deploy.sh
              ├─ docker compose pull（按 SHA 拉镜像，不追 latest）
              ├─ up -d --force-recreate
-             ├─ 健康检查 http://127.0.0.1:8082/（120s / 每 10s 一次）
+             ├─ 健康检查 http://127.0.0.1:8002/（120s / 每 10s 一次）
              ├─ 失败 → 打 failed- 标签 + 自动回滚上一版本
              └─ 成功 → 清理旧镜像（保留当前 + 上一 + 最近 3 个 failed）
 
 请求链路（生产）：
-浏览器 → 服务器:8082 → 前端容器 nginx :80
+浏览器 → 服务器:8002 → 前端容器 nginx :80
                       ├─ /api/* → host.docker.internal:8081（后端容器，宿主机端口映射）→ 免 CORS
                       └─ 其他   → dist 静态文件（history 路由 try_files 兜底）
 ```
 
-与后端差异：无数据库依赖；`.env` 基本为空（deploy.sh 依赖其存在）；健康检查为 nginx 首页 200；容器端口 80（宿主映射 8082，避开已占用的 8081）。
+与后端差异：无数据库依赖；`.env` 基本为空（deploy.sh 依赖其存在）；健康检查为 nginx 首页 200；容器端口 80（宿主映射 8002，避开已占用的 8081，对外 8002 与安全组放行一致）。
 
 ## 4. 前端代码改动（3 个现有文件 + 1 个新模块，TDD）
 
@@ -77,8 +77,8 @@ GitHub Actions（境外 Runner）
 | `.github/workflows/deploy.yml` | 照搬交接文档 3.1 模板 | 删掉「Runner 上 npm ci + build」与 Node setup 步骤（Docker 内构建，避免重复构建约 2 分钟）；**scp 从全量同步改为精确同步 `deploy.sh,docker-compose.yml`**（模板 `source: "."` 会把前端仓库 node_modules 数百 MB 从境外 Runner 传到国内服务器，Java 仓库无此问题、前端必须改）；保留配置预检、concurrency、SHA+latest 标签、scp/ssh 两步结构 |
 | `Dockerfile` | 模板微调 | 多阶段：`node:20-alpine`（`npm ci` + `npm run build`）→ `nginx:alpine`；COPY `nginx.conf` 到 `/etc/nginx/conf.d/default.conf`；HEALTHCHECK 用 wget `/` |
 | `nginx.conf` | 新写 | 见第 6 节 |
-| `docker-compose.yml` | 模板微调 | `league-akari-web`、端口 `8082:80`、`extra_hosts: host.docker.internal:host-gateway`（反代必需）、`${IMAGE_REPOSITORY:?}`/`${IMAGE_TAG:?}` 必填校验、`TZ: Asia/Shanghai`；变量注入沿用后端模式（deploy.sh `--env-file` 传入服务器 `config/.env`，compose 不写 `env_file` 指令） |
-| `deploy.sh` | 复制后端仓库同名文件 | 改 2 个常量：`DEPLOY_ROOT=/opt/league-akari/web`、`HEALTH_URL=http://127.0.0.1:8082/`；**另需替换 4 处硬编码 compose 服务名 `league-akari-server` → `league-akari-web`**（`compose pull`/`up`/`logs`/回滚 `up`，交接文档未提及）；回滚日志文案去掉数据库表述；版本记录/回滚/failed 标签/镜像清理逻辑原样保留 |
+| `docker-compose.yml` | 模板微调 | `league-akari-web`、端口 `8002:80`、`extra_hosts: host.docker.internal:host-gateway`（反代必需）、`${IMAGE_REPOSITORY:?}`/`${IMAGE_TAG:?}` 必填校验、`TZ: Asia/Shanghai`；变量注入沿用后端模式（deploy.sh `--env-file` 传入服务器 `config/.env`，compose 不写 `env_file` 指令） |
+| `deploy.sh` | 复制后端仓库同名文件 | 改 2 个常量：`DEPLOY_ROOT=/opt/league-akari/web`、`HEALTH_URL=http://127.0.0.1:8002/`；**另需替换 4 处硬编码 compose 服务名 `league-akari-server` → `league-akari-web`**（`compose pull`/`up`/`logs`/回滚 `up`，交接文档未提及）；回滚日志文案去掉数据库表述；版本记录/回滚/failed 标签/镜像清理逻辑原样保留 |
 | `.dockerignore` | 新写 | 排除 `node_modules`、`dist`、`.git`、`*.log`、`docs`、`.worktrees` 等，避免巨上下文拖慢构建 |
 | `.env.example` | 模板 | 基本为空 + 注释（前端无敏感运行时配置；API 地址由 nginx 反代解决，无需构建时注入） |
 
@@ -138,7 +138,7 @@ server {
    sudo -u ubuntu touch /opt/league-akari/web/config/.env # 空文件即可，deploy.sh 依赖其存在
    sudo -u ubuntu chmod 600 /opt/league-akari/web/config/.env
    ```
-4. **部署后验证**：`docker ps --filter name=league-akari-web`（healthy）、`curl -f http://127.0.0.1:8082/`、`cat /opt/league-akari/web/config/current-image`、浏览器访问 `http://<服务器IP>:8082/` 并确认对局数据加载（反代链路通）；二次推送验证幂等。
+4. **部署后验证**：`docker ps --filter name=league-akari-web`（healthy）、`curl -f http://127.0.0.1:8002/`、`cat /opt/league-akari/web/config/current-image`、浏览器访问 `http://<服务器IP>:8002/` 并确认对局数据加载（反代链路通）；二次推送验证幂等。
 
 ## 8. 错误处理与回滚
 
@@ -154,7 +154,7 @@ server {
 
 ## 10. 验收标准
 
-1. `git push main` 后 GitHub Actions 全绿，服务器容器 healthy，`curl :8082` 返回前端页面。
+1. `git push main` 后 GitHub Actions 全绿，服务器容器 healthy，`curl :8002` 返回前端页面。
 2. 页面对局数据正常加载（nginx `/api` 反代链路通，无 CORS 报错）。
 3. AI 对局分析流式输出实时到达前端（SSE 未被缓冲、未被超时掐断）。
 4. 刷新任意子路径路由不 404（history 兜底生效）。

@@ -6,9 +6,9 @@
 
 `git push main` → GitHub Actions 构建 amd64 镜像（node:20-alpine 构建 + nginx:alpine 运行）
 → 推阿里云 ACR（SHA + latest）→ scp 精确同步 `deploy.sh` + `docker-compose.yml` 到服务器
-→ SSH 执行 `./deploy.sh`：拉镜像 → 重建容器 → 健康检查 `http://127.0.0.1:8082/` → 失败自动回滚。
+→ SSH 执行 `./deploy.sh`：拉镜像 → 重建容器 → 健康检查 `http://127.0.0.1:8002/` → 失败自动回滚。
 
-请求链路：浏览器 `:8082` → 容器内 nginx → `/api/*` 反代 `host.docker.internal:8081`（后端），其余走 dist 静态文件（history 路由兜底）。
+请求链路：浏览器 `:8002`（HTTP，注意无 TLS，勿用 https）→ 容器内 nginx → `/api/*` 反代 `host.docker.internal:8081`（后端），其余走 dist 静态文件（history 路由兜底）。
 
 ## 一次性配置清单（已完成则跳过）
 
@@ -27,12 +27,12 @@
 
 ```bash
 docker ps --filter name=league-akari-web            # STATUS 应为 healthy
-curl -f http://127.0.0.1:8082/                       # 返回前端页面
+curl -f http://127.0.0.1:8002/                       # 返回前端页面
 cat /opt/league-akari/web/config/current-image       # 记录本次部署版本
 docker logs --tail=50 league-akari-web               # 无异常日志
 ```
 
-浏览器访问 `http://<服务器IP>:8082/`：对局数据正常加载（反代通）、AI 分析流式实时输出（SSE 未被缓冲）、刷新子路径不 404（history 兜底）。
+浏览器访问 `http://<服务器IP>:8002/`（HTTP 协议，服务器安全组需放行 8002/TCP）：对局数据正常加载（反代通）、AI 分析流式实时输出（SSE 未被缓冲）、刷新子路径不 404（history 兜底）。
 
 ## 常用运维命令
 
@@ -53,7 +53,7 @@ docker image prune -f
 ## 已规避的坑（详见后端交接文档第 6 章）
 
 - nginx `proxy_pass` 不带尾斜杠（后端路径自带 `/api` 前缀，带斜杠 404）
-- `proxy_buffering off` + `proxy_read_timeout 300s`（SSE 流式不被缓冲、不超时）
+- `proxy_buffering off` + `proxy_http_version 1.1` + `proxy_read_timeout 300s`（SSE 流式不被缓冲、不超时）
 - `try_files ... /index.html`（history 路由兜底，本项目用 createWebHistory）
 - scp 精确同步 2 个部署文件（全量同步会传 node_modules 数百 MB）
 - workflow 配置预检（防 Variables 缺失时静默登录 docker.io）
