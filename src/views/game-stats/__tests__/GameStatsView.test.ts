@@ -421,10 +421,15 @@ describe('GameStatsView', () => {
   it('流式期间折叠卡片，chunk 继续到达，再展开后新片段可见', async () => {
     // 保存 handlers 手动驱动，模拟流式期间折叠
     let savedHandlers: AnalyzeStreamHandlers | undefined
+    let keepStreamOpen!: () => void
+    const streamPending = new Promise<void>((resolve) => {
+      keepStreamOpen = resolve
+    })
     vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
       savedHandlers = handlers
       handlers?.onStart?.(false)
       handlers?.onChunk?.('第一段')
+      await streamPending
     })
     const wrapper = mountView()
     await flushPromises()
@@ -444,6 +449,7 @@ describe('GameStatsView', () => {
     // 后台继续推送 chunk（折叠期间请求未中断）
     savedHandlers?.onChunk?.('第二段')
     savedHandlers?.onDone?.(false)
+    keepStreamOpen()
     await flushPromises()
 
     // 再次展开：能看到拼接后的完整结果

@@ -127,6 +127,16 @@ function getAnalysisState(gameId: number, puuid: string): MatchAnalysisState | n
   return state
 }
 
+function getAnalysisValue<T extends keyof MatchAnalysisState>(
+  game: GameListItem,
+  field: T,
+  fallback: T extends 'analyzing' | 'reasoningCollapsed' | 'fromCache' ? boolean : string
+): boolean | string {
+  const state = game.analysisState
+  if (!state) return fallback
+  return state[field].value as boolean | string
+}
+
 /**
  * 卡片列表：摘要直传折叠卡（不重复适配，MatchCardOverview 内部消费轻量 participants）；
  * 后端未升级（participants 缺失）的对局被过滤，避免渲染空卡；
@@ -383,13 +393,13 @@ watch(
               :game="game"
               :expanded="expandedGameId === game.summary.gameId"
               :detail-loading="detailLoading && expandedGameId === game.summary.gameId"
-              :analyzing="game.analysisState?.analyzing"
-              :result="game.analysisState?.result"
-              :reasoning="game.analysisState?.reasoning"
-              :reasoning-collapsed="game.analysisState?.reasoningCollapsed"
-              :from-cache="game.analysisState?.fromCache"
-              :error-msg="game.analysisState?.errorMsg"
-              :truncated-tip="game.analysisState?.truncatedTip"
+              :analyzing="getAnalysisValue(game, 'analyzing', false)"
+              :result="getAnalysisValue(game, 'result', '')"
+              :reasoning="getAnalysisValue(game, 'reasoning', '')"
+              :reasoning-collapsed="getAnalysisValue(game, 'reasoningCollapsed', true)"
+              :from-cache="getAnalysisValue(game, 'fromCache', false)"
+              :error-msg="getAnalysisValue(game, 'errorMsg', '')"
+              :truncated-tip="getAnalysisValue(game, 'truncatedTip', '')"
               @toggle="toggleGame"
               @analyze="game.analysisState?.analyze()"
             />
