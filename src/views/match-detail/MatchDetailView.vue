@@ -66,13 +66,13 @@ onMounted(async () => {
           :details="null"
           :puuid="summary.selfPuuid"
           is-expanded
-          :analyzing="analysisState?.analyzing?.value"
-          :result="analysisState?.result?.value"
-          :reasoning="analysisState?.reasoning?.value"
-          :reasoning-collapsed="analysisState?.reasoningCollapsed?.value"
-          :from-cache="analysisState?.fromCache?.value"
-          :error-msg="analysisState?.errorMsg?.value"
-          :truncated-tip="analysisState?.truncatedTip?.value"
+          :analyzing="analysisState?.analyzing"
+          :result="analysisState?.result"
+          :reasoning="analysisState?.reasoning"
+          :reasoning-collapsed="analysisState?.reasoningCollapsed"
+          :from-cache="analysisState?.fromCache"
+          :error-msg="analysisState?.errorMsg"
+          :truncated-tip="analysisState?.truncatedTip"
           @analyze="analysisState?.analyze()"
         />
 

@@ -88,7 +88,7 @@ const emit = defineEmits<{
 }>()
 
 /** 结果区 markdown 渲染（流式逐块追加时自动重算；html:false 保证输出安全） */
-const renderedResult = computed(() => markdown.render(props.result))
+const renderedResult = computed(() => markdown.render(props.result ?? ''))
 
 /** 点击分析按钮，通知父层触发 AI 分析请求 */
 function handleAnalyze(): void {
