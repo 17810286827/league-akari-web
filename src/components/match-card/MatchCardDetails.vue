@@ -45,108 +45,52 @@
 
 <script lang="ts" setup>
 /**
- * 展开详情面板：总览队伍表格 + AI 对局表现分析（SSE 流式，打字机效果）
- * AI 分析：调后端 /api/matches/{gameId}/ai-analysis（SSE 流，后端取详情组装数据摘要
- * 流式调用 opencode go 模型，逐块推送；结果 JVM 缓存；无 API Key 时后端返回 503）
+ * 展开详情面板：总览队伍表格 + AI 对局表现分析（受控展示组件）。
+ * AI 分析状态由页面层持有并通过 props 注入；组件只负责渲染和事件通知。
+ * 按钮文案、禁用、markdown 渲染、reasoning 折叠、缓存/截断/错误提示语义保持不变。
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
-import { useMessage } from 'naive-ui'
-
-import { analyzeMatch } from '@/api/matches'
-import { createLogger } from '@/utils/logger'
 
 import { useMatchCard } from './context'
 import { useCardBorderClass } from './utils/theme'
 import MatchCardSummaryTab from './tabs/MatchCardSummaryTab.vue'
 
-const logger = createLogger('MatchCardDetails')
-const message = useMessage()
 const cardBorderClass = useCardBorderClass()
 
 // markdown 渲染器：关闭内联 HTML（模型输出转义，防 XSS），只渲染标准 markdown 语法
 const markdown = new MarkdownIt({ html: false, linkify: false })
 
-// 对局上下文：gameId 用于调分析接口
+// 对局上下文：gameId 用于触发分析时通知父层
 const { summary } = useMatchCard()
 
-/** 分析请求中标记（防止重复点击） */
-const analyzing = ref(false)
-/** 分析结果（markdown 文本，流式逐块累积） */
-const result = ref('')
-/** 模型思考过程（reasoning_content 思维链，灰字展示；推理模式先思考后输出正文） */
-const reasoning = ref('')
-/** 思考过程是否折叠（思维链极长，默认折叠，点击展开） */
-const reasoningCollapsed = ref(true)
-/** 是否命中后端缓存（2 分钟内已分析过，start 事件携带） */
-const fromCache = ref(false)
-/** 分析失败提示 */
-const errorMsg = ref('')
-/** 输出被长度预算截断的提示（done 事件 truncated=true） */
-const truncatedTip = ref('')
+/** AI 分析是否进行中，由父层控制 */
+const analyzing = defineModel<boolean>('analyzing', { required: true })
+/** 分析结果 markdown 正文 */
+const result = defineModel<string>('result', { required: true })
+/** 模型思考过程（思维链） */
+const reasoning = defineModel<string>('reasoning', { required: true })
+/** 思考过程折叠状态，双向绑定由父层同步 */
+const reasoningCollapsed = defineModel<boolean>('reasoningCollapsed', { required: true })
+/** 是否命中后端缓存 */
+const fromCache = defineModel<boolean>('fromCache', { required: true })
+/** 分析失败错误提示 */
+const errorMsg = defineModel<string>('errorMsg', { required: true })
+/** 输出被截断提示 */
+const truncatedTip = defineModel<string>('truncatedTip', { required: true })
+
+/** 通知父层发起分析 */
+const emit = defineEmits<{
+  analyze: []
+}>()
 
 /** 结果区 markdown 渲染（流式逐块追加时自动重算；html:false 保证输出安全） */
 const renderedResult = computed(() => markdown.render(result.value))
 
-/**
- * 触发 AI 分析：发起 SSE 流式请求，onChunk 逐块追加渲染（打字机效果）；
- * 命中缓存时 start 事件置 fromCache（提示"2 分钟内已点名过"）；
- * 流中途错误走 onError，HTTP 错误（404/503）走 catch
- */
-async function handleAnalyze(): Promise<void> {
-  const gameId = summary.value?.gameId
-  if (!gameId || analyzing.value) {
-    return
-  }
-  analyzing.value = true
-  errorMsg.value = ''
-  result.value = ''
-  reasoning.value = ''
-  truncatedTip.value = ''
-  // 新一轮分析：思考过程默认收起（思维链太长，避免刷屏）
-  reasoningCollapsed.value = true
-  try {
-    await analyzeMatch(gameId, {
-      // 流开始：携带后端缓存标记（命中则下方提示"2 分钟内已点名过"）
-      onStart: (hitCache) => {
-        fromCache.value = hitCache
-        logger.info('AI analysis stream started', { gameId, fromCache: hitCache })
-      },
-      // 增量片段：逐块追加到结果区，实现打字机效果
-      onChunk: (chunk) => {
-        result.value += chunk
-      },
-      // 模型思考过程：灰字逐块追加（推理模式先输出思维链，让用户看到"正在思考"而非无响应）
-      onReasoning: (chunk) => {
-        reasoning.value += chunk
-      },
-      onDone: (truncated) => {
-        logger.info('AI analysis stream done', { gameId, length: result.value.length, truncated })
-        // 输出被长度预算截断：正文不完整，提示用户（对应后端 ai.max-tokens 配置）
-        if (truncated) {
-          truncatedTip.value = '⚠️ 内容因长度限制被截断（可调大 ai.max-tokens 后重试）'
-        }
-      },
-      // 流中途失败（如模型接口异常）：后端推送 error 事件后关闭连接
-      onError: (reason) => {
-        logger.error('AI analysis stream error event', { gameId, reason })
-        errorMsg.value = `AI 分析失败：${reason}`
-      }
-    })
-  } catch (error) {
-    // HTTP 错误（404 对局不存在 / 503 无 API Key / 网络错误）：message 为明确原因
-    const reason = error instanceof Error ? error.message : '未知错误'
-    logger.error('Failed to analyze match', { gameId, error })
-    // 错误提示先写入结果区（保证可见），toast 为增强提示（异常时不影响 errorMsg 渲染）
-    errorMsg.value = `AI 分析失败：${reason}`
-    try {
-      message.error(errorMsg.value)
-    } catch (toastError) {
-      logger.warn('AI analysis toast failed', { gameId, toastError })
-    }
-  } finally {
-    analyzing.value = false
-  }
+/** 点击分析按钮，通知父层触发 AI 分析请求 */
+function handleAnalyze(): void {
+  if (analyzing.value) return
+  emit('analyze')
 }
 </script>
 
