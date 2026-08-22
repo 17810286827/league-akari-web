@@ -1,0 +1,125 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# 同一时间只保留最新一次部署，旧任务自动取消
+concurrency:
+  group: league-akari-web-production
+  cancel-in-progress: true
+
+env:
+  IMAGE_REPOSITORY: ${{ vars.ALIYUN_REGISTRY }}/${{ vars.ALIYUN_NAMESPACE }}/${{ vars.IMAGE_NAME }}
+
+jobs:
+  build-and-push:
+    name: 构建并推送 amd64 镜像
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 配置预检：任何 Variables/Secrets 缺失时立刻报错，
+      # 避免 docker/login-action 静默回退登录 docker.io 导致 401
+      - name: 检查 GitHub Actions 配置
+        env:
+          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
+          ALIYUN_NAMESPACE: ${{ vars.ALIYUN_NAMESPACE }}
+          IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+          ALIYUN_USERNAME: ${{ secrets.ALIYUN_USERNAME }}
+          ALIYUN_PASSWORD: ${{ secrets.ALIYUN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${ALIYUN_REGISTRY}" || { echo "❌ 缺少 Variable: ALIYUN_REGISTRY（阿里云镜像仓库域名）"; exit 1; }
+          test -n "${ALIYUN_NAMESPACE}" || { echo "❌ 缺少 Variable: ALIYUN_NAMESPACE（阿里云命名空间）"; exit 1; }
+          test -n "${IMAGE_NAME}" || { echo "❌ 缺少 Variable: IMAGE_NAME（镜像仓库名）"; exit 1; }
+          test -n "${ALIYUN_USERNAME}" || { echo "❌ 缺少 Secret: ALIYUN_USERNAME"; exit 1; }
+          test -n "${ALIYUN_PASSWORD}" || { echo "❌ 缺少 Secret: ALIYUN_PASSWORD"; exit 1; }
+          echo "✓ 配置完整，镜像地址：${ALIYUN_REGISTRY}/${ALIYUN_NAMESPACE}/${IMAGE_NAME}"
+
+      # 前端无需在 Runner 上构建：Docker 多阶段构建内完成 npm ci + npm run build
+      # （vue-tsc 类型检查内含，类型错误会阻断镜像构建）
+
+      - name: 计算镜像版本
+        id: version
+        shell: bash
+        run: echo "image_tag=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: 登录阿里云容器镜像仓库
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPOSITORY }}:${{ steps.version.outputs.image_tag }}
+            ${{ env.IMAGE_REPOSITORY }}:latest
+
+  deploy:
+    name: 通过 SSH 部署到云服务器
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 检出本次提交
+        uses: actions/checkout@v4
+
+      # 精确同步：只传部署所需两个文件（deploy.sh + docker-compose.yml）。
+      # 不用 source: "."——那会把 node_modules 数百 MB 传到国内服务器（后端 Java 仓库无此问题）
+      - name: 上传部署文件到云服务器
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "deploy.sh,docker-compose.yml"
+          target: "/tmp/league-akari-web-deploy"
+
+      # 注意：envs 参数声明要传给远程脚本的环境变量；
+      # script 在远程服务器执行，不能引用 GITHUB_WORKSPACE 等 Runner 变量
+      - name: 在云服务器执行部署
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_REPOSITORY: ${{ env.IMAGE_REPOSITORY }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ALIYUN_REGISTRY: ${{ vars.ALIYUN_REGISTRY }}
+          ALIYUN_USERNAME: ${{ secrets.ALIYUN_USERNAME }}
+          ALIYUN_PASSWORD: ${{ secrets.ALIYUN_PASSWORD }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: IMAGE_REPOSITORY,IMAGE_TAG,ALIYUN_REGISTRY,ALIYUN_USERNAME,ALIYUN_PASSWORD
+          script: |
+            set -Eeuo pipefail
+            sudo mkdir -p /opt/league-akari/web/repo /opt/league-akari/web/config
+            # 必须递归 chown，否则 config 子目录属主仍是 root
+            sudo chown -R "$USER":"$USER" /opt/league-akari/web
+            test -f /opt/league-akari/web/config/.env || { echo "❌ 缺少 /opt/league-akari/web/config/.env，请先创建"; exit 1; }
+            rm -rf /opt/league-akari/web/repo
+            mkdir -p /opt/league-akari/web/repo
+            cp -a /tmp/league-akari-web-deploy/. /opt/league-akari/web/repo/
+            rm -rf /tmp/league-akari-web-deploy
+            docker login "${ALIYUN_REGISTRY}" -u "${ALIYUN_USERNAME}" -p "${ALIYUN_PASSWORD}"
+            cd /opt/league-akari/web/repo
+            # scp 不保留可执行权限，必须先 chmod
+            chmod +x deploy.sh
+            ./deploy.sh
