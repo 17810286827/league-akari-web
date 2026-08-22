@@ -45,15 +45,19 @@ export interface MatchAnalysisState {
  * 非正整数对局 ID 不具备业务语义，必须在创建实例时阻断全部缓存与网络副作用。
  */
 function createCacheKey({ gameId, puuid }: UseMatchAnalysisOptions): string | undefined {
+  // 缓存键是页面入口之间共享结果的唯一边界，身份不完整时宁可禁用也不能猜测归属。
+  // gameId 采用正整数约束，避免把占位值、默认值或错误路由参数写入持久化空间。
   if (!Number.isInteger(gameId) || gameId <= 0 || !puuid) {
     return undefined
   }
 
+  // 编码玩家身份，防止 puuid 中的特殊字符改变键的层级或与其他身份发生碰撞。
   return `${CACHE_NAMESPACE}:${encodeURIComponent(String(gameId))}:${encodeURIComponent(puuid)}`
 }
 
 /** 防御性校验 localStorage 中的历史数据，避免坏数据污染页面状态。 */
 function parseSnapshot(raw: string): MatchAnalysisSnapshot | undefined {
+  // JSON.parse 只负责语法解析，字段校验仍必须逐项执行，避免旧版本或手工数据混入状态机。
   const value: unknown = JSON.parse(raw)
   if (
     !value ||
@@ -66,6 +70,7 @@ function parseSnapshot(raw: string): MatchAnalysisSnapshot | undefined {
     return undefined
   }
 
+  // 只有四个成功字段均通过校验，才允许快照进入公开 refs 和失败回退基线。
   return value as MatchAnalysisSnapshot
 }
 
@@ -77,6 +82,7 @@ function readSnapshot(key: string | undefined): MatchAnalysisSnapshot | undefine
 
   try {
     const raw = localStorage.getItem(key)
+    // 空条目代表尚未成功分析，按无缓存处理并保持初始空状态。
     if (!raw) {
       return undefined
     }
@@ -148,6 +154,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
 
   /** 用户主动切换思考过程的可见性，不改变已缓存的业务结果。 */
   function toggleReasoning(): void {
+    // 折叠状态只服务当前组件展示，故意不写入 latestSuccessfulSnapshot 或 localStorage。
     reasoningCollapsed.value = !reasoningCollapsed.value
   }
 
@@ -156,11 +163,13 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
    * HTTP、网络及流内错误全部由此处吸收，调用方始终获得 resolve 的 Promise。
    */
   async function analyze(): Promise<void> {
+    // 没有稳定身份时直接返回，保证初始化阶段不会产生无法恢复的读写或网络副作用。
     if (!cacheKey) {
       logger.warn('Match analysis skipped because identity is incomplete')
       return
     }
 
+    // 每次调用都递增序列；即使旧 SSE 仍在运行，它的回调也会因 id 过期而失去提交资格。
     const requestId = ++latestRequestId
     // 失败回退必须使用最近一次完整成功快照，不能读取可能已被其他请求临时覆盖的公开 refs。
     const previousSnapshot = latestSuccessfulSnapshot
@@ -171,16 +180,19 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     let completed = false
 
     // previousSnapshot 是失败回退基线；临时 refs 可以被覆盖，但它永远不参与缓存写入。
+    // 临时缓冲按请求局部维护，避免并发请求把彼此的 chunk 拼成一份不存在的结果。
     errorMsg.value = ''
     analyzing.value = true
     logger.info('Match analysis request started', { gameId: options.gameId })
 
     /** 仅当前请求可修改状态；失败路径总是恢复本次开始前的成功快照。 */
     const fail = (message: string): void => {
+      // 旧请求的错误也必须丢弃，否则它可能覆盖新请求的成功结果或错误提示。
       if (requestId !== latestRequestId || streamFailed) {
         return
       }
 
+      // 先锁定失败态再恢复快照，防止同一流重复发 error 时反复改写页面并重复记录。
       streamFailed = true
       applySnapshot({ result, reasoning, truncatedTip, fromCache }, previousSnapshot)
       errorMsg.value = message || 'AI 分析失败，请稍后重试'
@@ -190,6 +202,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
     try {
       await analyzeMatch(options.gameId, {
         onStart: (hitCache) => {
+          // onStart 只能标记当前流的临时来源；未完成的缓存命中不能提前成为可恢复快照。
           if (requestId === latestRequestId && !streamFailed) {
             temporaryFromCache = hitCache
             // 后端缓存标记属于本轮临时展示，直到 done 才和正文一起成为成功快照。
@@ -197,6 +210,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           }
         },
         onReasoning: (content) => {
+          // reasoning 与正文共享同一 request id 校验，避免旧流晚到造成思考过程错配。
           if (requestId === latestRequestId && !streamFailed) {
             temporaryReasoning += content
             // 思考过程也实时展示；失败时由 fail() 用 previousSnapshot 一次性恢复。
@@ -204,6 +218,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           }
         },
         onChunk: (content) => {
+          // 每个 chunk 到达时都重新确认请求归属，因为回调可能在新请求启动后才执行。
           if (requestId === latestRequestId && !streamFailed) {
             temporaryResult += content
             // 公开正文跟随每个 chunk 更新，形成打字机效果；这里严禁写 localStorage。
@@ -211,6 +226,7 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           }
         },
         onDone: (truncated) => {
+          // 过期流和已失败流都不能提交，即使它们随后收到了完整 done 事件。
           if (requestId !== latestRequestId || streamFailed) {
             return
           }
@@ -231,14 +247,16 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
         onError: (message) => fail(message)
       })
 
-      // API 在未收到 done 时意外结束，不能提交半截缓冲。
+      // API 正常 resolve 但没有 done，仍视为失败；否则半截缓冲会绕过唯一提交边界。
       if (requestId === latestRequestId && !streamFailed && !completed) {
         fail('AI 分析未正常完成，请稍后重试')
       }
     } catch (error) {
+      // 网络异常与流内 onError 统一进入 fail，保证调用方可重试且不会收到未处理 reject。
       const message = error instanceof Error ? error.message : 'AI 分析失败，请稍后重试'
       fail(message)
     } finally {
+      // 只有最新请求可以结束 loading；旧请求收尾不能让新请求提前恢复可点击状态。
       if (requestId === latestRequestId) {
         analyzing.value = false
       }
