@@ -43,14 +43,7 @@ const {
   puuid,
   details = null,
   hidePrivacy = false,
-  loadingDetails = false,
-  analyzing = false,
-  result = '',
-  reasoning = '',
-  reasoningCollapsed = true,
-  fromCache = false,
-  errorMsg = '',
-  truncatedTip = ''
+  loadingDetails = false
 } = defineProps<{
   /** 对局详情（web 的 summary 即完整 MatchDetail，参与者/队伍快照均在内） */
   summary: MatchDetail
@@ -62,15 +55,6 @@ const {
   hidePrivacy?: boolean
   /** 详情（时间线）加载中标记（任务 11 详情面板消费） */
   loadingDetails?: boolean
-
-  /** 以下为 AI 分析受控状态：由页面层持有，通过 v-model 双向同步 */
-  analyzing?: boolean
-  result?: string
-  reasoning?: string
-  reasoningCollapsed?: boolean
-  fromCache?: boolean
-  errorMsg?: string
-  truncatedTip?: string
 }>()
 
 const emits = defineEmits<{
@@ -84,6 +68,15 @@ const isExpanded = defineModel<boolean>('isExpanded', {
   required: false,
   default: false
 })
+
+// AI 分析状态全部以 model 转发：展示组件通过 v-model 双向同步，页面层持有最终来源
+const analyzing = defineModel<boolean>('analyzing', { default: false })
+const result = defineModel<string>('result', { default: '' })
+const reasoning = defineModel<string>('reasoning', { default: '' })
+const reasoningCollapsed = defineModel<boolean>('reasoningCollapsed', { default: true })
+const fromCache = defineModel<boolean>('fromCache', { default: false })
+const errorMsg = defineModel<string>('errorMsg', { default: '' })
+const truncatedTip = defineModel<string>('truncatedTip', { default: '' })
 
 provideMatchCard({
   isExpanded: () => isExpanded.value,
