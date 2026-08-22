@@ -1,0 +1,13 @@
+services:
+  league-akari-web:
+    # 镜像地址与版本由 deploy.sh 通过 --env-file + 环境变量注入，缺失即报错
+    image: ${IMAGE_REPOSITORY:?IMAGE_REPOSITORY is required}:${IMAGE_TAG:?IMAGE_TAG is required}
+    container_name: league-akari-web
+    restart: unless-stopped
+    ports:
+      - "8082:80" # 8081 已被后端占用，前端用 8082
+    environment:
+      TZ: Asia/Shanghai
+    extra_hosts:
+      # nginx 反代通过宿主机映射端口访问后端容器（与后端访问 lol-mysql 同机制）
+      - "host.docker.internal:host-gateway"
