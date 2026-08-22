@@ -11,9 +11,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { h } from 'vue'
+import { h, reactive } from 'vue'
 
-import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import { analyzeMatch, getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import type { AnalyzeStreamHandlers } from '@/api/matches'
 import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
@@ -21,11 +22,28 @@ import { lcuParticipantFixture } from '@/views/match-detail/adapter/__tests__/fi
 
 import GameStatsView from '../GameStatsView.vue'
 
-// mock 路由：战绩页固定访问 /players/lcu-p1?name=PlayerOne&tag=CN1（puuid 与 fixture 一致）；
+/** 读取指定索引的 analyzeMatch 调用所保存的 SSE 回调，供测试驱动流式行为 */
+function analysisHandlersAt(index: number): AnalyzeStreamHandlers {
+  return vi.mocked(analyzeMatch).mock.calls[index]?.[1] ?? {}
+}
+
+// mock 分析 SSE：GameStatsView 内 useMatchAnalysis 的 analyzeMatch 由各用例手动驱动
+vi.mock('@/api/matches', () => ({
+  listMatches: vi.fn(),
+  getMatchDetail: vi.fn(),
+  searchRiotAccount: vi.fn(),
+  analyzeMatch: vi.fn()
+}))
+
+// mock 路由：使用 reactive 对象模拟真实同一页面实例上的路由参数变化；
 // router.push 使用共享 mock，供"侧栏搜索跳转"用例断言
 const routerPush = vi.fn()
+const route = reactive({
+  params: { puuid: 'lcu-p1' },
+  query: { name: 'PlayerOne', tag: 'CN1' }
+})
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { puuid: 'lcu-p1' }, query: { name: 'PlayerOne', tag: 'CN1' } }),
+  useRoute: () => route,
   useRouter: () => ({ push: routerPush })
 }))
 
@@ -52,13 +70,6 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
     spellDisplay: vi.fn().mockResolvedValue(null)
   }
 })
-
-// mock API 层：接口由各用例经 beforeEach 注入返回值（时间线接口已不再调用）
-vi.mock('@/api/matches', () => ({
-  listMatches: vi.fn(),
-  getMatchDetail: vi.fn(),
-  searchRiotAccount: vi.fn()
-}))
 
 /**
  * 构造一名轻量参与者档案（与 server ParticipantLight 契约字段逐一对应）：
@@ -202,8 +213,12 @@ function mountView() {
 
 describe('GameStatsView', () => {
   beforeEach(() => {
-    // 清空各用例间的 mock 调用历史（实现保留），保证 toHaveBeenCalledTimes 按用例独立计数
+    // 清空各用例间的 mock 调用历史，保持 mock 实现（实现保留）
     vi.clearAllMocks()
+    localStorage.clear()
+    route.params.puuid = 'lcu-p1'
+    route.query.name = 'PlayerOne'
+    route.query.tag = 'CN1'
     // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
       data: [makeSummary()],
@@ -251,6 +266,8 @@ describe('GameStatsView', () => {
     expect(getMatchDetail).not.toHaveBeenCalled()
     // 展开态卡片（MatchCard）与详情面板均未挂载
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    // 详情未成功前不能创建分析实例，也不能读取任何 AI 缓存。
+    expect(vi.spyOn(Storage.prototype, 'getItem')).not.toHaveBeenCalled()
   })
 
   it('顶部搜索框搜索召唤师：搜索成功后跳转到新玩家的战绩页路由', async () => {
@@ -328,6 +345,73 @@ describe('GameStatsView', () => {
     expect(document.body.textContent).toContain('对局 123 详情加载失败')
   })
 
+  it('从真实 reasoning toggle 点击后更新列表页面状态并显示内容', async () => {
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onReasoning?.('列表页真实链路思考内容')
+      handlers?.onChunk?.('列表页分析结果')
+      handlers?.onDone?.(false)
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    const toggle = wrapper.find('.ai-analysis-reasoning-toggle')
+    expect(toggle.exists()).toBe(true)
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
+    expect(wrapper.find('.ai-analysis-reasoning').text()).toContain('列表页真实链路思考内容')
+  })
+
+  it('同一页面实例路由切换后保留 A 分析状态并复用结果', async () => {
+    const summaryA = makeSummary(123)
+    const summaryB = { ...makeSummary(456), selfPuuid: 'lcu-p2' }
+    vi.mocked(listMatches).mockImplementation(async () => ({
+      data: [route.params.puuid === 'lcu-p1' ? summaryA : summaryB],
+      total: 1,
+      page: 1,
+      pageSize: 20
+    }))
+    vi.mocked(getMatchDetail).mockImplementation(async (gameId) => ({
+      ...detailFixture,
+      gameId,
+      selfPuuid: gameId === 123 ? 'lcu-p1' : 'lcu-p2'
+    }))
+    vi.mocked(analyzeMatch).mockImplementation(async (gameId, handlers) => {
+      handlers?.onChunk?.(`分析-${gameId}`)
+      handlers?.onDone?.(false)
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析-123')
+
+    route.params.puuid = 'lcu-p2'
+    await flushPromises()
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').exists()).toBe(false)
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').exists()).toBe(false)
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+
+    route.params.puuid = 'lcu-p1'
+    await flushPromises()
+    await flushPromises()
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析-123')
+    expect(analyzeMatch).toHaveBeenCalledTimes(1)
+  })
+
   it('竞态：点 A 后立即点 B，A 详情失败不收起 B（过期响应不改动展开状态）', async () => {
     // 两张卡：A（gameId=123）与 B（gameId=456）；A 的详情请求挂起，B 的详情立即成功
     vi.mocked(listMatches).mockResolvedValue({
@@ -371,5 +455,82 @@ describe('GameStatsView', () => {
     expect(wrapper.findComponent(MatchCard).props('isExpanded')).toBe(true)
     expect(wrapper.findComponent(MatchCard).props('loadingDetails')).toBe(false)
     expect(document.body.textContent).toBe(bodyTextBeforeReject)
+  })
+
+  it('展开后触发分析，收起再展开后分析结果仍在', async () => {
+    // 模拟分析成功：响应 SSE 流式回调，完成后保留结果
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      handlers?.onStart?.(false)
+      handlers?.onChunk?.('分析结果正文')
+      handlers?.onDone?.(false)
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 展开卡片，触发分析
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    const card = wrapper.findComponent(MatchCard)
+    expect(card.exists()).toBe(true)
+
+    // 点击分析按钮触发 analyzeMock
+    const analysisBtn = wrapper.find('.ai-analysis-button')
+    expect(analysisBtn.exists()).toBe(true)
+    await analysisBtn.trigger('click')
+    await flushPromises()
+
+    // 分析完成：结果应展示在卡片中
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析结果正文')
+
+    // 收起卡片（箭头点击）
+    await wrapper.find('.rotate-90').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+
+    // 再次展开卡片：分析结果应在（因为 composable 状态由页面层持有，不随组件销毁丢失）
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(true)
+    expect(wrapper.find('.ai-analysis-result').text()).toContain('分析结果正文')
+  })
+
+  it('流式期间折叠卡片，chunk 继续到达，再展开后新片段可见', async () => {
+    // 保存 handlers 手动驱动，模拟流式期间折叠
+    let savedHandlers: AnalyzeStreamHandlers | undefined
+    let keepStreamOpen!: () => void
+    const streamPending = new Promise<void>((resolve) => {
+      keepStreamOpen = resolve
+    })
+    vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
+      savedHandlers = handlers
+      handlers?.onStart?.(false)
+      handlers?.onChunk?.('第一段')
+      await streamPending
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 展开并点击分析
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toBe('第一段')
+
+    // 折叠卡片（此时 composable 仍存活，请求继续后台进行）
+    await wrapper.find('.rotate-90').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+
+    // 后台继续推送 chunk（折叠期间请求未中断）
+    savedHandlers?.onChunk?.('第二段')
+    savedHandlers?.onDone?.(false)
+    keepStreamOpen()
+    await flushPromises()
+
+    // 再次展开：能看到拼接后的完整结果
+    await wrapper.find('.collapsed').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.ai-analysis-result').text()).toBe('第一段第二段')
   })
 })

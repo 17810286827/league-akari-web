@@ -6,13 +6,15 @@
  *         侧栏查询框可切换玩家（搜索成功后跳转到新玩家的战绩页）；
  *         点击卡片 → getMatchDetail 懒加载 → 注入展开态（组件内缓存已加载详情）
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, isRef, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
 import type { MatchDetail, MatchSummary, RecentOpponent, RiotAccount } from '@/api/types'
 import { createLogger } from '@/utils/logger'
+import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
+import type { MatchAnalysisState } from '@/composables/useMatchAnalysis'
 
 import { computeOverview, computeRecentTeammates, mapRecentOpponents } from './adapter'
 import GameCardItem from './GameCardItem.vue'
@@ -103,9 +105,71 @@ const detailCache = ref(new Map<number, DetailCacheEntry>())
 const detailLoading = ref(false)
 
 /**
+ * 当前 GameStatsView 实例独有的 AI 分析状态缓存，以 gameId + selfPuuid 为键索引。
+ * <script setup> 中的状态属于组件实例：折叠销毁 MatchCardDetails 后，请求仍在后台，
+ * 同一实例重新展开或经历路由 A→B→A 时继续复用；组件卸载后由 Vue 自然释放，不主动清理。
+ * 成功快照仍由 useMatchAnalysis 写入 localStorage，因此不同页面入口可跨实例共享持久化结果。
+ */
+const analysisByKey = new Map<string, MatchAnalysisState>()
+
+/** 获取/创建对局分析状态：同一对局同一玩家共享同一实例，保证折叠/展开不丢状态 */
+function getAnalysisState(gameId: number, puuid: string): MatchAnalysisState | null {
+  const normalizedPuuid = puuid.trim()
+  if (!Number.isInteger(gameId) || gameId <= 0 || !normalizedPuuid) {
+    return null
+  }
+  let key: string
+  try {
+    key = `${encodeURIComponent(String(gameId))}:${encodeURIComponent(normalizedPuuid)}`
+  } catch {
+    logger.warn('Match analysis state key encoding failed', { gameId })
+    return null
+  }
+  let state = analysisByKey.get(key)
+  if (!state) {
+    state = useMatchAnalysis({
+      gameId,
+      puuid,
+      onNetworkError: (messageText) => message.error(messageText)
+    })
+    analysisByKey.set(key, state)
+    logger.info('Match analysis state created', { gameId, puuid })
+  }
+  return state
+}
+
+function getAnalysisBoolean(
+  game: GameListItem,
+  field: 'analyzing' | 'reasoningCollapsed' | 'fromCache',
+  fallback: boolean
+): boolean {
+  const state = game.analysisState
+  if (!state) return fallback
+  return state[field].value
+}
+
+function getAnalysisText(game: GameListItem, field: 'result' | 'reasoning' | 'errorMsg' | 'truncatedTip'): string {
+  const state = game.analysisState
+  if (!state) return ''
+  return state[field].value
+}
+
+/** 显式同步列表卡片的 reasoning 折叠状态，避开模板 Ref 自动解包。 */
+function updateAnalysisReasoning(game: GameListItem, collapsed: boolean): void {
+  const state = game.analysisState
+  if (!state) return
+  // 模板边界可能自动解包 Ref；统一通过 composable 操作保证两种形态都安全。
+  const current = isRef(state.reasoningCollapsed)
+    ? state.reasoningCollapsed.value
+    : state.reasoningCollapsed
+  if (current !== collapsed) state.toggleReasoning()
+}
+
+/**
  * 卡片列表：摘要直传折叠卡（不重复适配，MatchCardOverview 内部消费轻量 participants）；
  * 后端未升级（participants 缺失）的对局被过滤，避免渲染空卡；
- * 已加载的详情按 gameId 注入列表项，展开态直接展示
+ * 已加载的详情按 gameId 注入列表项，展开态直接展示；
+ * 同时注入 AI 分析状态，保证折叠/展开后分析结果不丢失。
  */
 const games = computed<GameListItem[]>(() =>
   matches.value
@@ -113,7 +177,11 @@ const games = computed<GameListItem[]>(() =>
     .map((summary) => ({
       summary,
       detail: detailCache.value.get(summary.gameId)?.detail ?? null,
-      details: null
+      details: null,
+      // 详情成功后才创建分析实例；摘要列表阶段保持完全无副作用。
+      analysisState: detailCache.value.has(summary.gameId)
+        ? getAnalysisState(summary.gameId, summary.selfPuuid)
+        : null
     }))
 )
 
@@ -131,8 +199,8 @@ const playerProfile = computed(() => {
     .find(Boolean)
   return {
     name: target,
-    profileIconId: me?.profileIcon,
-    summonerLevel: me?.summonerLevel
+    profileIconId: me?.profileIcon ?? undefined,
+    summonerLevel: me?.summonerLevel ?? undefined
   }
 })
 
@@ -290,7 +358,7 @@ watch(
   () => route.params.puuid,
   (puuid, prev) => {
     if (!puuid || puuid === prev) return
-    // 重置分页/展开态/缓存，按新玩家重新加载
+    // 重置分页/展开态/详情缓存引用，保留 AI 实例和 localStorage，按新玩家重新加载
     queryPlayer.value = {
       puuid: puuid as string,
       gameName: (route.query.name as string) ?? '',
@@ -355,7 +423,16 @@ watch(
               :game="game"
               :expanded="expandedGameId === game.summary.gameId"
               :detail-loading="detailLoading && expandedGameId === game.summary.gameId"
+              :analyzing="getAnalysisBoolean(game, 'analyzing', false)"
+              :result="getAnalysisText(game, 'result')"
+              :reasoning="getAnalysisText(game, 'reasoning')"
+              :reasoning-collapsed="getAnalysisBoolean(game, 'reasoningCollapsed', true)"
+              :from-cache="getAnalysisBoolean(game, 'fromCache', false)"
+              :error-msg="getAnalysisText(game, 'errorMsg')"
+              :truncated-tip="getAnalysisText(game, 'truncatedTip')"
               @toggle="toggleGame"
+              @analyze="game.analysisState?.analyze()"
+              @update:reasoning-collapsed="updateAnalysisReasoning(game, $event)"
             />
             <!-- 空态：加载失败显示错误；查询后无数据显示暂无对局 -->
             <p v-if="!loading && games.length === 0" class="empty">

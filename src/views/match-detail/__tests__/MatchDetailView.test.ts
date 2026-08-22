@@ -19,6 +19,12 @@ import MatchCard from '@/components/match-card/MatchCard.vue'
 import { lcuParticipantFixture } from '../adapter/__tests__/fixtures'
 import MatchDetailView from '../MatchDetailView.vue'
 
+// mock 分析 SSE：MatchDetailView 内 useMatchAnalysis 的 analyzeMatch 由各用例手动驱动
+vi.mock('@/api/matches', () => ({
+  getMatchDetail: vi.fn(),
+  analyzeMatch: vi.fn()
+}))
+
 // 局部 mock 数据层：展示函数返回空壳 + 英雄名固定值，避免测试触发 CDragon 网络请求
 vi.mock('@/utils/game-resource', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/game-resource')>()
@@ -43,15 +49,17 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
   }
 })
 
-// mock API 层：getMatchDetail 由各用例经 beforeEach 注入返回值（时间线接口已不再调用）
-vi.mock('@/api/matches', () => ({
-  getMatchDetail: vi.fn()
-}))
-
 // mock 路由：详情页只消费 useRoute().params.gameId，固定返回 '123' 即可
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { gameId: '123' } })
 }))
+
+/** 读取 analyzeMatch 调用保存的 SSE 回调，供测试驱动流式行为 */
+import { analyzeMatch } from '@/api/matches'
+import type { AnalyzeStreamHandlers } from '@/api/matches'
+function analysisHandlers(): AnalyzeStreamHandlers {
+  return vi.mocked(analyzeMatch).mock.calls[0]?.[1] ?? {}
+}
 
 /** 常规 5v5 对局详情：LCU fixture + 红队副本（statsJson 无 teamId，回退顶层 teamId=200）+ 两队 teamsJson */
 const classicSummary: MatchDetail = {
@@ -98,6 +106,9 @@ function mountView() {
 
 describe('MatchDetailView', () => {
   beforeEach(() => {
+    // 清空各用例间的 mock 调用历史，保持 mock 实现（实现保留）
+    vi.clearAllMocks()
+    localStorage.clear()
     // 默认：详情成功返回（失败用例按需覆盖）
     vi.mocked(getMatchDetail).mockResolvedValue(classicSummary)
   })
@@ -133,5 +144,59 @@ describe('MatchDetailView', () => {
     // 错误空态（n-empty）展示，卡片不出现
     expect(wrapper.text()).toContain('对局不存在')
     expect(wrapper.findComponent(MatchCard).exists()).toBe(false)
+    expect(vi.spyOn(Storage.prototype, 'getItem')).not.toHaveBeenCalled()
+    expect(vi.mocked(analyzeMatch)).not.toHaveBeenCalled()
+  })
+
+  it('预置缓存快照后详情页恢复分析结果、reasoning 默认折叠', async () => {
+    // 先预置 localStorage 快照：gameId=123 + selfPuuid=lcu-p1
+    localStorage.setItem(
+      'league-akari:ai-analysis:123:lcu-p1',
+      JSON.stringify({
+        result: '预置分析结果',
+        reasoning: '预置思考过程',
+        truncatedTip: '',
+        fromCache: true
+      })
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    // 详情加载后，AI 分析结果恢复
+    expect(wrapper.text()).toContain('预置分析结果')
+    // reasoning 默认折叠：只显示折叠条，不显示内容区域
+    expect(wrapper.find('.ai-analysis-reasoning-toggle').exists()).toBe(true)
+    expect(wrapper.find('.ai-analysis-reasoning-toggle').text()).toContain('点击展开')
+    expect(wrapper.find('.ai-analysis-reasoning').exists()).toBe(false)
+    expect(wrapper.find('.ai-analysis-cache-tip').text()).toContain('2 分钟内已点名过')
+
+    // 点击展开 reasoning（双向绑定通过页面层 emit 同步 composable 折叠状态）
+    // reasoningCollapsed 由 composable 的 ref 持有，MatchDetailView 单向注入
+    // 因此 toggle 后需要 await flushPromises 等待模板重新渲染
+    await wrapper.find('.ai-analysis-reasoning-toggle').trigger('click')
+    await flushPromises()
+    // MatchDetailView 显式处理 update 事件，父层状态变为展开后内容真实可见。
+    expect(wrapper.find('.ai-analysis-reasoning').isVisible()).toBe(true)
+  })
+
+  it('详情页网络 reject 后保留旧快照且缓存不变', async () => {
+    const cacheKey = 'league-akari:ai-analysis:123:lcu-p1'
+    const snapshot = {
+      result: '网络失败前的旧结果',
+      reasoning: '旧思考',
+      truncatedTip: '',
+      fromCache: false
+    }
+    localStorage.setItem(cacheKey, JSON.stringify(snapshot))
+    vi.mocked(analyzeMatch).mockRejectedValue(new Error('network down'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.ai-analysis-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.ai-analysis-result').text()).toContain(snapshot.result)
+    expect(wrapper.find('.ai-analysis-error').text()).toContain('network down')
+    expect(localStorage.getItem(cacheKey)).toBe(JSON.stringify(snapshot))
   })
 })

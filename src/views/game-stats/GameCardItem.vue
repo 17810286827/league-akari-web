@@ -22,10 +22,25 @@ const props = defineProps<{
   expanded: boolean
   /** 详情是否正在懒加载（首次展开时由父组件发起请求） */
   detailLoading?: boolean
+  /** 以下为 AI 分析受控状态：由页面层持有并透传至展开态 MatchCard */
+  analyzing?: boolean
+  result?: string
+  reasoning?: string
+  reasoningCollapsed?: boolean
+  fromCache?: boolean
+  errorMsg?: string
+  truncatedTip?: string
 }>()
 
+// justify 语义：支持 analyze 事件继续冒泡
 // 点击卡片切换展开状态（gameId 由父组件维护 expandedGameId 与详情缓存）
-const emit = defineEmits<{ toggle: [gameId: number] }>()
+const emit = defineEmits<{
+  toggle: [gameId: number]
+  /** 分析触发通知：继续向上转发到页面层 */
+  analyze: []
+  /** reasoning 折叠状态：继续向上转发到页面层 */
+  'update:reasoningCollapsed': [collapsed: boolean]
+}>()
 
 /** 折叠态 context 数据：轻量摘要 → MatchDetail 形状（participants 已归一 statsJson） */
 const lightDetail = computed(() => summaryToDetail(props.game.summary))
@@ -81,6 +96,15 @@ const expandedModel = computed({
       :puuid="game.summary.selfPuuid"
       v-model:is-expanded="expandedModel"
       :loading-details="detailLoading"
+      :analyzing="analyzing"
+      :result="result"
+      :reasoning="reasoning"
+      :reasoning-collapsed="reasoningCollapsed"
+      :from-cache="fromCache"
+      :error-msg="errorMsg"
+      :truncated-tip="truncatedTip"
+      @analyze="emit('analyze')"
+      @update:reasoning-collapsed="emit('update:reasoningCollapsed', $event)"
     />
   </article>
 </template>
