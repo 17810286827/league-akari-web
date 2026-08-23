@@ -33,6 +33,10 @@ export interface MatchSummary {
   /** 双方 10 人轻量档案（含 self，前端以 puuid 区分），供列表页折叠卡展示；
    *  后端未升级完成期间可能缺失，展示侧需 `?? []` 兜底 */
   participants?: MatchParticipantLight[]
+  /** MVP：胜方最佳选手（后端未升级/未评选时缺失或 null；折叠卡据此给聚焦玩家挂图标） */
+  mvp?: MvpAward | null
+  /** SVP：负方最佳选手（同上） */
+  svp?: MvpAward | null
 }
 
 /** 轻量参与者符文配置：主系+副系共 6 颗符文（LCU 平铺或 SGP 嵌套归一化后的形状） */
@@ -264,6 +268,20 @@ export interface MvpAward {
   score: number
 }
 
+/** 单维度评分明细：raw 原始值 / score 同队归一化分（0-100） */
+export interface PlayerDimensionScore {
+  raw: number
+  score: number
+}
+
+/** 全员实时评分视图（详情接口查询时实时计算，与落库 MVP/SVP 口径一致） */
+export interface PlayerScore {
+  /** 归一化总分（0-100） */
+  score: number
+  /** 各维度明细：damage/kda/gold/tank/vision/support/cc → { raw, score } */
+  dimensions?: Record<string, PlayerDimensionScore>
+}
+
 /** 对局详情：基础信息 + 全部参与者，用于详情页展示 */
 export interface MatchDetail {
   /** 对局唯一标识（Riot 的 gameId） */
@@ -300,6 +318,8 @@ export interface MatchDetail {
   mvp?: MvpAward | null
   /** SVP：负方最佳选手（同上） */
   svp?: MvpAward | null
+  /** 全员实时评分：puuid → 总分与维度明细（查询时实时计算） */
+  playerScores?: Record<string, PlayerScore> | null
 }
 
 /**

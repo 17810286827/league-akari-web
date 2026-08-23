@@ -46,6 +46,22 @@
                 />
               </div>
             </div>
+
+            <!-- MVP/SVP 称号图标：聚焦玩家是本局称号持有者时展示（头像右侧，金色/银色奖杯） -->
+            <NTooltip v-if="focusAward" placement="top">
+              <template #trigger>
+                <NIcon
+                  class="award-icon"
+                  :class="{
+                    'award-icon-mvp text-amber-500 dark:text-amber-400': focusAward === 'MVP',
+                    'award-icon-svp text-slate-400 dark:text-slate-300': focusAward === 'SVP'
+                  }"
+                >
+                  <Trophy />
+                </NIcon>
+              </template>
+              {{ focusAward }}
+            </NTooltip>
           </div>
 
           <!-- stats line -->
@@ -502,7 +518,7 @@ import { useGameResourceProvider } from '@/utils/match-card-resource'
 import { t } from '@/utils/match-card-i18n'
 import { noZero, useNumberFormatter } from '@/utils/numbers'
 import { getCherryWinningTeamCount } from '@/views/match-detail/adapter/match-card-cherry'
-import { Crown, Robot } from '@vicons/fa'
+import { Crown, Robot, Trophy } from '@vicons/fa'
 import { ArrowBackIosFilled } from '@vicons/material'
 import { useIntervalFn } from '@vueuse/core'
 // web 无全局 dayjs 配置，此处自包含注册相对时间插件与中文 locale（对齐原版 bootstrap）
@@ -532,8 +548,18 @@ const {
   participants,
   isExpanded,
   hidePrivacy,
-  navigateToSummonerByPuuid
+  navigateToSummonerByPuuid,
+  summary
 } = useMatchCard()
+
+// 聚焦玩家的称号：是本局 MVP/SVP 持有者时在头像右侧挂图标（数据来自列表接口，未展开即可判定）
+const focusAward = computed<'MVP' | 'SVP' | null>(() => {
+  const p = participants.value.find((s) => s.puuid === puuid.value)
+  if (!p) return null
+  if (summary.value?.mvp?.puuid === p.puuid) return 'MVP'
+  if (summary.value?.svp?.puuid === p.puuid) return 'SVP'
+  return null
+})
 
 const { formatExtremeNumber } = useNumberFormatter()
 

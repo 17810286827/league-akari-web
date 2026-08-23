@@ -245,3 +245,74 @@ describe('TeamTable MVP/SVP 徽章', () => {
     expect(wrapper.find('.svp-badge').exists()).toBe(false)
   })
 })
+
+describe('TeamTable 评分列', () => {
+  /** 构造带全员评分的 summary（playerScores 按 puuid 索引） */
+  const summaryWithScores = (
+    scores: Record<string, { score: number; dimensions?: Record<string, { raw: number; score: number }> }>
+  ): MatchDetail => ({
+    ...summary,
+    mvp: { participantId: 1, puuid: 'lcu-p2', summonerName: 'P2', championId: 22, score: 92.5 },
+    playerScores: scores
+  })
+
+  /** 挂载指定 playerScores 的 TeamTable（TEAM-100） */
+  function mountWithScores(
+    scores: Record<string, { score: number; dimensions?: Record<string, { raw: number; score: number }> }> | undefined
+  ) {
+    const harnessSummary = scores === undefined ? summary : summaryWithScores(scores)
+    const harness = defineComponent({
+      setup() {
+        provideMatchCard({
+          summary: harnessSummary,
+          puuid: 'lcu-p1',
+          hidePrivacy: false,
+          navigateToSummonerByPuuid: vi.fn()
+        })
+        return () => h(TeamTable, { teamIdentifier: 'TEAM-100' })
+      }
+    })
+    return mount(() => h(NConfigProvider, null, { default: () => h(harness) }), {
+      global: { stubs: { RadarChart: true } }
+    })
+  }
+
+  it('全员评分列渲染每人分数', () => {
+    const wrapper = mountWithScores({
+      'lcu-p1': { score: 55.5 },
+      'lcu-p2': { score: 92.5, dimensions: { damage: { raw: 30000, score: 100 }, tank: { raw: 8000, score: 0 } } },
+      'lcu-p3': { score: 71.2 },
+      'lcu-p4': { score: 33.3 },
+      'lcu-p5': { score: 60.0 }
+    })
+
+    // 5 名玩家各一个评分单元格，数值按 puuid 对应
+    const cells = wrapper.findAll('.score-cell')
+    expect(cells).toHaveLength(5)
+    expect(cells.map((c) => c.text())).toEqual(['55.5', '92.5', '71.2', '33.3', '60.0'])
+  })
+
+  it('MVP 持有者的分数金色高亮，其余不高亮', () => {
+    const wrapper = mountWithScores({
+      'lcu-p1': { score: 55.5 },
+      'lcu-p2': { score: 92.5 },
+      'lcu-p3': { score: 71.2 },
+      'lcu-p4': { score: 33.3 },
+      'lcu-p5': { score: 60.0 }
+    })
+
+    // MVP 持有者（lcu-p2）的评分带高亮 class，其余 4 人不带
+    const highlighted = wrapper.findAll('.score-cell.score-highlight-mvp')
+    expect(highlighted).toHaveLength(1)
+    expect(highlighted[0].text()).toBe('92.5')
+  })
+
+  it('playerScores 缺失时评分列显示占位（列结构稳定）', () => {
+    const wrapper = mountWithScores(undefined)
+
+    // 无评分数据：每人显示 '-' 占位，不渲染数值
+    const cells = wrapper.findAll('.score-cell')
+    expect(cells).toHaveLength(5)
+    cells.forEach((c) => expect(c.text()).toBe('-'))
+  })
+})

@@ -238,6 +238,33 @@
       </div>
 
       <template v-for="column in extraColumns" :key="column.name">
+        <!-- score（全员实时评分：查询时计算，与 MVP/SVP 口径一致） -->
+        <div v-if="column.name === 'score'" :class="column.class">
+          <NPopover v-if="scoreOf(participant)" trigger="hover" placement="top">
+            <template #trigger>
+              <span
+                class="score-cell cursor-default text-[13px] tabular-nums"
+                :class="scoreClass(participant)"
+              >
+                {{ scoreOf(participant) }}
+              </span>
+            </template>
+            <!-- 维度明细：该分怎么来的（各维度同队归一化分） -->
+            <div class="min-w-28 text-xs">
+              <div
+                v-for="(ds, dim) in scoreDimensions(participant)"
+                :key="dim"
+                class="flex items-center justify-between gap-4"
+              >
+                <span>{{ dimensionLabel(dim as string) }}</span>
+                <span class="tabular-nums">{{ Math.round(ds.score) }}</span>
+              </div>
+            </div>
+          </NPopover>
+          <!-- 无评分数据（异常兜底）：占位保持列结构稳定 -->
+          <span v-else class="score-cell text-[13px] text-black/30 dark:text-white/30">-</span>
+        </div>
+
         <!-- kda -->
         <div v-if="column.name === 'kda'" :class="column.class">
           <div class="text-[14px] tabular-nums">
@@ -360,9 +387,12 @@ const someoneHas6Augments = computed(() => {
 
 const extraColumns = computed<ColumnConfig[]>(() => {
   // 数字列统一 min-w 与 text-center（等宽数字由元素级 tabular-nums 保证列对齐）
+  // score 列置首：全员实时评分（MVP/SVP 行高亮），窄列纯数字
+  const scoreColumn: ColumnConfig = { name: 'score', class: 'min-w-[3.5rem] text-center' }
   switch (basicInfo.value.gameMode) {
     case 'CHERRY':
       return [
+        scoreColumn,
         { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'augments', class: 'min-w-[7.5rem] flex gap-0.5 justify-center' },
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
@@ -372,6 +402,7 @@ const extraColumns = computed<ColumnConfig[]>(() => {
       ]
     case 'KIWI':
       return [
+        scoreColumn,
         { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'augments', class: 'min-w-[7.25rem] flex gap-0.5 justify-center' },
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
@@ -381,6 +412,7 @@ const extraColumns = computed<ColumnConfig[]>(() => {
       ]
     default:
       return [
+        scoreColumn,
         { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
         { name: 'cs', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
@@ -424,6 +456,49 @@ const { basicInfo, teams, participants, puuid, hidePrivacy, navigateToSummonerBy
 // MVP/SVP 称号持有者（详情接口评选结果；未评选/列表页伪造详情时为 null，不渲染徽章）
 const mvpAward = computed(() => summary.value?.mvp ?? null)
 const svpAward = computed(() => summary.value?.svp ?? null)
+
+// 评分维度名 → 中文名（悬浮明细展示用）
+const DIMENSION_LABELS: Record<string, string> = {
+  damage: '输出',
+  kda: 'KDA',
+  gold: '经济',
+  tank: '承伤',
+  vision: '视野',
+  support: '治疗/护盾',
+  cc: '控制'
+}
+
+/** 玩家的评分视图（playerScores 按 puuid 索引；缺失时 null） */
+function scoreEntry(p: { puuid: string }) {
+  return summary.value?.playerScores?.[p.puuid] ?? null
+}
+
+/** 评分总分文本（保留 1 位小数；无数据返回 null 走占位） */
+function scoreOf(p: { puuid: string }): string | null {
+  const entry = scoreEntry(p)
+  return entry ? entry.score.toFixed(1) : null
+}
+
+/** 评分单元格配色：MVP/SVP 持有者高亮（与徽章色彩呼应），其余常规 */
+function scoreClass(p: { puuid: string }): string {
+  if (mvpAward.value && p.puuid === mvpAward.value.puuid) {
+    return 'score-highlight-mvp font-bold text-amber-600 dark:text-amber-400'
+  }
+  if (svpAward.value && p.puuid === svpAward.value.puuid) {
+    return 'score-highlight-svp font-bold text-slate-500 dark:text-slate-300'
+  }
+  return 'text-black/80 dark:text-white/80'
+}
+
+/** 维度明细（悬浮展示；无数据返回空对象不渲染条目） */
+function scoreDimensions(p: { puuid: string }) {
+  return scoreEntry(p)?.dimensions ?? {}
+}
+
+/** 维度中文名（未知维度回退英文 key） */
+function dimensionLabel(dim: string): string {
+  return DIMENSION_LABELS[dim] ?? dim
+}
 
 const team = computed(() => {
   return teams.value.teamStatMap[teamIdentifier]

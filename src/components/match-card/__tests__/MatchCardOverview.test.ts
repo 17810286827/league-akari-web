@@ -165,3 +165,46 @@ describe('MatchCard 展开按钮', () => {
     expect(expandBtn.find('.rotate-90').exists()).toBe(true)
   })
 })
+
+describe('折叠卡 MVP/SVP 奖杯图标', () => {
+  /** 构造带称号的对局：聚焦玩家（lcu-p1）或他人持有 MVP/SVP */
+  function summaryWithAwards(mvpPuuid: string | null, svpPuuid: string | null): MatchDetail {
+    return {
+      ...classicSummary,
+      mvp: mvpPuuid
+        ? { participantId: 1, puuid: mvpPuuid, summonerName: 'MvpHolder', championId: 22, score: 92.5 }
+        : null,
+      svp: svpPuuid
+        ? { participantId: 2, puuid: svpPuuid, summonerName: 'SvpHolder', championId: 57, score: 85 }
+        : null
+    }
+  }
+
+  it('聚焦玩家是 MVP 持有者：头像右侧渲染金色奖杯', async () => {
+    const wrapper = mountMatchCard(summaryWithAwards('lcu-p1', null))
+
+    const icon = wrapper.find('.award-icon')
+    expect(icon.exists()).toBe(true)
+    expect(icon.classes()).toContain('award-icon-mvp')
+  })
+
+  it('聚焦玩家是 SVP 持有者：渲染银色奖杯', async () => {
+    const wrapper = mountMatchCard(summaryWithAwards(null, 'lcu-p1'))
+
+    const icon = wrapper.find('.award-icon')
+    expect(icon.exists()).toBe(true)
+    expect(icon.classes()).toContain('award-icon-svp')
+  })
+
+  it('称号持有者是别人：聚焦玩家不渲染奖杯', async () => {
+    const wrapper = mountMatchCard(summaryWithAwards('lcu-p2', null))
+
+    expect(wrapper.find('.award-icon').exists()).toBe(false)
+  })
+
+  it('未评选（null）：不渲染奖杯', async () => {
+    const wrapper = mountMatchCard(summaryWithAwards(null, null))
+
+    expect(wrapper.find('.award-icon').exists()).toBe(false)
+  })
+})

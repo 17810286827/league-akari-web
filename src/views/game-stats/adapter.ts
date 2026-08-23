@@ -213,7 +213,10 @@ export function summaryToDetail(summary: MatchSummary): MatchDetail {
     // 队伍快照缺失：队伍统计由 participants 聚合（teamInfo 为 null，卡片仅用胜负/聚合列）
     teamsJson: null,
     // 后端未升级时 participants 可能缺失，兜底空数组（调用方按空卡过滤）
-    participants: (summary.participants ?? []).map(lightToMatchParticipant)
+    participants: (summary.participants ?? []).map(lightToMatchParticipant),
+    // MVP/SVP 称号透传：折叠卡据此给聚焦玩家挂奖杯图标（未评选/未升级时为 null 不展示）
+    mvp: summary.mvp ?? null,
+    svp: summary.svp ?? null
   }
 }
 
