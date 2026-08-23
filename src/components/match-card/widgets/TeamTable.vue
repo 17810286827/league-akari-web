@@ -201,6 +201,21 @@
                     <template v-if="participant.tagLine">#{{ participant.tagLine }}</template>
                   </template>
                 </div>
+
+                <!-- MVP/SVP 称号徽章：按 puuid 匹配称号持有者，纯展示无交互；
+                     MVP 金色 / SVP 银灰白（玩家熟悉的配色约定），未评选（null）不渲染 -->
+                <span
+                  v-if="mvpAward && participant.puuid === mvpAward.puuid"
+                  class="mvp-badge shrink-0 rounded-xs bg-amber-500/20 px-1 py-0.5 text-[10px] font-bold leading-none text-amber-600 dark:text-amber-400"
+                >
+                  {{ t('matchCard.tags.mvp.label') }}
+                </span>
+                <span
+                  v-else-if="svpAward && participant.puuid === svpAward.puuid"
+                  class="svp-badge shrink-0 rounded-xs bg-slate-400/20 px-1 py-0.5 text-[10px] font-bold leading-none text-slate-500 dark:text-slate-300"
+                >
+                  {{ t('matchCard.tags.svp.label') }}
+                </span>
               </div>
             </template>
             <div class="flex items-center gap-1 text-xs" v-if="!hidePrivacy">
@@ -403,8 +418,12 @@ const { teamIdentifier } = defineProps<{
   teamIdentifier: string
 }>()
 
-const { basicInfo, teams, participants, puuid, hidePrivacy, navigateToSummonerByPuuid } =
+const { basicInfo, teams, participants, puuid, hidePrivacy, navigateToSummonerByPuuid, summary } =
   useMatchCard()
+
+// MVP/SVP 称号持有者（详情接口评选结果；未评选/列表页伪造详情时为 null，不渲染徽章）
+const mvpAward = computed(() => summary.value?.mvp ?? null)
+const svpAward = computed(() => summary.value?.svp ?? null)
 
 const team = computed(() => {
   return teams.value.teamStatMap[teamIdentifier]

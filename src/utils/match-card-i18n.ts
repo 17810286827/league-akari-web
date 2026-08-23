@@ -208,6 +208,9 @@ const zh: Record<string, string> = {
   'matchCard.statsLine.stats.spellVamp': '法术吸血 %',
   // 玩家标签（usePlayerTags/tags.tsx 消费，match-card.yaml tags 段）
   'matchCard.tags.times': '{{label}}×{{count}}',
+  // MVP/SVP 称号徽章（TeamTable 玩家行，称号为通用英文缩写不翻译）
+  'matchCard.tags.mvp.label': 'MVP',
+  'matchCard.tags.svp.label': 'SVP',
   'matchCard.tags.multiKill.penta': '五杀',
   'matchCard.tags.multiKill.quadra': '四杀',
   'matchCard.tags.multiKill.triple': '三杀',

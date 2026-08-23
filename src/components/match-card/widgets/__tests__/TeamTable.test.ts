@@ -177,3 +177,71 @@ describe('TeamTable', () => {
     expect(navigateToSummonerByPuuid).toHaveBeenCalledWith('lcu-p1')
   })
 })
+
+describe('TeamTable MVP/SVP 徽章', () => {
+  /** 构造带称号的对局详情：在基础 summary 上叠加 mvp/svp（按 puuid 指定持有者） */
+  const summaryWithAwards = (mvpPuuid: string | null, svpPuuid: string | null): MatchDetail => ({
+    ...summary,
+    mvp: mvpPuuid
+      ? { participantId: 1, puuid: mvpPuuid, summonerName: 'MvpHolder', championId: 22, score: 92.5 }
+      : null,
+    svp: svpPuuid
+      ? { participantId: 2, puuid: svpPuuid, summonerName: 'SvpHolder', championId: 57, score: 85.0 }
+      : null
+  })
+
+  /** 挂载指定称号组合的 TeamTable（TEAM-100 表格） */
+  function mountWithAwards(mvpPuuid: string | null, svpPuuid: string | null) {
+    const harness = defineComponent({
+      setup() {
+        provideMatchCard({
+          summary: summaryWithAwards(mvpPuuid, svpPuuid),
+          puuid: 'lcu-p1',
+          hidePrivacy: false,
+          navigateToSummonerByPuuid: vi.fn()
+        })
+        return () => h(TeamTable, { teamIdentifier: 'TEAM-100' })
+      }
+    })
+    return mount(() => h(NConfigProvider, null, { default: () => h(harness) }), {
+      global: { stubs: { RadarChart: true } }
+    })
+  }
+
+  it('MVP 徽章渲染在称号持有者的玩家行（金色，唯一）', () => {
+    // MVP 挂在第二名玩家（lcu-p2）
+    const wrapper = mountWithAwards('lcu-p2', null)
+
+    // 徽章唯一且文本正确
+    const badge = wrapper.find('.mvp-badge')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('MVP')
+    expect(wrapper.findAll('.mvp-badge')).toHaveLength(1)
+
+    // 徽章在 lcu-p2（PlayerTwo）的名字行内，而非 self（PlayerOne）行
+    const rowOfBadge = badge.element.closest('div.h-12')
+    expect(rowOfBadge?.textContent).toContain('PlayerTwo')
+    expect(rowOfBadge?.textContent).not.toContain('PlayerOne')
+  })
+
+  it('SVP 徽章渲染在称号持有者的玩家行（银色，与 MVP 不冲突）', () => {
+    // SVP 挂在第三名玩家（lcu-p3），MVP 挂在第二名
+    const wrapper = mountWithAwards('lcu-p2', 'lcu-p3')
+
+    const svpBadge = wrapper.find('.svp-badge')
+    expect(svpBadge.exists()).toBe(true)
+    expect(svpBadge.text()).toBe('SVP')
+    // SVP 在 lcu-p3 行内
+    const rowOfSvp = svpBadge.element.closest('div.h-12')
+    expect(rowOfSvp?.textContent).toContain('PlayerThree')
+    // 同一玩家行只挂一个徽章：SVP 行内不应再出现 MVP 徽章
+    expect(rowOfSvp?.querySelector('.mvp-badge')).toBeNull()
+  })
+
+  it('mvp/svp 为 null（未评选老对局）时不渲染任何徽章', () => {
+    const wrapper = mountWithAwards(null, null)
+
+    expect(wrapper.find('.mvp-badge').exists()).toBe(false)
+    expect(wrapper.find('.svp-badge').exists()).toBe(false)
+  })
+})
