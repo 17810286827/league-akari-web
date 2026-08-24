@@ -258,7 +258,7 @@ describe('TeamTable 评分列', () => {
 
   /** 挂载指定 playerScores 的 TeamTable（TEAM-100） */
   function mountWithScores(
-    scores: Record<string, { score: number; dimensions?: Record<string, { raw: number; score: number }> }> | undefined
+    scores: Record<string, { opScore: number; grade: string; dimensions?: Record<string, { raw: number; score: number }> }> | undefined
   ) {
     const harnessSummary = scores === undefined ? summary : summaryWithScores(scores)
     const harness = defineComponent({
