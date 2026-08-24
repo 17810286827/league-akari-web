@@ -216,7 +216,7 @@ export function summaryToDetail(summary: MatchSummary): MatchDetail {
     participants: (summary.participants ?? []).map(lightToMatchParticipant),
     // MVP/SVP 称号透传：折叠卡据此给聚焦玩家挂奖杯图标（未评选/未升级时为 null 不展示）
     mvp: summary.mvp ?? null,
-    svp: summary.svp ?? null
+    ace: summary.ace ?? null
   }
 }
 

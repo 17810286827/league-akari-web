@@ -47,14 +47,14 @@
               </div>
             </div>
 
-            <!-- MVP/SVP 称号图标：聚焦玩家是本局称号持有者时展示（头像右侧，金色/银色奖杯） -->
+            <!-- MVP/ACE 称号图标：聚焦玩家是本局称号持有者时展示（头像右侧，金色/银色奖杯） -->
             <NTooltip v-if="focusAward" placement="top">
               <template #trigger>
                 <NIcon
                   class="award-icon"
                   :class="{
                     'award-icon-mvp text-amber-500 dark:text-amber-400': focusAward === 'MVP',
-                    'award-icon-svp text-slate-400 dark:text-slate-300': focusAward === 'SVP'
+                    'award-icon-ace text-slate-400 dark:text-slate-300': focusAward === 'ACE'
                   }"
                 >
                   <Trophy />
@@ -552,12 +552,12 @@ const {
   summary
 } = useMatchCard()
 
-// 聚焦玩家的称号：是本局 MVP/SVP 持有者时在头像右侧挂图标（数据来自列表接口，未展开即可判定）
-const focusAward = computed<'MVP' | 'SVP' | null>(() => {
+// 聚焦玩家的称号：是本局 MVP/ACE 持有者时在头像右侧挂图标（数据来自列表接口，未展开即可判定）
+const focusAward = computed<'MVP' | 'ACE' | null>(() => {
   const p = participants.value.find((s) => s.puuid === puuid.value)
   if (!p) return null
   if (summary.value?.mvp?.puuid === p.puuid) return 'MVP'
-  if (summary.value?.svp?.puuid === p.puuid) return 'SVP'
+  if (summary.value?.ace?.puuid === p.puuid) return 'ACE'
   return null
 })
 

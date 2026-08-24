@@ -178,24 +178,24 @@ describe('TeamTable', () => {
   })
 })
 
-describe('TeamTable MVP/SVP 徽章', () => {
-  /** 构造带称号的对局详情：在基础 summary 上叠加 mvp/svp（按 puuid 指定持有者） */
-  const summaryWithAwards = (mvpPuuid: string | null, svpPuuid: string | null): MatchDetail => ({
+describe('TeamTable MVP/ACE 徽章', () => {
+  /** 构造带称号的对局详情：在基础 summary 上叠加 mvp/ace（按 puuid 指定持有者） */
+  const summaryWithAwards = (mvpPuuid: string | null, acePuuid: string | null): MatchDetail => ({
     ...summary,
     mvp: mvpPuuid
-      ? { participantId: 1, puuid: mvpPuuid, summonerName: 'MvpHolder', championId: 22, score: 92.5 }
+      ? { participantId: 1, puuid: mvpPuuid, summonerName: 'MvpHolder', championId: 22, score: 92.5, opScore: 9.2, grade: '卓越' }
       : null,
-    svp: svpPuuid
-      ? { participantId: 2, puuid: svpPuuid, summonerName: 'SvpHolder', championId: 57, score: 85.0 }
+    ace: acePuuid
+      ? { participantId: 2, puuid: acePuuid, summonerName: 'AceHolder', championId: 57, score: 85.0, opScore: 8.5, grade: '优秀' }
       : null
   })
 
   /** 挂载指定称号组合的 TeamTable（TEAM-100 表格） */
-  function mountWithAwards(mvpPuuid: string | null, svpPuuid: string | null) {
+  function mountWithAwards(mvpPuuid: string | null, acePuuid: string | null) {
     const harness = defineComponent({
       setup() {
         provideMatchCard({
-          summary: summaryWithAwards(mvpPuuid, svpPuuid),
+          summary: summaryWithAwards(mvpPuuid, acePuuid),
           puuid: 'lcu-p1',
           hidePrivacy: false,
           navigateToSummonerByPuuid: vi.fn()
@@ -224,35 +224,35 @@ describe('TeamTable MVP/SVP 徽章', () => {
     expect(rowOfBadge?.textContent).not.toContain('PlayerOne')
   })
 
-  it('SVP 徽章渲染在称号持有者的玩家行（银色，与 MVP 不冲突）', () => {
-    // SVP 挂在第三名玩家（lcu-p3），MVP 挂在第二名
+  it('ACE 徽章渲染在称号持有者的玩家行（银色，与 MVP 不冲突）', () => {
+    // ACE 挂在第三名玩家（lcu-p3），MVP 挂在第二名
     const wrapper = mountWithAwards('lcu-p2', 'lcu-p3')
 
-    const svpBadge = wrapper.find('.svp-badge')
-    expect(svpBadge.exists()).toBe(true)
-    expect(svpBadge.text()).toBe('SVP')
-    // SVP 在 lcu-p3 行内
-    const rowOfSvp = svpBadge.element.closest('div.h-12')
-    expect(rowOfSvp?.textContent).toContain('PlayerThree')
-    // 同一玩家行只挂一个徽章：SVP 行内不应再出现 MVP 徽章
-    expect(rowOfSvp?.querySelector('.mvp-badge')).toBeNull()
+    const aceBadge = wrapper.find('.ace-badge')
+    expect(aceBadge.exists()).toBe(true)
+    expect(aceBadge.text()).toBe('ACE')
+    // ACE 在 lcu-p3 行内
+    const rowOfAce = aceBadge.element.closest('div.h-12')
+    expect(rowOfAce?.textContent).toContain('PlayerThree')
+    // 同一玩家行只挂一个徽章：ACE 行内不应再出现 MVP 徽章
+    expect(rowOfAce?.querySelector('.mvp-badge')).toBeNull()
   })
 
-  it('mvp/svp 为 null（未评选老对局）时不渲染任何徽章', () => {
+  it('mvp/ace 为 null（未评选老对局）时不渲染任何徽章', () => {
     const wrapper = mountWithAwards(null, null)
 
     expect(wrapper.find('.mvp-badge').exists()).toBe(false)
-    expect(wrapper.find('.svp-badge').exists()).toBe(false)
+    expect(wrapper.find('.ace-badge').exists()).toBe(false)
   })
 })
 
 describe('TeamTable 评分列', () => {
-  /** 构造带全员评分的 summary（playerScores 按 puuid 索引） */
+  /** 构造带全员评分的 summary（playerScores 按 puuid 索引，opScore 版本） */
   const summaryWithScores = (
-    scores: Record<string, { score: number; dimensions?: Record<string, { raw: number; score: number }> }>
+    scores: Record<string, { opScore: number; grade: string; dimensions?: Record<string, { raw: number; score: number }> }>
   ): MatchDetail => ({
     ...summary,
-    mvp: { participantId: 1, puuid: 'lcu-p2', summonerName: 'P2', championId: 22, score: 92.5 },
+    mvp: { participantId: 1, puuid: 'lcu-p2', summonerName: 'P2', championId: 22, score: 92.5, opScore: 9.2, grade: '卓越' },
     playerScores: scores
   })
 
@@ -279,32 +279,32 @@ describe('TeamTable 评分列', () => {
 
   it('全员评分列渲染每人分数', () => {
     const wrapper = mountWithScores({
-      'lcu-p1': { score: 55.5 },
-      'lcu-p2': { score: 92.5, dimensions: { damage: { raw: 30000, score: 100 }, tank: { raw: 8000, score: 0 } } },
-      'lcu-p3': { score: 71.2 },
-      'lcu-p4': { score: 33.3 },
-      'lcu-p5': { score: 60.0 }
+      'lcu-p1': { opScore: 5.5, grade: '一般' },
+      'lcu-p2': { opScore: 9.2, grade: '卓越', dimensions: { damage: { raw: 30000, score: 100 }, tank: { raw: 8000, score: 0 } } },
+      'lcu-p3': { opScore: 7.1, grade: '优秀' },
+      'lcu-p4': { opScore: 3.3, grade: '偏低' },
+      'lcu-p5': { opScore: 6.0, grade: '良好' }
     })
 
-    // 5 名玩家各一个评分单元格，数值按 puuid 对应
+    // 5 名玩家各一个评分单元格，数值按 puuid 对应（opScore 保留一位小数）
     const cells = wrapper.findAll('.score-cell')
     expect(cells).toHaveLength(5)
-    expect(cells.map((c) => c.text())).toEqual(['55.5', '92.5', '71.2', '33.3', '60.0'])
+    expect(cells.map((c) => c.text())).toEqual(['5.5', '9.2', '7.1', '3.3', '6.0'])
   })
 
   it('MVP 持有者的分数金色高亮，其余不高亮', () => {
     const wrapper = mountWithScores({
-      'lcu-p1': { score: 55.5 },
-      'lcu-p2': { score: 92.5 },
-      'lcu-p3': { score: 71.2 },
-      'lcu-p4': { score: 33.3 },
-      'lcu-p5': { score: 60.0 }
+      'lcu-p1': { opScore: 5.5, grade: '一般' },
+      'lcu-p2': { opScore: 9.2, grade: '卓越' },
+      'lcu-p3': { opScore: 7.1, grade: '优秀' },
+      'lcu-p4': { opScore: 3.3, grade: '偏低' },
+      'lcu-p5': { opScore: 6.0, grade: '良好' }
     })
 
     // MVP 持有者（lcu-p2）的评分带高亮 class，其余 4 人不带
     const highlighted = wrapper.findAll('.score-cell.score-highlight-mvp')
     expect(highlighted).toHaveLength(1)
-    expect(highlighted[0].text()).toBe('92.5')
+    expect(highlighted[0].text()).toBe('9.2')
   })
 
   it('playerScores 缺失时评分列显示占位（列结构稳定）', () => {

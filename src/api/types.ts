@@ -35,8 +35,8 @@ export interface MatchSummary {
   participants?: MatchParticipantLight[]
   /** MVP：胜方最佳选手（后端未升级/未评选时缺失或 null；折叠卡据此给聚焦玩家挂图标） */
   mvp?: MvpAward | null
-  /** SVP：负方最佳选手（同上） */
-  svp?: MvpAward | null
+  /** ACE：败方最佳选手（旧称 svp，同上） */
+  ace?: MvpAward | null
 }
 
 /** 轻量参与者符文配置：主系+副系共 6 颗符文（LCU 平铺或 SGP 嵌套归一化后的形状） */
@@ -254,7 +254,7 @@ export interface MatchParticipant {
   statsJson: string | null
 }
 
-/** MVP/SVP 称号持有者档案（后端 match_mvp 评选结果，未评选的老对局为 null） */
+/** MVP/ACE 称号持有者档案（后端 match_mvp 评选结果，未评选的老对局为 null） */
 export interface MvpAward {
   /** 后端 match_participant.id（前端以 puuid 匹配玩家，此字段仅透传） */
   participantId: number
@@ -264,21 +264,27 @@ export interface MvpAward {
   summonerName: string
   /** 英雄 ID */
   championId: number
-  /** 归一化总分（0-100，本期不展示，类型保留） */
+  /** 归一化总分（0-100，旧算法兼容保留） */
   score: number
+  /** OP Score（0-10，一位小数） */
+  opScore?: number | null
+  /** 文字等级（完美/卓越/优秀/良好/一般/偏低/较差/糟糕） */
+  grade?: string | null
 }
 
-/** 单维度评分明细：raw 原始值 / score 同队归一化分（0-100） */
+/** 单维度评分明细：perMinute 每分钟值 / score 最终维度分（0-100） */
 export interface PlayerDimensionScore {
   raw: number
   score: number
 }
 
-/** 全员实时评分视图（详情接口查询时实时计算，与落库 MVP/SVP 口径一致） */
+/** 全员实时评分视图（详情接口查询时实时计算，OpScore 版本） */
 export interface PlayerScore {
-  /** 归一化总分（0-100） */
-  score: number
-  /** 各维度明细：damage/kda/gold/tank/vision/support/cc → { raw, score } */
+  /** OP Score（0-10，一位小数） */
+  opScore: number
+  /** 文字等级（完美/卓越/优秀/良好/一般/偏低/较差/糟糕） */
+  grade: string
+  /** 各维度明细：damage/kda/gold/tank/vision/healShield/cc/turret → { raw, score } */
   dimensions?: Record<string, PlayerDimensionScore>
 }
 
@@ -316,9 +322,9 @@ export interface MatchDetail {
   participants: MatchParticipant[]
   /** MVP：胜方最佳选手（后端未评选/列表页伪造详情时缺失或 null，不渲染徽章） */
   mvp?: MvpAward | null
-  /** SVP：负方最佳选手（同上） */
-  svp?: MvpAward | null
-  /** 全员实时评分：puuid → 总分与维度明细（查询时实时计算） */
+  /** ACE：败方最佳选手（后端未评选/列表页伪造详情时缺失或 null，旧称 svp） */
+  ace?: MvpAward | null
+  /** 全员实时评分：puuid → OP Score + grade + 维度明细（查询时实时计算） */
   playerScores?: Record<string, PlayerScore> | null
 }
 

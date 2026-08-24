@@ -147,20 +147,20 @@ describe('summaryToDetail 字段归一', () => {
     expect(summaryToDetail(classic).mapId).toBe(11)
   })
 
-  it('MVP/SVP 称号透传：折叠卡据此给聚焦玩家挂奖杯图标；未评选时兜底 null', () => {
-    // 后端已升级且已评选：mvp/svp 原样透传（引用不变）
+  it('MVP/ACE 称号透传：折叠卡据此给聚焦玩家挂奖杯图标；未评选时兜底 null', () => {
+    // 后端已升级且已评选：mvp/ace 原样透传（引用不变）
     const withAwards = makeSummary([makeLight({})])
-    const mvp = { participantId: 1, puuid: 'p1', summonerName: 'PlayerOne', championId: 1, score: 92.5 }
-    const svp = { participantId: 2, puuid: 'p2', summonerName: 'PlayerTwo', championId: 2, score: 85 }
+    const mvp = { participantId: 1, puuid: 'p1', summonerName: 'PlayerOne', championId: 1, score: 92.5, opScore: 9.2, grade: '卓越' }
+    const ace = { participantId: 2, puuid: 'p2', summonerName: 'PlayerTwo', championId: 2, score: 85, opScore: 8.5, grade: '优秀' }
     withAwards.mvp = mvp
-    withAwards.svp = svp
+    withAwards.ace = ace
     const detail1 = summaryToDetail(withAwards)
     expect(detail1.mvp).toBe(mvp)
-    expect(detail1.svp).toBe(svp)
+    expect(detail1.ace).toBe(ace)
 
     // 后端未升级/未评选（字段缺失）：兜底 null（组件侧不渲染图标）
     const detail2 = summaryToDetail(makeSummary([makeLight({})]))
     expect(detail2.mvp).toBeNull()
-    expect(detail2.svp).toBeNull()
+    expect(detail2.ace).toBeNull()
   })
 })

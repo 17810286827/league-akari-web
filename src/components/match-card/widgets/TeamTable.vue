@@ -202,8 +202,8 @@
                   </template>
                 </div>
 
-                <!-- MVP/SVP 称号徽章：按 puuid 匹配称号持有者，纯展示无交互；
-                     MVP 金色 / SVP 银灰白（玩家熟悉的配色约定），未评选（null）不渲染 -->
+                <!-- MVP/ACE 称号徽章：按 puuid 匹配称号持有者，纯展示无交互；
+                     MVP 金色 / ACE 银灰白（玩家熟悉的配色约定），未评选（null）不渲染 -->
                 <span
                   v-if="mvpAward && participant.puuid === mvpAward.puuid"
                   class="mvp-badge shrink-0 rounded-xs bg-amber-500/20 px-1 py-0.5 text-[10px] font-bold leading-none text-amber-600 dark:text-amber-400"
@@ -211,10 +211,10 @@
                   {{ t('matchCard.tags.mvp.label') }}
                 </span>
                 <span
-                  v-else-if="svpAward && participant.puuid === svpAward.puuid"
-                  class="svp-badge shrink-0 rounded-xs bg-slate-400/20 px-1 py-0.5 text-[10px] font-bold leading-none text-slate-500 dark:text-slate-300"
+                  v-else-if="aceAward && participant.puuid === aceAward.puuid"
+                  class="ace-badge shrink-0 rounded-xs bg-slate-400/20 px-1 py-0.5 text-[10px] font-bold leading-none text-slate-500 dark:text-slate-300"
                 >
-                  {{ t('matchCard.tags.svp.label') }}
+                  ACE
                 </span>
               </div>
             </template>
@@ -453,19 +453,20 @@ const { teamIdentifier } = defineProps<{
 const { basicInfo, teams, participants, puuid, hidePrivacy, navigateToSummonerByPuuid, summary } =
   useMatchCard()
 
-// MVP/SVP 称号持有者（详情接口评选结果；未评选/列表页伪造详情时为 null，不渲染徽章）
+// MVP/ACE 称号持有者（详情接口评选结果；未评选/列表页伪造详情时为 null，不渲染徽章）
 const mvpAward = computed(() => summary.value?.mvp ?? null)
-const svpAward = computed(() => summary.value?.svp ?? null)
+const aceAward = computed(() => summary.value?.ace ?? null)
 
-// 评分维度名 → 中文名（悬浮明细展示用）
+// 评分维度名 → 中文名（悬浮明细展示用；opScore 版本：support→healShield，新增 turret）
 const DIMENSION_LABELS: Record<string, string> = {
   damage: '输出',
   kda: 'KDA',
   gold: '经济',
   tank: '承伤',
   vision: '视野',
-  support: '治疗/护盾',
-  cc: '控制'
+  healShield: '治疗/护盾',
+  cc: '控制',
+  turret: '拆塔'
 }
 
 /** 玩家的评分视图（playerScores 按 puuid 索引；缺失时 null） */
@@ -476,16 +477,16 @@ function scoreEntry(p: { puuid: string }) {
 /** 评分总分文本（保留 1 位小数；无数据返回 null 走占位） */
 function scoreOf(p: { puuid: string }): string | null {
   const entry = scoreEntry(p)
-  return entry ? entry.score.toFixed(1) : null
+  return entry ? Number(entry.opScore ?? 0).toFixed(1) : null
 }
 
-/** 评分单元格配色：MVP/SVP 持有者高亮（与徽章色彩呼应），其余常规 */
+/** 评分单元格配色：MVP/ACE 持有者高亮（与徽章色彩呼应），其余常规 */
 function scoreClass(p: { puuid: string }): string {
   if (mvpAward.value && p.puuid === mvpAward.value.puuid) {
     return 'score-highlight-mvp font-bold text-amber-600 dark:text-amber-400'
   }
-  if (svpAward.value && p.puuid === svpAward.value.puuid) {
-    return 'score-highlight-svp font-bold text-slate-500 dark:text-slate-300'
+  if (aceAward.value && p.puuid === aceAward.value.puuid) {
+    return 'score-highlight-ace font-bold text-slate-500 dark:text-slate-300'
   }
   return 'text-black/80 dark:text-white/80'
 }
