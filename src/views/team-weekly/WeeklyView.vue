@@ -184,7 +184,11 @@ onMounted(load)
               class="flex items-baseline justify-between border-b border-slate-700/40 py-1.5 last:border-0"
             >
               <span class="text-sm text-slate-200">
-                <span class="mr-2 text-slate-500">{{ index + 1 }}.</span>{{ entry.riotId }}
+                <!-- 前三名奖牌色高亮（杂志卡排版签名元素） -->
+                <span class="mr-2 inline-block w-6 text-center" :class="index < 3 ? '' : 'text-slate-500'">
+                  {{ ['🥇', '🥈', '🥉'][index] ?? `${index + 1}.` }}
+                </span>
+                {{ entry.riotId }}
               </span>
               <span class="text-sm text-emerald-300">
                 {{ format2(entry.value) }}
