@@ -22,6 +22,12 @@ vi.mock('@/api/team', async (importOriginal) => {
   }
 })
 
+// mock 路由：主页按钮跳转断言用
+const routerPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPush })
+}))
+
 /** 最小榜单夹具 */
 function leaderboardFixture(): TeamLeaderboard {
   return {
@@ -69,9 +75,17 @@ async function mountView() {
 beforeEach(() => {
   vi.mocked(getTeamLeaderboard).mockReset().mockResolvedValue(leaderboardFixture())
   vi.mocked(getMemberCard).mockReset().mockResolvedValue(memberCardFixture())
+  routerPush.mockReset()
 })
 
 describe('LeaderboardsView', () => {
+  it('点击"主页"按钮跳转回首页', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="home-button"]').trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith('/')
+  })
+
   it('挂载后加载默认维度（出勤榜）榜单', async () => {
     const wrapper = await mountView()
 
@@ -79,6 +93,43 @@ describe('LeaderboardsView', () => {
     const table = wrapper.find('[data-testid="leaderboard-table"]').text()
     expect(table).toContain('A#tw2')
     expect(table).toContain('3场 胜率67%')
+    // 数值统一保留两位小数
+    expect(table).toContain('3.00')
+  })
+
+  /** 绝活榜夹具：两名成员玩同一英雄 + 一名成员玩另一英雄（value 已是两位小数） */
+  function signatureFixture(): TeamLeaderboard {
+    return {
+      dimension: 'signature',
+      startMs: null,
+      endMs: null,
+      gameMode: null,
+      entries: [
+        { puuid: 'p1', riotId: 'A#tw2', value: 9.2, detail: '卡莎 2场 胜率0%', championId: 1, championName: '卡莎', games: 2, wins: 0 },
+        { puuid: 'p2', riotId: 'B#tw2', value: 7.05, detail: '卡莎 2场 胜率50%', championId: 1, championName: '卡莎', games: 2, wins: 1 },
+        { puuid: 'p3', riotId: 'C#tw2', value: 8.3, detail: '河流之王 2场 胜率50%', championId: 2, championName: '河流之王', games: 2, wins: 1 }
+      ]
+    }
+  }
+
+  it('绝活榜按英雄分组展示各玩家数据（组内保留两位小数）', async () => {
+    vi.mocked(getTeamLeaderboard).mockResolvedValue(signatureFixture())
+
+    const wrapper = await mountView()
+    // 切到绝活榜维度
+    await wrapper.find('[data-testid="dim-signature"]').trigger('click')
+    await flushPromises()
+
+    const table = wrapper.find('[data-testid="leaderboard-table"]').text()
+    // 每个英雄一个分组标题，组内是该英雄的玩家排行
+    expect(wrapper.find('[data-testid="champion-group-卡莎"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="champion-group-河流之王"]').exists()).toBe(true)
+    expect(table).toContain('9.20')
+    expect(table).toContain('7.05')
+    expect(table).toContain('8.30')
+    // 卡莎组内含两名成员
+    expect(wrapper.find('[data-testid="champion-group-卡莎"]').text()).toContain('A#tw2')
+    expect(wrapper.find('[data-testid="champion-group-卡莎"]').text()).toContain('B#tw2')
   })
 
   it('切换维度携带新 dimension 重查', async () => {

@@ -5,11 +5,21 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { getWeeklyReport, apiErrorMessage } from '@/api/team'
 import type { TeamBoardEntry, TeamWeeklyReport } from '@/api/team'
+import { format2 } from '@/utils/format'
 
 import { BOARD_META, downloadShareImage, formatDuration, weekShift } from './adapter'
+
+// 返回主页（所有页面统一提供主页入口）
+const router = useRouter()
+
+/** 跳转回搜索主页 */
+function goHome(): void {
+  router.push('/')
+}
 
 /** 周锚点（该周内任意一天）：默认今天回退 7 天（即"上一周"） */
 const weekDate = ref(defaultWeekDate())
@@ -79,9 +89,18 @@ onMounted(load)
 
 <template>
   <div class="mx-auto max-w-5xl px-4 py-6">
-    <!-- 顶部：标题 + 周切换 + 分享图 -->
+    <!-- 顶部：主页 + 标题 + 周切换 + 分享图 -->
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-bold text-emerald-300">车队周报</h1>
+      <div class="flex items-center gap-3">
+        <button
+          class="rounded border border-slate-600 px-3 py-1 text-sm text-slate-300 hover:border-emerald-400"
+          data-testid="home-button"
+          @click="goHome"
+        >
+          🏠 主页
+        </button>
+        <h1 class="text-2xl font-bold text-emerald-300">车队周报</h1>
+      </div>
       <div class="flex items-center gap-2">
         <button
           class="rounded border border-slate-600 px-3 py-1 text-sm text-slate-300 hover:border-emerald-400"
@@ -168,7 +187,7 @@ onMounted(load)
                 <span class="mr-2 text-slate-500">{{ index + 1 }}.</span>{{ entry.riotId }}
               </span>
               <span class="text-sm text-emerald-300">
-                {{ entry.value }}
+                {{ format2(entry.value) }}
                 <span class="ml-1 text-xs text-slate-500">{{ entry.detail }}</span>
               </span>
             </li>

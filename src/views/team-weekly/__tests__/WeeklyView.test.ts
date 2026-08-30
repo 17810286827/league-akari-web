@@ -21,6 +21,12 @@ vi.mock('@/api/team', async (importOriginal) => {
   }
 })
 
+// mock 路由：主页按钮跳转断言用
+const routerPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPush })
+}))
+
 // mock 分享图下载（jsdom 无 canvas 2d 上下文），其余 adapter 函数保持真实实现
 vi.mock('../adapter', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../adapter')>()
@@ -74,9 +80,19 @@ async function mountView() {
 beforeEach(() => {
   vi.mocked(getWeeklyReport).mockReset()
   vi.mocked(downloadShareImage).mockReset()
+  routerPush.mockReset()
 })
 
 describe('WeeklyView', () => {
+  it('点击"主页"按钮跳转回首页', async () => {
+    vi.mocked(getWeeklyReport).mockResolvedValue(reportFixture())
+
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="home-button"]').trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith('/')
+  })
+
   it('挂载后加载周报并渲染总览/榜单/名场面/锐评', async () => {
     vi.mocked(getWeeklyReport).mockResolvedValue(reportFixture())
 

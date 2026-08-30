@@ -17,7 +17,7 @@ import http from './http'
 const WEEKLY_TIMEOUT_MS = 180_000
 const STATS_TIMEOUT_MS = 90_000
 
-/** 榜单条目：value 为主排序值，detail 为口径说明（与后端 BoardEntry 对齐） */
+/** 榜单条目：value 为主排序值（后端已保留两位小数），detail 为口径说明（与后端 BoardEntry 对齐） */
 export interface TeamBoardEntry {
   /** 成员 puuid */
   puuid: string
@@ -27,6 +27,14 @@ export interface TeamBoardEntry {
   value: number
   /** 补充说明，如 "MVP×1 SVP×1"、"2场" */
   detail: string
+  /** 英雄 ID（仅绝活榜填充，供按英雄分组） */
+  championId?: number
+  /** 英雄中文名（仅绝活榜填充） */
+  championName?: string
+  /** 该英雄场次数（仅绝活榜填充） */
+  games?: number
+  /** 该英雄胜场数（仅绝活榜填充） */
+  wins?: number
 }
 
 /** 周报总览（场次按车队对局计，胜负按成员人次计） */
