@@ -70,6 +70,12 @@ async function submitSearch(): Promise<void> {
         {{ searching ? '查询中...' : '查询战绩' }}
       </button>
     </div>
+
+    <!-- 车队功能区入口：周报与榜单中心 -->
+    <nav class="home-team-nav">
+      <RouterLink class="home-team-link" to="/weekly">车队周报</RouterLink>
+      <RouterLink class="home-team-link" to="/leaderboards">榜单中心</RouterLink>
+    </nav>
   </div>
 </template>
 
@@ -115,6 +121,28 @@ async function submitSearch(): Promise<void> {
   gap: 10px;
   margin-top: 18px;
   width: min(560px, 90vw);
+}
+
+/* 车队功能区入口：两个玻璃质感链接 */
+.home-team-nav {
+  display: flex;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.home-team-link {
+  padding: 8px 20px;
+  font-size: 14px;
+  color: #9ca3af;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.home-team-link:hover {
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.6);
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
 }
 
 /* 大输入框：玻璃质感 + 绿调描边 */
