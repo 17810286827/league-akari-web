@@ -4,8 +4,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MatchDetailView from '@/views/match-detail/MatchDetailView.vue'
 import HomeView from '@/views/home/HomeView.vue'
 import GameStatsView from '@/views/game-stats/GameStatsView.vue'
-import WeeklyView from '@/views/team-weekly/WeeklyView.vue'
-import LeaderboardsView from '@/views/team-leaderboards/LeaderboardsView.vue'
+// 周报/榜单走原型闸门：dev 构建 + ?variant=A~E 渲染五方案评审宿主，否则渲染原页面
+// （评审完成后回填胜出方案，恢复直接指向 WeeklyView/LeaderboardsView 并删除 prototype 目录）
+import WeeklyRouteGate from '@/views/team-weekly/prototype/RouteGate.vue'
+import LeaderboardsRouteGate from '@/views/team-leaderboards/prototype/RouteGate.vue'
 
 // 创建路由实例：使用 HTML5 History 模式
 const router = createRouter({
@@ -18,10 +20,10 @@ const router = createRouter({
     { path: '/players/:puuid', name: 'player-matches', component: GameStatsView },
     // 详情页：按对局 ID 展示单局详情（MatchCard 展开态）
     { path: '/matches/:gameId', name: 'match-detail', component: MatchDetailView },
-    // 车队周报：默认上一周，可切任意周（?date=yyyy-MM-dd 语义同后端）
-    { path: '/weekly', name: 'team-weekly', component: WeeklyView },
-    // 榜单中心：维度/模式/时间筛选 + 成员卡
-    { path: '/leaderboards', name: 'team-leaderboards', component: LeaderboardsView }
+    // 车队周报：默认上一周，可切任意周（?date=yyyy-MM-dd 语义同后端；?variant=A~E 原型评审）
+    { path: '/weekly', name: 'team-weekly', component: WeeklyRouteGate },
+    // 榜单中心：维度/模式/时间筛选 + 成员卡（?variant=A~E 原型评审）
+    { path: '/leaderboards', name: 'team-leaderboards', component: LeaderboardsRouteGate }
   ]
 })
 
