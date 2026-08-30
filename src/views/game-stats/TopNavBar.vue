@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * 顶部导航栏：左侧查询玩家信息（头像/昵称/等级），中间段位板块，右侧刷新图标
+ * 顶部导航栏：左侧查询玩家信息（头像/昵称/等级），中间段位板块，右侧返回主页 + 刷新
  * 段位图标未定级时使用灰色问号占位；玩家信息缺失时左侧留空
  */
+import { useRouter } from 'vue-router'
+
 import { profileIconUrl } from '@/utils/icon-url'
 
 import type { RankSection } from './types'
@@ -15,6 +17,14 @@ defineProps<{
 
 // 刷新按钮事件（由父组件处理，当前仅占位）
 const emit = defineEmits<{ refresh: [] }>()
+
+// 返回主页：SPA 路由跳转（保持前端状态，不整页刷新）
+const router = useRouter()
+
+/** 跳转回搜索主页 */
+function goHome(): void {
+  router.push('/')
+}
 </script>
 
 <template>
@@ -54,14 +64,22 @@ const emit = defineEmits<{ refresh: [] }>()
       </div>
     </div>
 
-    <!-- 右侧：刷新按钮 -->
-    <button type="button" class="refresh-btn" title="刷新" @click="emit('refresh')">
-      <svg viewBox="0 0 24 24" class="refresh-icon" aria-hidden="true">
-        <path
-          d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"
-        />
-      </svg>
-    </button>
+    <!-- 右侧：返回主页 + 刷新 -->
+    <div class="nav-actions">
+      <button type="button" class="home-btn" title="返回主页" data-testid="home-button" @click="goHome">
+        <svg viewBox="0 0 24 24" class="home-icon" aria-hidden="true">
+          <path d="M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3z" />
+        </svg>
+        <span>主页</span>
+      </button>
+      <button type="button" class="refresh-btn" title="刷新" @click="emit('refresh')">
+        <svg viewBox="0 0 24 24" class="refresh-icon" aria-hidden="true">
+          <path
+            d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"
+          />
+        </svg>
+      </button>
+    </div>
   </nav>
 </template>
 
@@ -183,7 +201,43 @@ const emit = defineEmits<{ refresh: [] }>()
   opacity: 0.85;
 }
 
-/* 刷新按钮：第三轨道（1fr）右对齐 + hover 绿调提亮 */
+/* 右侧动作区：主页按钮 + 刷新按钮并排，第三轨道（1fr）右对齐 */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* 主页按钮：与刷新按钮同风格，带图标 + 文案 */
+.home-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+  }
+}
+
+.home-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--primary-2);
+}
+
+/* 刷新按钮：hover 绿调提亮 */
 .refresh-btn {
   display: flex;
   align-items: center;
