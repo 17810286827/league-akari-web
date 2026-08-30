@@ -47,18 +47,19 @@
               </div>
             </div>
 
-            <!-- MVP/ACE 称号图标：聚焦玩家是本局称号持有者时展示（头像右侧，金色/银色奖杯） -->
+            <!-- MVP/ACE 称号角标（王冠流光）：聚焦玩家是本局称号持有者时展示
+                 （头像右上角，MVP 金冠 / ACE 银冠，发光 + 弹出动画）；tooltip 保留称号名 -->
             <NTooltip v-if="focusAward" placement="top">
               <template #trigger>
-                <NIcon
-                  class="award-icon"
-                  :class="{
-                    'award-icon-mvp text-amber-500 dark:text-amber-400': focusAward === 'MVP',
-                    'award-icon-ace text-slate-400 dark:text-slate-300': focusAward === 'ACE'
-                  }"
+                <svg
+                  class="award-crown"
+                  :class="focusAward === 'MVP' ? 'award-crown--mvp' : 'award-crown--ace'"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
-                  <Trophy />
-                </NIcon>
+                  <path d="M3 17 L4.6 8.2 L9.2 12.4 L12 5.4 L14.8 12.4 L19.4 8.2 L21 17 Z" />
+                  <rect x="4.4" y="18.2" width="15.2" height="2.2" rx="1" />
+                </svg>
               </template>
               {{ focusAward }}
             </NTooltip>
@@ -518,7 +519,7 @@ import { useGameResourceProvider } from '@/utils/match-card-resource'
 import { t } from '@/utils/match-card-i18n'
 import { noZero, useNumberFormatter } from '@/utils/numbers'
 import { getCherryWinningTeamCount } from '@/views/match-detail/adapter/match-card-cherry'
-import { Crown, Robot, Trophy } from '@vicons/fa'
+import { Crown, Robot } from '@vicons/fa'
 import { ArrowBackIosFilled } from '@vicons/material'
 import { useIntervalFn } from '@vueuse/core'
 // web 无全局 dayjs 配置，此处自包含注册相对时间插件与中文 locale（对齐原版 bootstrap）
@@ -746,4 +747,30 @@ const handleMouseUp = (event: MouseEvent, puuid: string) => {
 
 <style scoped>
 @import './match-card.css';
+
+/* MVP/ACE 称号角标（王冠流光）：MVP 金冠发光 / ACE 银冠，入场弹出宣告 */
+.award-crown {
+  width: 26px;
+  height: 26px;
+  fill: #fbbf24;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.95)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  animation: award-crown-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ACE 银冠：银白高光 + 冷灰发光 */
+.award-crown--ace {
+  fill: #e2e8f0;
+  filter: drop-shadow(0 0 6px rgba(203, 213, 225, 0.7)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+
+@keyframes award-crown-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 </style>

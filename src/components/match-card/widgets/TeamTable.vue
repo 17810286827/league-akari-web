@@ -202,19 +202,19 @@
                   </template>
                 </div>
 
-                <!-- MVP/ACE 称号徽章：按 puuid 匹配称号持有者，纯展示无交互；
-                     MVP 金色 / ACE 银灰白（玩家熟悉的配色约定），未评选（null）不渲染 -->
+                <!-- MVP/ACE 称号徽章（海克斯菱徽）：按 puuid 匹配称号持有者，纯展示无交互；
+                     六边形双线金/银边 + 周期扫光 + 入场弹出，未评选（null）不渲染 -->
                 <span
                   v-if="mvpAward && participant.puuid === mvpAward.puuid"
-                  class="mvp-badge shrink-0 rounded-xs bg-amber-500/20 px-1 py-0.5 text-[10px] font-bold leading-none text-amber-600 dark:text-amber-400"
+                  class="award-hex award-hex--mvp mvp-badge shrink-0"
                 >
-                  {{ t('matchCard.tags.mvp.label') }}
+                  <span class="award-hex-face">{{ t('matchCard.tags.mvp.label') }}<i class="award-hex-shine" /></span>
                 </span>
                 <span
                   v-else-if="aceAward && participant.puuid === aceAward.puuid"
-                  class="ace-badge shrink-0 rounded-xs bg-slate-400/20 px-1 py-0.5 text-[10px] font-bold leading-none text-slate-500 dark:text-slate-300"
+                  class="award-hex award-hex--ace ace-badge shrink-0"
                 >
-                  ACE
+                  <span class="award-hex-face">ACE<i class="award-hex-shine" /></span>
                 </span>
               </div>
             </template>
@@ -532,4 +532,82 @@ const teamName = useTeamName()
 const gameResultName = useGameResultName()
 const position = usePosition()
 </script>
+
+<style scoped>
+/* MVP/ACE 六角徽章（海克斯菱徽）：双线六边形金/银边 + 周期扫光 + 入场弹出 */
+.award-hex {
+  width: 30px;
+  height: 34px;
+  padding: 2px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, #fde68a, #92400e);
+  display: inline-flex;
+  animation: award-hex-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ACE 银徽：银白渐变边 */
+.award-hex--ace {
+  background: linear-gradient(160deg, #e2e8f0, #475569);
+}
+
+/* 内层同形六边：深底承载文字；overflow hidden 配合扫光裁剪 */
+.award-hex-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: #101613;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 900;
+  font-style: normal;
+  letter-spacing: 0.05em;
+}
+
+.award-hex--mvp .award-hex-face {
+  color: #fbbf24;
+}
+
+.award-hex--ace .award-hex-face {
+  color: #e2e8f0;
+}
+
+/* 扫光：高光斜带周期掠过（clip-path 已裁出六边形状） */
+.award-hex-shine {
+  position: absolute;
+  top: -20%;
+  left: -70%;
+  width: 45%;
+  height: 140%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-18deg);
+  animation: award-hex-shine 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes award-hex-shine {
+  0%,
+  55% {
+    left: -70%;
+  }
+  85%,
+  100% {
+    left: 130%;
+  }
+}
+
+@keyframes award-hex-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+</style>
 

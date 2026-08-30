@@ -180,31 +180,31 @@ describe('折叠卡 MVP/ACE 奖杯图标', () => {
     }
   }
 
-  it('聚焦玩家是 MVP 持有者：头像右侧渲染金色奖杯', async () => {
+  it('聚焦玩家是 MVP 持有者：头像右上角渲染金色王冠角标', async () => {
     const wrapper = mountMatchCard(summaryWithAwards('lcu-p1', null))
 
-    const icon = wrapper.find('.award-icon')
-    expect(icon.exists()).toBe(true)
-    expect(icon.classes()).toContain('award-icon-mvp')
+    const crown = wrapper.find('.award-crown')
+    expect(crown.exists()).toBe(true)
+    expect(crown.classes()).toContain('award-crown--mvp')
   })
 
-  it('聚焦玩家是 ACE 持有者：渲染银色奖杯', async () => {
+  it('聚焦玩家是 ACE 持有者：渲染银色王冠角标', async () => {
     const wrapper = mountMatchCard(summaryWithAwards(null, 'lcu-p1'))
 
-    const icon = wrapper.find('.award-icon')
-    expect(icon.exists()).toBe(true)
-    expect(icon.classes()).toContain('award-icon-ace')
+    const crown = wrapper.find('.award-crown')
+    expect(crown.exists()).toBe(true)
+    expect(crown.classes()).toContain('award-crown--ace')
   })
 
-  it('称号持有者是别人：聚焦玩家不渲染奖杯', async () => {
+  it('称号持有者是别人：聚焦玩家不渲染王冠角标', async () => {
     const wrapper = mountMatchCard(summaryWithAwards('lcu-p2', null))
 
-    expect(wrapper.find('.award-icon').exists()).toBe(false)
+    expect(wrapper.find('.award-crown').exists()).toBe(false)
   })
 
-  it('未评选（null）：不渲染奖杯', async () => {
+  it('未评选（null）：不渲染王冠角标', async () => {
     const wrapper = mountMatchCard(summaryWithAwards(null, null))
 
-    expect(wrapper.find('.award-icon').exists()).toBe(false)
+    expect(wrapper.find('.award-crown').exists()).toBe(false)
   })
 })
