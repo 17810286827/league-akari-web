@@ -2,13 +2,17 @@
 /**
  * 首页：居中召唤师搜索框（淡绿终端风格）
  * 输入"昵称#tag" → Riot Account 搜索（后端 JVM 缓存）→ 成功跳转到该玩家的战绩页；
- * 默认不展示任何战绩，必须先搜索指定玩家
+ * 默认不展示任何战绩，必须先搜索指定玩家。
+ * 车队名单预置：挂载时拉取开黑小队成员昵称，聚焦输入框时下拉展示（可输入过滤），
+ * 点击成员直接发起搜索；名单拉取失败静默降级，不影响手动输入搜索。
  */
 import { useMessage } from 'naive-ui'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { searchRiotAccount } from '@/api/matches'
+import { getTeamMembers } from '@/api/team'
+import type { TeamMember } from '@/api/team'
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('Home')
@@ -19,6 +23,36 @@ const router = useRouter()
 const summonerInput = ref('')
 /** 搜索请求中标记（防止重复提交） */
 const searching = ref(false)
+/** 车队名单（开黑小队成员，下拉预置用；拉取失败为空数组） */
+const roster = ref<TeamMember[]>([])
+/** 下拉框显隐（聚焦输入框时展示） */
+const showSuggestions = ref(false)
+
+/** 下拉候选项：按输入子串过滤车队昵称（不区分大小写），最多展示 8 条 */
+const suggestions = computed(() => {
+  const keyword = summonerInput.value.trim().toLowerCase()
+  const matched = keyword
+    ? roster.value.filter((m) => m.riotId.toLowerCase().includes(keyword))
+    : roster.value
+  return matched.slice(0, 8)
+})
+
+/** 挂载时拉取车队名单；失败静默降级（下拉不展示，手动搜索不受影响） */
+async function loadRoster(): Promise<void> {
+  try {
+    roster.value = await getTeamMembers()
+  } catch (error) {
+    logger.info('车队名单拉取失败，下拉预置降级', error)
+    roster.value = []
+  }
+}
+
+/** 点击下拉成员：填充输入框并直接发起搜索 */
+function selectMember(riotId: string): void {
+  summonerInput.value = riotId
+  showSuggestions.value = false
+  void submitSearch()
+}
 
 /**
  * 提交搜索：校验非空 → 调用 Riot 搜索 → 成功后跳转到战绩页（/players/:puuid）
@@ -48,6 +82,8 @@ async function submitSearch(): Promise<void> {
     searching.value = false
   }
 }
+
+onMounted(loadRoster)
 </script>
 
 <template>
@@ -58,14 +94,38 @@ async function submitSearch(): Promise<void> {
     </h1>
     <p class="home-subtitle">输入召唤师名，查询对局记录</p>
 
-    <!-- 居中搜索框：大输入框 + 绿调渐变按钮 -->
+    <!-- 居中搜索框：大输入框（含车队昵称预置下拉）+ 绿调渐变按钮 -->
     <div class="search-box">
-      <input
-        v-model="summonerInput"
-        class="search-input"
-        placeholder="昵称#tag，如 赌书消得泼茶香#iKun"
-        @keyup.enter="submitSearch"
-      />
+      <div class="search-input-wrap">
+        <input
+          v-model="summonerInput"
+          class="search-input"
+          placeholder="昵称#tag，如 赌书消得泼茶香#iKun"
+          data-testid="search-input"
+          @focus="showSuggestions = true"
+          @blur="showSuggestions = false"
+          @keyup.enter="submitSearch"
+        />
+        <!-- 车队名单预置下拉：聚焦/输入时展示，点击成员直接搜索 -->
+        <ul
+          v-if="showSuggestions && suggestions.length"
+          class="roster-suggestions"
+          data-testid="roster-suggestions"
+        >
+          <li v-for="member in suggestions" :key="member.riotId">
+            <button
+              type="button"
+              class="roster-item"
+              data-testid="roster-item"
+              @mousedown.prevent
+              @click="selectMember(member.riotId)"
+            >
+              <span class="roster-item-name">{{ member.riotId }}</span>
+              <span class="roster-item-meta">{{ member.games }}场</span>
+            </button>
+          </li>
+        </ul>
+      </div>
       <button type="button" class="search-button" :disabled="searching" @click="submitSearch">
         {{ searching ? '查询中...' : '查询战绩' }}
       </button>
@@ -115,12 +175,58 @@ async function submitSearch(): Promise<void> {
   color: #9ca3af;
 }
 
-/* 搜索区：输入框 + 按钮一行 */
+/* 搜索区：输入框（含预置下拉）+ 按钮一行 */
 .search-box {
   display: flex;
   gap: 10px;
   margin-top: 18px;
   width: min(560px, 90vw);
+}
+
+/* 输入框容器：下拉面板的定位锚点 */
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+
+/* 车队名单预置下拉：深底玻璃面板 + 绿调描边，覆盖在页面内容之上 */
+.roster-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(17, 22, 17, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+.roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: #ecfdf5;
+  border-radius: 8px;
+  text-align: left;
+  transition: background 0.12s;
+
+  &:hover {
+    background: rgba(74, 222, 128, 0.14);
+  }
+}
+
+.roster-item-meta {
+  font-size: 12px;
+  color: #8b93a7;
 }
 
 /* 车队功能区入口：两个玻璃质感链接 */
