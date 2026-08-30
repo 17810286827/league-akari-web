@@ -105,10 +105,10 @@ describe('LeaderboardsView', () => {
     const wrapper = await mountView()
 
     expect(getTeamLeaderboard).toHaveBeenCalledWith({ dimension: 'attendance' })
-    // 榜单渲染（数值两位小数）
+    // 榜单渲染：整数口径（场数）不带小数位，小数口径（场均值）保留两位
     const table = wrapper.find('[data-testid="leaderboard-table"]').text()
     expect(table).toContain('A#tw2')
-    expect(table).toContain('3.00')
+    expect(table).not.toContain('3.00')
     // 自动选中榜首：成员卡请求 + 右栏面板渲染
     expect(getMemberCard).toHaveBeenCalledWith('p1')
     expect(wrapper.find('[data-testid="member-panel"]').text()).toContain('A#tw2')

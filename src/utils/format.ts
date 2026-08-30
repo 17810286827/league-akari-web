@@ -10,3 +10,14 @@ export function format2(value: number | null | undefined, placeholder = '—'): 
   }
   return value.toFixed(2)
 }
+
+/**
+ * 统计值展示：整数口径（场数/次数等，不可能出现小数）直接展示整数，
+ * 小数口径（场均值/比率）保留两位小数；null/undefined/NaN 返回占位符
+ */
+export function formatStat(value: number | null | undefined, placeholder = '—'): string {
+  if (value == null || Number.isNaN(value)) {
+    return placeholder
+  }
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}

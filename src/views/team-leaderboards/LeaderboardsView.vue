@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router'
 
 import { getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
 import type { TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
-import { format2 } from '@/utils/format'
+import { format2, formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
@@ -235,7 +235,7 @@ onMounted(load)
                   {{ entry.games }}场 胜率{{ Math.round(((entry.wins ?? 0) / (entry.games || 1)) * 100) }}%
                 </span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
-                  <GoldText>{{ format2(entry.value) }}</GoldText>
+                  <GoldText>{{ formatStat(entry.value) }}</GoldText>
                 </span>
               </button>
             </div>
@@ -258,7 +258,7 @@ onMounted(load)
                 <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
                 <span class="text-sm text-slate-400">{{ entry.detail }}</span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
-                  <GoldText>{{ format2(entry.value) }}</GoldText>
+                  <GoldText>{{ formatStat(entry.value) }}</GoldText>
                 </span>
               </button>
               <p class="mt-3 text-sm tracking-widest text-slate-400">点击条目翻开符文页 / Inspect</p>

@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router'
 
 import { getWeeklyReport, apiErrorMessage } from '@/api/team'
 import type { TeamBoardEntry, TeamWeeklyReport } from '@/api/team'
-import { format2 } from '@/utils/format'
+import { formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
@@ -201,7 +201,7 @@ onMounted(load)
               <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
               <span class="text-sm text-slate-400">{{ entry.detail }}</span>
               <span class="w-24 text-right text-2xl font-bold tabular-nums">
-                <GoldText>{{ format2(entry.value) }}</GoldText>
+                <GoldText>{{ formatStat(entry.value) }}</GoldText>
               </span>
             </li>
           </ol>
