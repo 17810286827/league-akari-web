@@ -8,6 +8,15 @@
  */
 import http from './http'
 
+/**
+ * 车队接口的超时时间（毫秒）——按请求覆盖全局的 10s：
+ * - 周报聚合里同步生成 AI 锐评（模型 25~90s，空正文还会重试一次），
+ *   10s 会被前端掐断，表现为"周报加载失败/切换周无效"；
+ * - 榜单/成员卡要实时重算对局评分（历史回填后数据量大时更慢），也需放宽
+ */
+const WEEKLY_TIMEOUT_MS = 180_000
+const STATS_TIMEOUT_MS = 90_000
+
 /** 榜单条目：value 为主排序值，detail 为口径说明（与后端 BoardEntry 对齐） */
 export interface TeamBoardEntry {
   /** 成员 puuid */
@@ -156,9 +165,10 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
 
 /** 查询车队周报（date 为该周内任意一天 ISO 字符串，缺省=上一周） */
 export async function getWeeklyReport(date?: string): Promise<TeamWeeklyReport> {
-  // GET /api/team/weekly：后端包 { data }，这里解包
+  // GET /api/team/weekly：后端包 { data }，这里解包；AI 锐评同步生成，须放宽超时
   const { data } = await http.get<{ data: TeamWeeklyReport }>('/api/team/weekly', {
-    params: date ? { date } : {}
+    params: date ? { date } : {},
+    timeout: WEEKLY_TIMEOUT_MS
   })
   return data.data
 }
@@ -170,19 +180,26 @@ export async function getTeamLeaderboard(params: {
   start?: number
   end?: number
 }): Promise<TeamLeaderboard> {
-  const { data } = await http.get<{ data: TeamLeaderboard }>('/api/team/leaderboards', { params })
+  const { data } = await http.get<{ data: TeamLeaderboard }>('/api/team/leaderboards', {
+    params,
+    timeout: STATS_TIMEOUT_MS
+  })
   return data.data
 }
 
 /** 查询车队成员列表与出勤 */
 export async function getTeamMembers(): Promise<TeamMember[]> {
-  const { data } = await http.get<{ data: { members: TeamMember[] } }>('/api/team/members')
+  const { data } = await http.get<{ data: { members: TeamMember[] } }>('/api/team/members', {
+    timeout: STATS_TIMEOUT_MS
+  })
   return data.data.members
 }
 
 /** 查询成员卡（成长曲线 + 英雄基线对比） */
 export async function getMemberCard(puuid: string): Promise<TeamMemberCard> {
-  const { data } = await http.get<{ data: TeamMemberCard }>(`/api/team/members/${puuid}`)
+  const { data } = await http.get<{ data: TeamMemberCard }>(`/api/team/members/${puuid}`, {
+    timeout: STATS_TIMEOUT_MS
+  })
   return data.data
 }
 
