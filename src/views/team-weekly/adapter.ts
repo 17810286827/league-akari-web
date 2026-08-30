@@ -86,7 +86,9 @@ export function buildShareLines(report: TeamWeeklyReport): string[] {
 }
 
 /**
- * 绘制周报分享图（canvas，发群用）：车队名 + 周标签 + 文案行自动换行排版
+ * 绘制周报分享图（canvas，发群用）：海克斯魔典风（ADR 0002）——
+ * 深蓝渐变底 + 双线金边框 + 金渐变标题 + 符文分隔线；文案行由 buildShareLines 唯一产出。
+ * 注意：canvas 不走 CSS 令牌，色值内联但与 tailwind.css 的 --color-hex-* 保持一致。
  * @returns 绘制完成的画布元素（调用方负责触发下载）
  */
 export function renderShareImage(report: TeamWeeklyReport): HTMLCanvasElement {
@@ -94,7 +96,7 @@ export function renderShareImage(report: TeamWeeklyReport): HTMLCanvasElement {
   const width = 900
   const lineHeight = 44
   const padding = 48
-  const height = padding * 2 + 90 + lines.length * lineHeight
+  const height = padding * 2 + 104 + lines.length * lineHeight
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -102,20 +104,56 @@ export function renderShareImage(report: TeamWeeklyReport): HTMLCanvasElement {
   if (!ctx) {
     return canvas
   }
-  // 背景：深色底 + 顶部标题区（第一行车队名周报，第二行周标签）
-  ctx.fillStyle = '#101728'
+
+  // 背景：深蓝垂直渐变（面板亮端 → 页面底色）
+  const background = ctx.createLinearGradient(0, 0, 0, height)
+  background.addColorStop(0, '#0d1b30')
+  background.addColorStop(1, '#0a1428')
+  ctx.fillStyle = background
   ctx.fillRect(0, 0, width, height)
-  ctx.fillStyle = '#63e2b7'
-  ctx.font = 'bold 40px sans-serif'
-  ctx.fillText(`${report.teamName ?? '车队'}周报`, padding, padding + 16)
-  ctx.fillStyle = '#8fa3c8'
-  ctx.font = '22px sans-serif'
-  ctx.fillText(report.weekLabel, padding, padding + 52)
-  // 正文逐行绘制（超出宽度的行截断，避免溢出画布）
-  ctx.font = '26px sans-serif'
-  let y = padding + 90
+
+  // 双线金边框（内外两圈，卡槽签名元素）
+  ctx.strokeStyle = '#3c2f14'
+  ctx.lineWidth = 2
+  ctx.strokeRect(14, 14, width - 28, height - 28)
+  ctx.lineWidth = 1
+  ctx.strokeRect(24, 24, width - 48, height - 48)
+
+  // 标题：车队名周报（金渐变，Cinzel 加载失败回退衬线）+ 周标签（青色）
+  const gold = ctx.createLinearGradient(0, padding - 10, 0, padding + 34)
+  gold.addColorStop(0, '#f0d9a6')
+  gold.addColorStop(0.55, '#c8aa6e')
+  gold.addColorStop(1, '#8a6a35')
+  ctx.fillStyle = gold
+  ctx.font = '900 42px Cinzel, Georgia, KaiTi, serif'
+  ctx.fillText(`${report.teamName ?? '车队'} · 周报`, padding, padding + 22)
+  ctx.fillStyle = '#0ac8b9'
+  ctx.font = '600 22px Georgia, KaiTi, serif'
+  ctx.fillText(report.weekLabel, padding, padding + 58)
+
+  // 标题下符文分隔线：渐隐金线 + 中央 ✦
+  const dividerY = padding + 82
+  ctx.strokeStyle = 'rgba(200, 170, 110, 0.5)'
+  ctx.beginPath()
+  ctx.moveTo(padding, dividerY)
+  ctx.lineTo(width - padding, dividerY)
+  ctx.stroke()
+  ctx.fillStyle = 'rgba(200, 170, 110, 0.8)'
+  ctx.font = '16px serif'
+  ctx.fillText('✦', width / 2 - 8, dividerY + 6)
+
+  // 正文逐行绘制：小节标题（【 】）金色、名场面（🏆）铜色、AI 锐评（🤖）青色、其余浅色；
+  // 超出宽度的行截断，避免溢出画布
+  ctx.font = '26px KaiTi, "Microsoft YaHei", serif'
+  let y = padding + 128
   for (const line of lines) {
-    ctx.fillStyle = '#e8eefc'
+    ctx.fillStyle = line.startsWith('【')
+      ? '#c8aa6e'
+      : line.startsWith('🏆')
+        ? '#cd8f52'
+        : line.startsWith('🤖')
+          ? '#0ac8b9'
+          : '#e8eefc'
     ctx.fillText(line.length > 36 ? `${line.slice(0, 35)}…` : line, padding, y)
     y += lineHeight
   }

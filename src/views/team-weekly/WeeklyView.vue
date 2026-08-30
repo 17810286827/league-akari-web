@@ -1,7 +1,8 @@
 <!--
-  车队周报页（/weekly）：默认展示上一周车队战报，可切换任意周；
-  八栏目（总览/六榜单/名场面/AI 锐评）+ 一键生成分享图（发群用）。
+  车队周报页（/weekly）：海克斯魔典风（ADR 0002）。
+  默认展示上一周车队战报，可切换任意周；八栏目（总览/七榜单/名场面/AI 锐评）+ 一键生成分享图。
   数据层走 getWeeklyReport（/api/team/weekly），AI 失败时后端已降级为 null，页面空态展示。
+  视觉元素复用 src/components/hex/ 共享组件。
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
@@ -10,6 +11,12 @@ import { useRouter } from 'vue-router'
 import { getWeeklyReport, apiErrorMessage } from '@/api/team'
 import type { TeamBoardEntry, TeamWeeklyReport } from '@/api/team'
 import { format2 } from '@/utils/format'
+
+import GoldText from '@/components/hex/GoldText.vue'
+import HexPanel from '@/components/hex/HexPanel.vue'
+import HexPageShell from '@/components/hex/HexPageShell.vue'
+import RankBadge from '@/components/hex/RankBadge.vue'
+import SectionTitle from '@/components/hex/SectionTitle.vue'
 
 import { BOARD_META, downloadShareImage, formatDuration, weekShift } from './adapter'
 
@@ -38,12 +45,16 @@ function defaultWeekDate(): string {
   return `${y}-${m}-${d}`
 }
 
+/** 榜单维度 → 接口字段名（后端 op_score 榜字段为驼峰 opScoreBoard，其余为 `${key}Board`） */
+function boardField(key: string): keyof TeamWeeklyReport {
+  return (key === 'opscore' ? 'opScoreBoard' : `${key}Board`) as keyof TeamWeeklyReport
+}
+
 /** 榜单展示模型：元信息 + 条目（空数组 = 本周无数据） */
 const boards = computed(() =>
   BOARD_META.map((meta) => ({
     ...meta,
-    entries:
-      (report.value?.[`${meta.key}Board` as keyof TeamWeeklyReport] as TeamBoardEntry[] | null) ?? []
+    entries: (report.value?.[boardField(meta.key)] as TeamBoardEntry[] | null) ?? []
   }))
 )
 
@@ -60,6 +71,16 @@ const highlightItems = computed(() => {
     highlights.mostKillsGame
   ].filter((item) => item != null)
 })
+
+/** 总览（short 别名，模板简洁） */
+const overview = computed(() => report.value?.overview ?? null)
+
+/** 总时长拆成小时/分钟（符文圆盘内分两行展示） */
+function durationParts(seconds: number): { value: string; unit: string } {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.round((seconds % 3600) / 60)
+  return h > 0 ? { value: String(h), unit: `小时${m}分` } : { value: String(m), unit: '分钟' }
+}
 
 /** 加载指定周的周报 */
 async function load(): Promise<void> {
@@ -88,142 +109,160 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl px-4 py-6">
-    <!-- 顶部：主页 + 标题 + 周切换 + 分享图 -->
-    <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <button
-          class="rounded border border-slate-600 px-3 py-1 text-sm text-slate-300 hover:border-emerald-400"
-          data-testid="home-button"
-          @click="goHome"
-        >
-          🏠 主页
-        </button>
-        <h1 class="text-2xl font-bold text-emerald-300">车队周报</h1>
-      </div>
-      <div class="flex items-center gap-2">
-        <button
-          class="rounded border border-slate-600 px-3 py-1 text-sm text-slate-300 hover:border-emerald-400"
-          data-testid="week-prev"
-          @click="shiftWeek(-1)"
-        >
-          ← 上一周
-        </button>
-        <span class="min-w-56 text-center text-sm text-slate-400" data-testid="week-label">
-          {{ report?.weekLabel ?? '加载中…' }}
-        </span>
-        <button
-          class="rounded border border-slate-600 px-3 py-1 text-sm text-slate-300 hover:border-emerald-400"
-          data-testid="week-next"
-          @click="shiftWeek(1)"
-        >
-          下一周 →
-        </button>
-        <button
-          class="rounded bg-emerald-500/20 px-3 py-1 text-sm text-emerald-300 hover:bg-emerald-500/30"
-          data-testid="share-button"
-          @click="report && downloadShareImage(report)"
-        >
-          生成分享图
-        </button>
-      </div>
-    </header>
+  <!-- 加载态：居中提示（数据就绪前无法渲染魔典版式） -->
+  <div
+    v-if="loading"
+    class="flex min-h-screen items-center justify-center bg-hex-blue font-hex text-sm font-semibold tracking-[0.3em] text-hex-gold"
+    data-testid="weekly-loading"
+  >
+    正在聚合本周车队数据…
+  </div>
 
-    <!-- 加载与错误态 -->
-    <div v-if="loading" class="py-20 text-center text-slate-400" data-testid="weekly-loading">
-      正在聚合本周车队数据…
-    </div>
-    <div
-      v-else-if="errorMsg"
-      class="mx-auto max-w-lg rounded border border-red-500/40 bg-red-500/10 p-6 text-center text-red-300"
-      data-testid="weekly-error"
-    >
+  <!-- 错误态：赤铜边面板透出后端原因 -->
+  <div v-else-if="errorMsg" class="min-h-screen bg-hex-blue px-6 pt-24 font-hex">
+    <div class="error-panel mx-auto max-w-lg p-6 text-center text-[17px] text-[#e8a79a]" data-testid="weekly-error">
       {{ errorMsg }}
     </div>
+  </div>
 
-    <!-- 周报主体 -->
-    <template v-else-if="report">
-      <!-- 总览 -->
-      <section v-if="report.overview" class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="overview">
-        <div class="rounded bg-slate-800/60 p-4">
-          <div class="text-xs text-slate-400">车队对局</div>
-          <div class="text-2xl font-bold text-slate-100">{{ report.overview.gameCount }}</div>
-        </div>
-        <div class="rounded bg-slate-800/60 p-4">
-          <div class="text-xs text-slate-400">人次胜负</div>
-          <div class="text-2xl font-bold text-slate-100">
-            {{ report.overview.winCount }} 胜 {{ report.overview.lossCount }} 负
-          </div>
-        </div>
-        <div class="rounded bg-slate-800/60 p-4">
-          <div class="text-xs text-slate-400">总时长</div>
-          <div class="text-2xl font-bold text-slate-100">
-            {{ formatDuration(report.overview.totalDurationSeconds) }}
-          </div>
-        </div>
-        <div class="rounded bg-slate-800/60 p-4">
-          <div class="text-xs text-slate-400">最疯狂的一天</div>
-          <div class="text-2xl font-bold text-slate-100">{{ report.overview.busiestDay ?? '—' }}</div>
-          <div class="text-xs text-slate-500">{{ report.overview.busiestDayGames }} 场</div>
-        </div>
-      </section>
+  <!-- 周报主体：海克斯魔典版式 -->
+  <HexPageShell v-else-if="report">
+    <!-- 魔典标题区：主页/分享图 + 眉题 + 金渐变大标题 + 周标签 + 周导航 -->
+    <header class="mt-6 text-center">
+      <div class="flex items-start justify-between text-[17px] font-semibold text-hex-gold/90">
+        <button class="hover:text-hex-gold-2" data-testid="home-button" @click="goHome">❖ 主页</button>
+        <button class="hover:text-hex-gold-2" data-testid="share-button" @click="downloadShareImage(report)">
+          ❖ 分享图
+        </button>
+      </div>
+      <div class="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-hex-teal">Weekly Chronicle</div>
+      <h1 class="mt-2 text-6xl font-black tracking-[0.12em]">
+        <GoldText>{{ report.teamName ?? '车队' }} · 周报</GoldText>
+      </h1>
+      <p class="mt-3 text-lg font-semibold tracking-[0.2em] text-hex-teal" data-testid="week-label">
+        {{ report.weekLabel }}
+      </p>
 
-      <!-- 六榜单：2 列卡片栅格 -->
-      <section class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div
-          v-for="board in boards"
-          :key="board.key"
-          class="rounded border border-slate-700/60 bg-slate-800/40 p-4"
-          :data-testid="`board-${board.key}`"
-        >
-          <h2 class="mb-2 text-sm font-semibold text-slate-300">{{ board.icon }} {{ board.title }}</h2>
-          <ol v-if="board.entries.length">
+      <!-- 周导航：符文箭头 -->
+      <nav class="mt-4 flex items-center justify-center gap-6 text-lg font-semibold text-hex-gold">
+        <button class="hover:text-hex-gold-2" data-testid="week-prev" @click="shiftWeek(-1)">‹ 上周</button>
+        <span class="text-hex-gold/40">✦</span>
+        <button class="hover:text-hex-gold-2" data-testid="week-next" @click="shiftWeek(1)">下周 ›</button>
+      </nav>
+    </header>
+
+    <!-- 总览：四枚符文圆盘 -->
+    <section v-if="overview" class="mt-8 flex flex-wrap items-center justify-center gap-7" data-testid="overview">
+      <div class="rune-disc">
+        <div class="text-4xl font-bold tabular-nums">
+          <GoldText>{{ overview.gameCount }}</GoldText>
+        </div>
+        <div class="mt-1 text-sm font-semibold tracking-[0.15em] text-slate-200">车队对局</div>
+      </div>
+      <div class="rune-disc">
+        <div class="text-4xl font-bold tabular-nums">
+          <span class="text-hex-teal">{{ overview.winCount }}</span>
+          <span class="mx-0.5 text-lg font-semibold text-slate-300"> 胜 </span>
+          <span class="text-[#cd6a5a]">{{ overview.lossCount }}</span>
+          <span class="text-lg font-semibold text-slate-300"> 负 </span>
+        </div>
+        <div class="mt-1 text-sm font-semibold tracking-[0.15em] text-slate-200">人次胜负</div>
+      </div>
+      <div class="rune-disc">
+        <div class="text-4xl font-bold tabular-nums">
+          <GoldText>{{ durationParts(overview.totalDurationSeconds).value }}</GoldText>
+        </div>
+        <div class="mt-1 text-sm font-semibold tracking-[0.15em] text-slate-200">
+          {{ durationParts(overview.totalDurationSeconds).unit }}
+        </div>
+      </div>
+      <div class="rune-disc">
+        <div class="text-4xl font-bold tabular-nums">
+          <GoldText>{{ overview.busiestDayGames }}</GoldText>
+        </div>
+        <div class="mt-1 text-sm font-semibold tracking-[0.15em] text-slate-200">
+          {{ overview.busiestDay ? `${overview.busiestDay.slice(5)} 最疯狂` : '最疯狂之日' }}
+        </div>
+      </div>
+    </section>
+
+    <!-- 七榜单：卡槽面板（双线金边 + 金银铜徽记） -->
+    <section class="mt-10 space-y-5">
+      <HexPanel v-for="board in boards" :key="board.key" :data-testid="`board-${board.key}`">
+        <div class="p-5">
+          <SectionTitle :title="board.title" :meta="`${board.entries.length} 人登榜`" />
+          <ol v-if="board.entries.length" class="space-y-1">
             <li
               v-for="(entry, index) in board.entries"
               :key="entry.puuid"
-              class="flex items-baseline justify-between border-b border-slate-700/40 py-1.5 last:border-0"
+              class="flex items-center gap-3 border-b border-hex-line/40 py-2.5 last:border-0"
             >
-              <span class="text-sm text-slate-200">
-                <!-- 前三名奖牌色高亮（杂志卡排版签名元素） -->
-                <span class="mr-2 inline-block w-6 text-center" :class="index < 3 ? '' : 'text-slate-500'">
-                  {{ ['🥇', '🥈', '🥉'][index] ?? `${index + 1}.` }}
-                </span>
-                {{ entry.riotId }}
-              </span>
-              <span class="text-sm text-emerald-300">
-                {{ format2(entry.value) }}
-                <span class="ml-1 text-xs text-slate-500">{{ entry.detail }}</span>
+              <RankBadge :rank="index + 1" />
+              <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
+              <span class="text-sm text-slate-400">{{ entry.detail }}</span>
+              <span class="w-24 text-right text-2xl font-bold tabular-nums">
+                <GoldText>{{ format2(entry.value) }}</GoldText>
               </span>
             </li>
           </ol>
-          <p v-else class="text-xs text-slate-500">本周暂无数据</p>
+          <p v-else class="py-2 text-[17px] font-semibold tracking-widest text-slate-400">—— 本周无人登榜 ——</p>
         </div>
-      </section>
+      </HexPanel>
+    </section>
 
-      <!-- 名场面 -->
-      <section v-if="highlightItems.length" class="mb-6" data-testid="highlights">
-        <h2 class="mb-2 text-sm font-semibold text-slate-300">🎬 名场面</h2>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <!-- 名场面：鎏金战功簿 -->
+    <HexPanel v-if="highlightItems.length" gold class="mt-10" data-testid="highlights">
+      <div class="p-5">
+        <SectionTitle title="名场面 · 战功簿" symbol="⚔" />
+        <div class="grid gap-4 md:grid-cols-2">
           <div
             v-for="item in highlightItems"
             :key="`${item.gameId}-${item.title}`"
-            class="rounded border border-amber-500/30 bg-amber-500/10 p-3"
+            class="border-l-2 border-hex-gold/50 pl-3"
           >
-            <span class="mr-2 text-xs text-amber-400">{{ item.title }}</span>
-            <span class="text-sm text-slate-200">{{ item.detail }}</span>
+            <div class="text-lg font-bold tracking-wider">
+              <GoldText>{{ item.title }}</GoldText>
+            </div>
+            <div class="mt-1 text-[17px] font-medium text-slate-200">{{ item.detail }}</div>
           </div>
         </div>
-      </section>
+      </div>
+    </HexPanel>
 
-      <!-- AI 锐评 -->
-      <section
-        v-if="report.aiComment"
-        class="rounded border border-emerald-500/30 bg-emerald-500/10 p-4"
-        data-testid="ai-comment"
-      >
-        <h2 class="mb-1 text-xs font-semibold text-emerald-400">🤖 AI 锐评</h2>
-        <p class="text-sm leading-6 text-slate-200">{{ report.aiComment }}</p>
-      </section>
-    </template>
-  </div>
+    <!-- AI 锐评：青铜神谕 -->
+    <section
+      v-if="report.aiComment"
+      class="mt-10 border border-hex-teal/40 bg-hex-teal/[0.05] p-5"
+      data-testid="ai-comment"
+    >
+      <div class="flex items-center gap-2 text-[17px] font-bold tracking-[0.2em] text-hex-teal">
+        <span>☾</span> 神谕 · AI 锐评
+      </div>
+      <p class="mt-2 text-lg leading-9 text-slate-200">{{ report.aiComment }}</p>
+    </section>
+  </HexPageShell>
 </template>
+
+<style scoped>
+/* 符文圆盘：双圈金边（border + outline 错位），总览统计的魔典签名元素 */
+.rune-disc {
+  width: 9.5rem;
+  height: 9.5rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--color-hex-gold) 55%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--color-hex-gold) 20%, transparent);
+  outline-offset: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 错误面板：赤铜双线边（错误语义保留红色系，但走魔典质感） */
+.error-panel {
+  border: 1px solid #6b3325;
+  outline: 1px solid #6b3325;
+  outline-offset: 3px;
+  background: linear-gradient(180deg, #1c0f0c 0%, #140a08 100%);
+}
+</style>

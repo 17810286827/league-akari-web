@@ -111,6 +111,16 @@ describe('WeeklyView', () => {
     expect(wrapper.find('[data-testid="ai-comment"]').text()).toContain('本周A封神')
   })
 
+  it('op_score 榜从后端 opScoreBoard 字段渲染（字段名 camelCase 对齐，回归 #opscore 取值 bug）', async () => {
+    const withOpScore = reportFixture()
+    withOpScore.opScoreBoard = [{ puuid: 'p3', riotId: 'C#tw2', value: 7.5, detail: '2场' }]
+    vi.mocked(getWeeklyReport).mockResolvedValue(withOpScore)
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="board-opscore"]').text()).toContain('C#tw2')
+  })
+
   it('点击"上一周"以偏移后的日期重新查询', async () => {
     vi.mocked(getWeeklyReport).mockResolvedValue(reportFixture())
 

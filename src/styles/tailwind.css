@@ -33,6 +33,26 @@
   --color-hairline: rgba(139, 147, 167, 0.16);
   /* 绿调描边 */
   --color-border-violet: #243127;
+
+  /* 海克斯魔典色板（ADR 0002）：车队周报/榜单中心专用，页面只引用令牌 */
+  /* 页面深蓝底 */
+  --color-hex-blue: #0a1428;
+  /* 面板渐变亮端（上缘微亮，制造卡槽纵深） */
+  --color-hex-blue-2: #0d1b30;
+  /* 主金（渐变中段/边框强调） */
+  --color-hex-gold: #c8aa6e;
+  /* 金亮端（渐变起点） */
+  --color-hex-gold-2: #f0d9a6;
+  /* 金暗端（渐变终点） */
+  --color-hex-gold-3: #8a6a35;
+  /* 青色（神谕/周标签/强调） */
+  --color-hex-teal: #0ac8b9;
+  /* 双线金边框线 */
+  --color-hex-line: #3c2f14;
+  /* 名次银（第 2 名徽章） */
+  --color-hex-silver: #cfd8e3;
+  /* 名次铜（第 3 名徽章/送头王警示金） */
+  --color-hex-bronze: #cd8f52;
 }
 
 /* 数字等宽，保证 KDA/统计列对齐 */
@@ -43,4 +63,10 @@
 /* 淡绿终端数字字体：Russo One（仅拉丁数字/英文，中文自动回退系统字体） */
 @utility font-display {
   font-family: 'Russo One', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+/* 海克斯魔典字体（ADR 0002）：Cinzel 碑刻体（拉丁标题/数字）+ 楷体中文（Windows 内置），
+   字体加载失败时逐级回退，不阻塞渲染 */
+@utility font-hex {
+  font-family: Cinzel, Georgia, KaiTi, '楷体', serif;
 }
