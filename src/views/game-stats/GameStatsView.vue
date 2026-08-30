@@ -507,7 +507,7 @@ watch(
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 
-  min-height: 100vh;
+  min-height: 100dvh;
   /* 近黑底 + 顶部柔和绿光晕（夜晚竞技场氛围，不抢数据内容） */
   background:
     radial-gradient(1200px 500px at 50% -10%, rgba(74, 222, 128, 0.14), transparent 65%),
@@ -537,8 +537,7 @@ watch(
   font-size: 15px;
   border-radius: 10px;
   border: 1px solid rgba(74, 222, 128, 0.35);
-  background: rgba(17, 22, 17, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(17, 22, 17, 0.92);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
 

@@ -49,12 +49,11 @@
     0 6px 24px rgba(74, 222, 128, 0.14);
 }
 
-/* 玻璃终端（方案 3）：半透明毛玻璃卡片，透出页面背景的柔和绿光晕；
-   底色不透明度 0.88 + blur 8px：保留玻璃质感同时保证文字对比度 */
+/* 玻璃终端（方案 3）：深色半透明卡片；
+   不依赖 backdrop-filter（Edge 最小化/还原会重建模糊合成层），
+   提高底色不透明度保证文字对比度 */
 .glass-card {
-  background: rgba(17, 22, 17, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(17, 22, 17, 0.94);
   border-color: rgba(74, 222, 128, 0.28);
   box-shadow: 0 8px 32px rgba(74, 222, 128, 0.14);
 }

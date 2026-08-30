@@ -86,7 +86,7 @@ async function submitSearch(): Promise<void> {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   gap: 12px;
   background:
     radial-gradient(900px 420px at 50% 30%, rgba(74, 222, 128, 0.18), transparent 65%),
@@ -152,8 +152,7 @@ async function submitSearch(): Promise<void> {
   font-size: 16px;
   border-radius: 12px;
   border: 1px solid rgba(74, 222, 128, 0.35);
-  background: rgba(17, 22, 17, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(17, 22, 17, 0.92);
   color: #ecfdf5;
   transition: border-color 0.15s, box-shadow 0.15s;
 
