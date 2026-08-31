@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router'
 
 import { getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
 import type { TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
-import { format2, formatStat } from '@/utils/format'
+import { format2, formatInt, formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
@@ -235,7 +235,7 @@ onMounted(load)
                   {{ entry.games }}场 胜率{{ Math.round(((entry.wins ?? 0) / (entry.games || 1)) * 100) }}%
                 </span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
-                  <GoldText>{{ formatStat(entry.value) }}</GoldText>
+                  <GoldText>{{ formatInt(entry.value) }}</GoldText>
                 </span>
               </button>
             </div>
@@ -270,10 +270,12 @@ onMounted(load)
         </HexPanel>
       </main>
 
-      <!-- 右：符文页成员卡（点行联动；桌面 sticky，手机端堆叠到下方） -->
+      <!-- 右：符文页成员卡（点行联动；桌面 sticky 且内容超高时面板内独立滚动，手机端堆叠到下方） -->
       <aside class="w-full shrink-0 lg:w-80" data-testid="member-panel">
         <HexPanel class="lg:sticky lg:top-4">
-          <div class="p-5">
+          <!-- 独立滚动容器：鼠标悬浮在右栏时滚轮只滚符文页（内容未超高时不拦截，
+               右栏滚到边界后由浏览器 scroll chaining 自然过渡到页面滚动左侧榜单） -->
+          <div class="panel-scroll p-5 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" data-testid="panel-scroll">
             <div v-if="!selectedEntry" class="py-10 text-center text-[17px] font-semibold tracking-[0.25em] text-slate-400">
               点击左侧条目
             </div>
@@ -329,9 +331,9 @@ onMounted(load)
                       <td class="py-2 text-hex-gold-2">{{ champ.championName }}</td>
                       <td>{{ champ.games }}</td>
                       <td>{{ Math.round((champ.wins / champ.games) * 100) }}%</td>
-                      <td class="text-hex-teal">{{ format2(champ.avgOpScore) }}</td>
+                      <td class="text-hex-teal">{{ formatInt(champ.avgOpScore) }}</td>
                       <td class="text-right text-slate-400">
-                        {{ format2(champ.avgDamagePerMin) }}/{{ format2(champ.baselineDamagePerMin) }}
+                        {{ formatInt(champ.avgDamagePerMin) }}/{{ formatInt(champ.baselineDamagePerMin) }}
                       </td>
                     </tr>
                   </tbody>
@@ -353,6 +355,24 @@ onMounted(load)
   padding: 0.375rem 0.75rem;
   color-scheme: dark;
   color: var(--color-hex-gold);
+}
+
+/* 右栏符文页滚动条：细窄金边，贴合魔典质感（内容超高出现滚动时才可见） */
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.45) transparent;
+}
+
+.panel-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.45);
+}
+
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* 错误面板：赤铜双线边（错误语义保留红色系，但走魔典质感） */

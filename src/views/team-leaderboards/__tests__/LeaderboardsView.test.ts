@@ -112,10 +112,14 @@ describe('LeaderboardsView', () => {
     // 自动选中榜首：成员卡请求 + 右栏面板渲染
     expect(getMemberCard).toHaveBeenCalledWith('p1')
     expect(wrapper.find('[data-testid="member-panel"]').text()).toContain('A#tw2')
-    // 趋势条形与英雄基线对比（两位小数）
+    // 趋势条形保留两位小数；英雄基线对比按整数口径展示（op/伤害/基线无小数尾巴）
     expect(wrapper.find('[data-testid="panel-trend"]').text()).toContain('7.80')
-    expect(wrapper.find('[data-testid="panel-champions"]').text()).toContain('900.00')
-    expect(wrapper.find('[data-testid="panel-champions"]').text()).toContain('820.00')
+    const champions = wrapper.find('[data-testid="panel-champions"]').text()
+    expect(champions).toContain('900')
+    expect(champions).toContain('820')
+    expect(champions).not.toContain('900.00')
+    expect(champions).not.toContain('820.00')
+    expect(champions).not.toContain('7.10')
   })
 
   it('维度切换携带新 dimension 重查', async () => {
@@ -141,7 +145,7 @@ describe('LeaderboardsView', () => {
     expect(wrapper.find('[data-testid="member-panel"]').text()).toContain('A#tw2')
   })
 
-  it('绝活榜按英雄分组展示各玩家数据（组内两位小数）', async () => {
+  it('绝活榜按英雄分组展示各玩家数据（组内英雄分数取整）', async () => {
     vi.mocked(getTeamLeaderboard).mockResolvedValue(signatureFixture())
 
     const wrapper = await mountView()
@@ -152,11 +156,25 @@ describe('LeaderboardsView', () => {
     // 每个英雄一个分组标题，组内是该英雄的玩家排行
     expect(wrapper.find('[data-testid="champion-group-卡莎"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="champion-group-河流之王"]').exists()).toBe(true)
-    expect(table).toContain('9.20')
-    expect(table).toContain('8.30')
+    // 英雄的场均 op 分数按整数口径展示（9.20 → 9、8.30 → 8）
+    expect(table).not.toContain('9.20')
+    expect(table).not.toContain('8.30')
+    expect(table).toContain('9')
+    expect(table).toContain('8')
     // 卡莎组内含两名成员
     expect(wrapper.find('[data-testid="champion-group-卡莎"]').text()).toContain('A#tw2')
     expect(wrapper.find('[data-testid="champion-group-卡莎"]').text()).toContain('B#tw2')
+  })
+
+  it('右栏符文页为独立滚动容器（内容超高时在面板内滚动）', async () => {
+    const wrapper = await mountView()
+
+    const scroller = wrapper.find('[data-testid="panel-scroll"]')
+    expect(scroller.exists()).toBe(true)
+    // 桌面断点限定面板高度并开启纵向滚动：鼠标悬浮在右栏时滚轮只滚符文页，
+    // 不与左侧榜单共享页面滚动
+    expect(scroller.classes()).toContain('lg:max-h-[calc(100vh-2rem)]')
+    expect(scroller.classes()).toContain('lg:overflow-y-auto')
   })
 
   it('榜单接口失败透出后端 message', async () => {

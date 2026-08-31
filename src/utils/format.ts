@@ -21,3 +21,14 @@ export function formatStat(value: number | null | undefined, placeholder = '—'
   }
   return Number.isInteger(value) ? String(value) : value.toFixed(2)
 }
+
+/**
+ * 取整展示：场均类数值（op 评分/分均伤害/基线等）按整数口径四舍五入，
+ * 去掉小数尾巴让榜单与英雄基线更清爽；null/undefined/NaN 返回占位符
+ */
+export function formatInt(value: number | null | undefined, placeholder = '—'): string {
+  if (value == null || Number.isNaN(value)) {
+    return placeholder
+  }
+  return String(Math.round(value))
+}
