@@ -235,7 +235,7 @@ onMounted(load)
                   {{ entry.games }}场 胜率{{ Math.round(((entry.wins ?? 0) / (entry.games || 1)) * 100) }}%
                 </span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
-                  <GoldText>{{ formatInt(entry.value) }}</GoldText>
+                  <GoldText>{{ formatStat(entry.value) }}</GoldText>
                 </span>
               </button>
             </div>
@@ -331,7 +331,7 @@ onMounted(load)
                       <td class="py-2 text-hex-gold-2">{{ champ.championName }}</td>
                       <td>{{ champ.games }}</td>
                       <td>{{ Math.round((champ.wins / champ.games) * 100) }}%</td>
-                      <td class="text-hex-teal">{{ formatInt(champ.avgOpScore) }}</td>
+                      <td class="text-hex-teal">{{ format2(champ.avgOpScore) }}</td>
                       <td class="text-right text-slate-400">
                         {{ formatInt(champ.avgDamagePerMin) }}/{{ formatInt(champ.baselineDamagePerMin) }}
                       </td>
