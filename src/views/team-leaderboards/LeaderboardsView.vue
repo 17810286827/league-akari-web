@@ -271,7 +271,7 @@ onMounted(load)
       </main>
 
       <!-- 右：符文页成员卡（点行联动；桌面 sticky 且内容超高时面板内独立滚动，手机端堆叠到下方） -->
-      <aside class="w-full shrink-0 lg:w-80" data-testid="member-panel">
+      <aside class="w-full shrink-0 lg:w-96" data-testid="member-panel">
         <HexPanel class="lg:sticky lg:top-4">
           <!-- 独立滚动容器：鼠标悬浮在右栏时滚轮只滚符文页（内容未超高时不拦截，
                右栏滚到边界后由浏览器 scroll chaining 自然过渡到页面滚动左侧榜单） -->
@@ -314,25 +314,25 @@ onMounted(load)
                   </div>
                 </div>
 
-                <!-- 英雄基线对比 -->
+                <!-- 英雄基线对比：表格禁止折行 + 列间距，避免窄列数字互相挤压 -->
                 <h3 class="mb-2 mt-5 text-sm font-bold tracking-[0.15em] text-hex-gold">英雄基线 · 全时段</h3>
-                <table class="w-full text-left text-sm font-semibold text-slate-200" data-testid="panel-champions">
+                <table class="w-full whitespace-nowrap text-left text-sm font-semibold text-slate-200" data-testid="panel-champions">
                   <thead class="text-xs font-semibold tracking-wider text-slate-400">
                     <tr>
-                      <th class="pb-1">英雄</th>
-                      <th>场次</th>
-                      <th>胜率</th>
-                      <th>op</th>
-                      <th class="text-right">伤害/基线</th>
+                      <th class="px-1.5 pb-1">英雄</th>
+                      <th class="px-1.5 pb-1">场次</th>
+                      <th class="px-1.5 pb-1">胜率</th>
+                      <th class="px-1.5 pb-1">op</th>
+                      <th class="px-1.5 pb-1 text-right">伤害/基线</th>
                     </tr>
                   </thead>
                   <tbody class="tabular-nums">
                     <tr v-for="champ in memberCard.champions" :key="champ.championId" class="border-t border-hex-line/50">
-                      <td class="py-2 text-hex-gold-2">{{ champ.championName }}</td>
-                      <td>{{ champ.games }}</td>
-                      <td>{{ Math.round((champ.wins / champ.games) * 100) }}%</td>
-                      <td class="text-hex-teal">{{ format2(champ.avgOpScore) }}</td>
-                      <td class="text-right text-slate-400">
+                      <td class="px-1.5 py-2 text-hex-gold-2">{{ champ.championName }}</td>
+                      <td class="px-1.5 py-2">{{ champ.games }}</td>
+                      <td class="px-1.5 py-2">{{ Math.round((champ.wins / champ.games) * 100) }}%</td>
+                      <td class="px-1.5 py-2 text-hex-teal">{{ format2(champ.avgOpScore) }}</td>
+                      <td class="px-1.5 py-2 text-right text-slate-400">
                         {{ formatInt(champ.avgDamagePerMin) }}/{{ formatInt(champ.baselineDamagePerMin) }}
                       </td>
                     </tr>
