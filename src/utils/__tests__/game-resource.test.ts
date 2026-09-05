@@ -25,6 +25,8 @@ describe('game-resource 扩展', () => {
   })
 
   it('itemDisplay 增强：合成路径 from 与总价', async () => {
+    // loadItems 会并行探测 Data Dragon 版本：先应答 versions.json，再应答 items.json
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
     vi.mocked(fetch).mockResolvedValueOnce(
       ok({
         data: {
@@ -34,8 +36,8 @@ describe('game-resource 扩展', () => {
       })
     )
     const display = await itemDisplay(3089)
-    // 合成组件按 items 记录组装（含名称与图标路径），组件 id 无法推导文件名
-    expect(display.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1038.png' }])
+    // 合成组件按 items 记录组装（含名称与图标路径）；组件图标由 itemIconUrl 动态版本构建（此处探测到 16.17.1）
+    expect(display.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1038.png' }])
     expect(display.priceTotal).toBe(3400)
   })
 
@@ -53,6 +55,8 @@ describe('game-resource 扩展', () => {
     // 重置模块缓存：避免命中前置用例的 Promise 缓存，强制本用例重新发起网络请求
     vi.resetModules()
     const fresh = await import('../game-resource')
+    // loadItems 会并行探测 Data Dragon 版本：先应答 versions.json
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
     // items.json 真实为数组（记录自带 id/from/priceTotal/to）
     vi.mocked(fetch).mockResolvedValueOnce(
       ok([
@@ -70,7 +74,7 @@ describe('game-resource 扩展', () => {
     )
     const item = await fresh.itemDisplay(3089)
     expect(item.name).toBe('无尽之刃')
-    expect(item.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1038.png' }])
+    expect(item.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1038.png' }])
     // to 指向 1053，但 mock 无该记录：组件未命中时跳过（图标无法推导）
     expect(item.to).toEqual([])
     expect(item.priceTotal).toBe(3400)
@@ -144,6 +148,8 @@ describe('修复回归：海克斯占位符与装备合成路径', () => {
   it('itemDisplay 的 to 字段为数字 0（CDragon 老格式）时归一为空数组，不抛错', async () => {
     vi.resetModules()
     const fresh = await import('../game-resource')
+    // loadItems 会并行探测 Data Dragon 版本：先应答 versions.json
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
     vi.mocked(fetch).mockResolvedValueOnce(
       ok({
         data: {
@@ -153,10 +159,136 @@ describe('修复回归：海克斯占位符与装备合成路径', () => {
       })
     )
     const display = await fresh.itemDisplay(3089)
+    // 组件图标由 itemIconUrl 动态版本构建（本用例探测到 16.17.1）
     expect(display.from).toEqual([
-      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1058.png' },
-      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1058.png' }
+      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1058.png' },
+      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1058.png' }
     ])
     expect(display.to).toEqual([])
+  })
+})
+
+/**
+ * 装备图标双源策略回归（动态版本主源 + CDragon 兜底）：
+ * 背景：写死 ddragon 版本落后导致新装备图标 404（如 16.17.1 新增的
+ * ARAM 装备 226668 终极九头蛇），策略改为——版本号动态探测作主源，
+ * items.json 自带的 iconPath 解析出的 CDragon 资源 URL 作兜底。
+ */
+describe('装备图标动态版本 + CDragon 兜底', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ data: [] }))))
+
+  it('itemDisplay 的 iconUrl 用动态版本，fallbackIconUrl 由 iconPath 解析（小写化）', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        {
+          id: 226668,
+          name: '终极九头蛇',
+          description: '',
+          price: 0,
+          priceTotal: 2500,
+          iconPath: '/lol-game-data/assets/ASSETS/Items/Icons2D/Kiwi/ARAM_UltimateHydra_64.png'
+        }
+      ])
+    )
+    const display = await fresh.itemDisplay(226668)
+    // 主源：Data Dragon（探测到的最新版本，写死版本下该图标 404）
+    expect(display.iconUrl).toBe(
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/226668.png'
+    )
+    // 兜底源：iconPath 去 LCU 前缀 + 小写化 → CDragon 资源地址（已实测可达）
+    expect(display.fallbackIconUrl).toBe(
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png'
+    )
+  })
+
+  it('versions.json 探测失败不阻塞物品加载：iconUrl 回退兜底版本，fallbackIconUrl 仍可用', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('versions down'))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        {
+          id: 226668,
+          name: '终极九头蛇',
+          description: '',
+          price: 0,
+          priceTotal: 2500,
+          iconPath: '/lol-game-data/assets/ASSETS/Items/Icons2D/Kiwi/ARAM_UltimateHydra_64.png'
+        }
+      ])
+    )
+    const display = await fresh.itemDisplay(226668)
+    // 探测失败：主源 URL 退回写死版本（此时由 CdnImage 的 fallback 链路兜底）
+    expect(display.iconUrl).toBe(
+      'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png'
+    )
+    expect(display.fallbackIconUrl).toContain('aram_ultimatehydra_64.png')
+  })
+
+  it('iconPath 缺失（CDragon 老数据）时 fallbackIconUrl 为 undefined', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([{ id: 1001, name: '鞋子', description: '', price: 300, priceTotal: 300 }])
+    )
+    const display = await fresh.itemDisplay(1001)
+    expect(display.iconUrl).toContain('/16.17.1/img/item/1001.png')
+    // 老数据无 iconPath：不虚构兜底地址，字段缺省（消费方按无兜底处理）
+    expect(display.fallbackIconUrl).toBeUndefined()
+  })
+})
+
+/**
+ * 英雄筛选下拉数据源（按英雄过滤对局功能）：
+ * champion-summary 的 name 为称号、description 为本名，下拉展示本名；
+ * 非英雄记录（id ≤ 0，如 -1 "无"）必须排除。
+ */
+describe('listChampionOptions 英雄筛选选项', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ data: [] }))))
+
+  it('返回全部正 id 英雄，label 取本名（description），按 id 升序', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        { id: -1, name: '无', description: '', alias: 'None' },
+        { id: 266, name: '堕天使', description: '莫甘娜', alias: 'Morgana' },
+        { id: 1, name: '黑暗之女', description: '安妮', alias: 'Annie' },
+        { id: 22, name: '赏金猎人', description: '厄运小姐', alias: 'MissFortune' }
+      ])
+    )
+    const options = await fresh.listChampionOptions()
+    // 排除 id=-1；按 id 升序；label 为本名（description）
+    expect(options).toEqual([
+      { id: 1, label: '安妮' },
+      { id: 22, label: '厄运小姐' },
+      { id: 266, label: '莫甘娜' }
+    ])
+  })
+
+  it('description 缺失时回退称号（name），两者皆缺回退 id 字符串', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        { id: 10, name: '时光守护者' },
+        { id: 20, name: undefined, description: undefined }
+      ])
+    )
+    const options = await fresh.listChampionOptions()
+    expect(options).toContainEqual({ id: 10, label: '时光守护者' })
+    expect(options).toContainEqual({ id: 20, label: '20' })
+  })
+
+  it('加载失败返回空数组（下拉回退"所有英雄"单项，不抛错）', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockRejectedValue(new Error('network down'))
+    const options = await fresh.listChampionOptions()
+    expect(options).toEqual([])
   })
 })

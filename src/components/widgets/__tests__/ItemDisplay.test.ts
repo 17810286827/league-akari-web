@@ -89,4 +89,28 @@ describe('ItemDisplay 合成路径', () => {
     expect(document.body.querySelectorAll('.from')).toHaveLength(0)
     expect(document.body.querySelectorAll('.to')).toHaveLength(0)
   })
+
+  it('主源图标加载失败时换 fallbackIconUrl 兜底源重试（双源策略）', async () => {
+    // 新装备场景：写死版本下 ddragon 图标 404，数据层随资源返回 CDragon 兜底地址
+    vi.mocked(itemDisplay).mockResolvedValueOnce({
+      id: 226668,
+      name: '终极九头蛇',
+      iconUrl: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png',
+      fallbackIconUrl:
+        'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png',
+      descriptionHtml: '',
+      price: 0,
+      totalPrice: 2500,
+      from: [],
+      to: []
+    })
+    const wrapper = mount(() =>
+      h(NConfigProvider, null, { default: () => h(ItemDisplay, { itemId: 226668, size: 24 }) })
+    )
+    await flushPromises()
+
+    // 主源（Data Dragon）加载失败：img 仍在，src 切换为 CDragon 兜底地址
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.get('img').attributes('src')).toContain('aram_ultimatehydra_64.png')
+  })
 })

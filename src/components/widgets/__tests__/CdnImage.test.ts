@@ -41,3 +41,57 @@ describe('CdnImage', () => {
     expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(true)
   })
 })
+
+/**
+ * 兜底降级链路测试（装备图标双源策略）：
+ * 主源（Data Dragon）404（如写死版本落后缺新装备图标）→ 换 fallback 重试一次 →
+ * 兜底也失败才渲染灰占位。覆盖三级语义与 path 变化时的状态重置。
+ */
+describe('CdnImage 兜底降级', () => {
+  /** 触发当前渲染的 img 的 @error 事件（模拟主源/兜底源加载失败） */
+  async function failCurrentImage(wrapper: ReturnType<typeof mount>) {
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(true)
+    await img.trigger('error')
+    await wrapper.vm.$nextTick()
+  }
+
+  it('无 fallback 属性：加载失败直接渲染灰占位（向后兼容旧行为）', async () => {
+    const wrapper = mount(CdnImage, { props: { path: 'https://cdn.example/a.png' } })
+    await failCurrentImage(wrapper)
+    // 失败后无 img，仅剩占位 div
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(true)
+  })
+
+  it('有 fallback：主源失败换兜底源重试，兜底也失败才渲染灰占位', async () => {
+    const wrapper = mount(CdnImage, {
+      props: {
+        path: 'https://ddragon.example/img/item/226668.png',
+        fallback: 'https://cdragon.example/assets/items/aram_ultimatehydra_64.png'
+      }
+    })
+    // 第一级：主源失败 → 换兜底源（img 仍在，src 切换为 fallback）
+    await failCurrentImage(wrapper)
+    expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(false)
+    expect(wrapper.find('img').attributes('src')).toBe(
+      'https://cdragon.example/assets/items/aram_ultimatehydra_64.png'
+    )
+    // 第二级：兜底源也失败 → 灰占位
+    await failCurrentImage(wrapper)
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(true)
+  })
+
+  it('path 变化时重置失败状态：切回新主源重新加载', async () => {
+    const wrapper = mount(CdnImage, {
+      props: { path: 'https://cdn.example/a.png', fallback: 'https://cdn.example/a-fb.png' }
+    })
+    await failCurrentImage(wrapper)
+    // 已处于兜底态
+    expect(wrapper.find('img').attributes('src')).toBe('https://cdn.example/a-fb.png')
+    // path 更新 → 失败状态重置，img 回到主源
+    await wrapper.setProps({ path: 'https://cdn.example/b.png' })
+    expect(wrapper.find('img').attributes('src')).toBe('https://cdn.example/b.png')
+  })
+})

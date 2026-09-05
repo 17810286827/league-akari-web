@@ -4,6 +4,7 @@
     <template #trigger>
       <CdnImage
         :path="itemDisplay.iconUrl"
+        :fallback="itemDisplay.fallbackIconUrl"
         :style="{ width: `${size}px`, height: `${size}px` }"
         class="item"
         :class="{ trinket: isTrinket, item: !isTrinket }"
@@ -11,7 +12,8 @@
     </template>
 
     <div class="info item-display-popover">
-      <CdnImage class="image" :path="itemDisplay.iconUrl" />
+      <!-- 弹窗大图与触发图标同源同兜底（主源 404 时两处一并切换兜底源） -->
+      <CdnImage class="image" :path="itemDisplay.iconUrl" :fallback="itemDisplay.fallbackIconUrl" />
       <div class="right-side">
         <div class="name">
           {{ itemDisplay.name }}

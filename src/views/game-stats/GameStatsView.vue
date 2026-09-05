@@ -87,6 +87,8 @@ const queryPlayer = ref<RiotAccount | null>(null)
 /** 顶部搜索框输入内容（"昵称#tag"） */
 const summonerInput = ref('')
 const activeQueueId = ref<number | null>(null)
+/** 当前筛选英雄（null 为所有英雄）：过滤该玩家本局使用此英雄的对局，与队列筛选叠加 */
+const activeChampionId = ref<number | null>(null)
 const page = ref(1)
 // 展开对局 ID：同一时刻至多展开一局（与详情页单局语义一致）
 const expandedGameId = ref<number | null>(null)
@@ -252,6 +254,8 @@ async function loadMatches(): Promise<void> {
       page: page.value,
       pageSize: pageSize.value,
       queueId: activeQueueId.value ?? undefined,
+      // 英雄筛选：过滤该玩家本局使用此英雄的对局（null 为所有英雄）
+      championId: activeChampionId.value ?? undefined,
       // 只查询当前玩家的对局：按召唤师名（含 #tag）匹配本地对局数据
       // （Riot puuid 与本地 SGP 对局的 ID 体系不一致，按名称匹配才能命中）
       summonerName: queryPlayer.value
@@ -357,6 +361,12 @@ watch(activeQueueId, () => {
   loadMatches()
 })
 
+// 英雄切换：与队列切换同语义——回第一页并重新加载（后端按 championId 过滤）
+watch(activeChampionId, () => {
+  page.value = 1
+  loadMatches()
+})
+
 // 分页变化：重新加载对应页（查询玩家变化时已由 handleSearchSummoner 重置）
 watch(page, (next, prev) => {
   if (next !== prev) {
@@ -434,12 +444,13 @@ watch(
         @click="closeSidebar"
       />
 
-      <!-- 左侧边栏：小屏可折叠（队列筛选/总览/最近队友对手） -->
+      <!-- 左侧边栏：小屏可折叠（队列筛选/英雄筛选/总览/最近队友对手） -->
       <div v-show="!sidebarCollapsed" class="sidebar-wrap">
         <SidebarPanel
           :data="sidebarData"
           :total="total"
           v-model:queue="activeQueueId"
+          v-model:champion="activeChampionId"
         />
       </div>
 

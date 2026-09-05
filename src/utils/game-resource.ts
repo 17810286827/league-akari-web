@@ -5,7 +5,7 @@
  * - 描述：技能/物品 JSON 的 description 字段（与主仓库 SummonerSpellDisplay 展示一致）
  */
 import { createLogger } from '@/utils/logger'
-import { itemIconUrl } from '@/utils/icon-url'
+import { ensureDdDragonVersion, itemIconUrl } from '@/utils/icon-url'
 
 const logger = createLogger('GameResource')
 
@@ -54,8 +54,14 @@ export interface SpellDisplayResource {
 export interface ItemDisplayResource {
   id: number
   name: string
-  /** 转换后的 CDN 图标地址 */
+  /** 转换后的 CDN 图标地址（主源：Data Dragon，版本动态探测） */
   iconUrl: string
+  /**
+   * 兜底图标地址（双源策略）：由 LCU iconPath 解析的 CommunityDragon 资源 URL。
+   * 主源 404（如 ddragon 版本交界期缺新装备图标）时由 CdnImage 换用本地址重试一次；
+   * iconPath 缺失（CDragon 老数据）时为 undefined，消费方按无兜底处理
+   */
+  fallbackIconUrl?: string
   /** 物品属性描述（HTML 文本） */
   descriptionHtml: string
   /** 合成费（CDragon items.json 的 price 字段） */
@@ -189,8 +195,13 @@ function loadSpells(): Promise<Map<number, SummonerSpell>> {
 /** 加载物品表（仅首次调用发起网络请求） */
 function loadItems(): Promise<Map<number, Item>> {
   if (!itemsPromise) {
-    itemsPromise = fetchGameDataJson<unknown>('items.json')
-      .then((payload) => {
+    // 并行探测 Data Dragon 最新版本 + 拉取物品数据：探测失败不阻塞物品加载
+    //（iconUrl 回退写死版本，展示由 CdnImage 的 fallback 兜底），仅记录日志
+    itemsPromise = Promise.all([
+      ensureDdDragonVersion().catch(() => null),
+      fetchGameDataJson<unknown>('items.json')
+    ])
+      .then(([, payload]) => {
         const map = toIdMap<Item>(payload, 'data')
         logger.info('物品数据加载完成', { count: map.size })
         return map
@@ -247,8 +258,11 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
     return {
       id: item.id,
       name: item.name,
-      // 图标走 Data Dragon（CDragon 的 items icons2d 路径已失效 404，主源见 icon-url.ts）
+      // 图标主源走 Data Dragon（版本动态探测，见 icon-url.ts）
       iconUrl: itemIconUrl(item.id),
+      // 兜底源：LCU iconPath → CDragon 资源地址（主源 404 时由 CdnImage 换用；
+      // iconPath 缺失的老数据解析结果为 null，归一为 undefined 表示无兜底）
+      fallbackIconUrl: resolveAssetUrl(item.iconPath ?? '') ?? undefined,
       descriptionHtml: item.description ?? '',
       price: item.price,
       // 总价（priceTotal 字段名与 CDragon 对齐；totalPrice 保留给既有消费方）
@@ -596,7 +610,10 @@ export async function perkstyleDisplay(styleId: number): Promise<PerkstyleDispla
 /** 冠军摘要 JSON 记录（champion-summary.json；主仓库即用此文件，champions.json 已 404） */
 interface ChampionSummary {
   id: number
+  /** 英雄称号（如"黑暗之女"——champion-summary 的 name 实为称号） */
   name?: string
+  /** 英雄本名（如"安妮"——列表筛选下拉应展示本名） */
+  description?: string
 }
 
 let championsPromise: Promise<Map<number, ChampionSummary>> | null = null
@@ -635,4 +652,31 @@ export function getChampionName(championId: number): string {
   // 触发加载（重复调用复用同一 Promise；失败静默，下次调用重试）
   void loadChampions().catch(() => {})
   return championNames.get(championId) ?? String(championId)
+}
+
+/**
+ * 英雄筛选选项（对局列表按英雄过滤的下拉数据源）
+ */
+export interface ChampionOption {
+  /** 英雄 ID（后端 championId 筛选参数） */
+  id: number
+  /** 展示名：英雄本名（champion-summary 的 description 字段），缺失回退称号 */
+  label: string
+}
+
+/**
+ * 查询全部可选英雄列表（按英雄过滤对局功能的下拉选项）：
+ * 取自 champion-summary.json，排除非英雄记录（id ≤ 0，如 -1 "无"/自定义对局占位），
+ * 按 id 升序稳定排列；数据未就绪或加载失败时返回空数组（下拉回退"所有英雄"单项）
+ */
+export async function listChampionOptions(): Promise<ChampionOption[]> {
+  try {
+    const champions = await loadChampions()
+    return [...champions.entries()]
+      .filter(([id]) => id > 0)
+      .map(([id, champion]) => ({ id, label: champion.description || champion.name || String(id) }))
+      .sort((a, b) => a.id - b.id)
+  } catch {
+    return []
+  }
 }

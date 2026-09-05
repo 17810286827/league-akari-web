@@ -1,10 +1,13 @@
 <script setup lang="ts">
 /**
- * 左侧边栏：队列筛选区 + 总览统计区 + 最近队友区 + 最近对手区
- * 队列筛选（真实 queueId）与父组件同步；数据均来自父组件聚合结果
+ * 左侧边栏：队列筛选区 + 英雄筛选区 + 总览统计区 + 最近队友区 + 最近对手区
+ * 队列/英雄筛选（真实 queueId / championId）与父组件同步；数据均来自父组件聚合结果
  * （召唤师查询已移至页面顶部居中搜索栏，分页已移至战绩列表底部）
  */
+import { onMounted, ref, computed } from 'vue'
+
 import { championIconUrl } from '@/utils/icon-url'
+import { listChampionOptions, type ChampionOption } from '@/utils/game-resource'
 
 import { QUEUE_OPTIONS } from './adapter'
 import type { GameStatsData, OverviewStats, RecentPlayer } from './types'
@@ -14,6 +17,27 @@ const props = defineProps<{ data: GameStatsData; total: number }>()
 
 // 队列筛选（下拉框，值为后端 queueId，null 为所有模式）
 const queue = defineModel<number | null>('queue', { default: null })
+// 英雄筛选（下拉框，值为后端 championId，null 为所有英雄）：过滤该玩家本局使用此英雄的对局
+const champion = defineModel<number | null>('champion', { default: null })
+
+// ---- 英雄筛选下拉数据源 ----
+
+/** 全量英雄选项（CDragon champion-summary 加载，id 升序） */
+const championOptions = ref<ChampionOption[]>([])
+/** 英雄搜索框输入（按中文名过滤下拉选项，避免 160+ 选项长列表滚动） */
+const championSearch = ref('')
+
+/** 过滤后的英雄选项：按本名/称号包含匹配（不区分大小写），无输入时展示全量 */
+const filteredChampionOptions = computed(() => {
+  const keyword = championSearch.value.trim().toLowerCase()
+  if (!keyword) return championOptions.value
+  return championOptions.value.filter((option) => option.label.toLowerCase().includes(keyword))
+})
+
+// 挂载时加载英雄选项（失败静默：下拉仅剩"所有英雄"单项，不影响其它筛选）
+onMounted(async () => {
+  championOptions.value = await listChampionOptions()
+})
 
 /** 总览统计字段配置：标签 + 取值函数 + 是否百分比；百分比项渲染 mini 渐变进度条 */
 const overviewItems: {
@@ -56,7 +80,7 @@ const overviewItems: {
 
 <template>
   <aside class="sidebar">
-    <!-- 一、队列筛选区（分页已移至战绩列表底部） -->
+    <!-- 一、筛选区：队列 + 英雄（两者叠加生效，切换由父组件触发重新加载） -->
     <section class="panel">
       <div class="filter-row">
         <select v-model="queue" class="queue-select">
@@ -65,7 +89,24 @@ const overviewItems: {
           </option>
         </select>
       </div>
-      <button type="button" class="filter-btn">页内筛选</button>
+      <div class="filter-row">
+        <!-- 英雄搜索框：输入中文名过滤下拉选项（英雄 160+，无搜索的长列表不可用） -->
+        <input
+          v-model="championSearch"
+          type="text"
+          class="champion-search"
+          placeholder="搜索英雄名筛选对局"
+        />
+      </div>
+      <div class="filter-row">
+        <select v-model="champion" class="queue-select">
+          <!-- null 显式选中"所有英雄"（点击已选中的选项不触发 change，需占位项兜底） -->
+          <option :value="null">所有英雄</option>
+          <option v-for="option in filteredChampionOptions" :key="option.id" :value="option.id">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
     </section>
 
     <!-- 二、总览统计区 -->
@@ -187,6 +228,21 @@ const overviewItems: {
   background: var(--surface-hover);
   color: var(--text);
   font-size: 16px;
+}
+
+/* 英雄搜索框：与队列下拉同规格（宽度 100%，与筛选行对齐） */
+.champion-search {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  font-size: 15px;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
 }
 
 .filter-btn {

@@ -27,6 +27,8 @@ export interface MatchQueryParams {
   startTime?: number
   /** 结束时间戳（毫秒） */
   endTime?: number
+  /** 按英雄过滤：该玩家本局使用的英雄 ID（作用在其本人参与者行上，与其它筛选叠加） */
+  championId?: number
 }
 
 /** 按"昵称#tag"搜索召唤师账号（Riot Account-V1，后端库缓存优先；不存在时抛 ApiError 3001） */
@@ -65,7 +67,7 @@ export interface AnalyzeStreamHandlers {
   onStart?: (fromCache: boolean) => void
   /** 增量文本片段（按到达顺序拼接即为完整分析） */
   onChunk?: (content: string) => void
-  /** 模型思考过程增量（reasoning_content 思维链，deepseek-v4-flash 推理模式先输出思考再输出正文） */
+  /** 模型思考过程增量（reasoning_content 思维链；仅当后端模型支持思考模式时才有事件，详见 server docs/adr/0006） */
   onReasoning?: (content: string) => void
   /** 流正常结束（truncated=true 表示输出被长度预算截断，正文可能不完整） */
   onDone?: (truncated: boolean) => void
