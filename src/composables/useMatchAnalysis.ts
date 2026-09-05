@@ -2,7 +2,8 @@
  * 对局 AI 分析状态：分离“正在展示的流式缓冲”与“可跨刷新恢复的成功快照”。
  * 网络和存储均为可选能力，异常统一转换为可重试的页面状态。
  *
- * 约束说明：正文首块抵达后必须立即更新公开 refs，以保留打字机体验；
+ * 约束说明：reasoning 与正文首块抵达后必须立即更新公开 refs，以保留打字机体验
+ * （reasoning 不受首块门控——思考阶段本身就需要实时反馈）；
  * localStorage 只接收 done 后的完整快照，避免任何半截模型输出被持久化。
  */
 import { ref, type Ref } from 'vue'
@@ -325,8 +326,10 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
           // reasoning 与正文共享同一 request id 校验，避免旧流晚到造成思考过程错配。
           if (requestId === latestRequestId && !streamFailed) {
             temporaryReasoning += content
-            // 首个正文 chunk 前只累积 reasoning；失败时由 fail() 恢复旧快照。
-            if (hasPublishedFirstChunk) reasoning.value = temporaryReasoning
+            // 思考过程逐块实时发布（不等正文首块）：思考阶段可长达数十秒
+            // （deepseek-v4-flash 开思考实测约 65s 纯思维链），门控发布会让用户全程无反馈；
+            // 失败时由 fail() 用 previousSnapshot 整体恢复，不留半截思维链。
+            reasoning.value = temporaryReasoning
           }
         },
         onReasoningReset: () => {

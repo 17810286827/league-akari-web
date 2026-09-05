@@ -129,7 +129,7 @@ describe('useMatchAnalysis', () => {
     const request = state.analyze()
     await settle()
     // 收到正文片段后，正文展示当前临时缓冲，但缓存必须仍保留上次完整成功结果。
-    // reasoning 和 fromCache 在首个正文 chunk 前已被暂存，首块到达时才与正文一起公开。
+    // fromCache 在首个正文 chunk 前只进临时缓冲；reasoning 则实时发布（打字机体验）。
     expect(state.analyzing.value).toBe(true)
     expect(state.result.value).toBe('新正文-1新正文-2')
     expect(state.reasoning.value).toBe('新思考')
@@ -165,14 +165,18 @@ describe('useMatchAnalysis', () => {
     })
   })
 
-  it('reasoning 先到时首个正文 chunk 前仍保持旧公开快照', async () => {
+  it('reasoning 先到时实时发布思考过程，正文与缓存标记仍等首个正文 chunk', async () => {
+    // 思考阶段可能长达数十秒（deepseek-v4-flash 开思考实测约 65s 纯思维链），
+    // reasoning 必须逐块实时发布，否则正文出来前用户全程无反馈；
+    // 正文与 fromCache 仍受首块门控约束，失败时 fail() 会整体恢复旧快照。
     let release!: () => void
     let state!: ReturnType<typeof useMatchAnalysis>
     vi.mocked(analyzeMatch).mockImplementation(async (_gameId, handlers) => {
       handlers?.onStart?.(false)
       handlers?.onReasoning?.('新思考')
+      // 正文尚未到达：正文保持旧公开快照，思考过程必须已实时可见。
       expect(state.result.value).toBe('旧正文')
-      expect(state.reasoning.value).toBe('旧思考')
+      expect(state.reasoning.value).toBe('新思考')
       expect(state.fromCache.value).toBe(true)
       handlers?.onChunk?.('新正文')
       await new Promise<void>((resolve) => {
@@ -183,8 +187,10 @@ describe('useMatchAnalysis', () => {
     state = useMatchAnalysis({ gameId: 123, puuid: 'puuid-a' })
     const request = state.analyze()
     await settle()
+    // 多个 reasoning 增量须持续追加发布（思考阶段打字机效果），不能只在首块时一次性出现。
+    handlersAt(0).onReasoning?.('（续）')
+    expect(state.reasoning.value).toBe('新思考（续）')
     expect(state.result.value).toBe('新正文')
-    expect(state.reasoning.value).toBe('新思考')
     release()
     await request
   })
