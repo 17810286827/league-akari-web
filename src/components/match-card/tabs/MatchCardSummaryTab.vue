@@ -4,7 +4,8 @@
       class="mb-2 flex justify-end rounded-xs bg-neutral-200 px-2 py-1 dark:bg-neutral-800"
       v-if="basicInfo.isCherrySubteam"
     >
-      <div class="flex gap-0.5">
+      <!-- bans 一行最多 32 个图标（≈512px）：flex-wrap 允许窄屏（手机）换行，不横向溢出 -->
+      <div class="flex min-w-0 flex-wrap justify-end gap-0.5">
         <div class="mr-1 text-xs text-black/60 dark:text-white/60">
           {{ t('matchCard.teamTable.bans') }}
         </div>

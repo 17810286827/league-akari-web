@@ -1,5 +1,7 @@
 <template>
-  <div class="@container overflow-hidden rounded border border-solid" :class="tone.borderClass">
+  <!-- overflow-x-auto：窄容器（手机）下超出部分横向滚动兜底，数据不裁剪丢失；
+       宽容器内容不超宽时无滚动条，与原 overflow-hidden 观感一致 -->
+  <div class="@container overflow-x-auto rounded border border-solid" :class="tone.borderClass">
     <!-- header -->
     <div class="box-border flex h-8 items-center gap-4 p-2 text-xs" :class="tone.headerClass">
       <!-- team name -->
@@ -34,8 +36,9 @@
         {{ (team.totalGoldEarned / 1000).toFixed(2) }}k
       </div>
 
-      <!-- objective -->
-      <div v-if="team.teamInfo" class="flex gap-2">
+      <!-- objective：野怪目标区，容器 <600px（手机）隐藏——保留队名/KDA/经济/禁用等
+           关键信息，拆塔/小龙等详情可在展开总览查看 -->
+      <div v-if="team.teamInfo" class="hidden @[600px]:flex gap-2">
         <div
           class="flex items-center gap-1 text-black/60 dark:text-white/60"
           :title="t('matchCard.teamTable.objectives.tower')"
@@ -134,7 +137,7 @@
         <!-- left champion icon -->
         <NPopover placement="right" :content-style="{ maxWidth: '420px' }">
           <template #trigger>
-            <div class="relative size-8 cursor-pointer">
+            <div class="relative size-8 shrink-0 cursor-pointer">
               <ChampionIcon :champion-id="participant.championId" class="size-full!" round />
 
               <div
@@ -148,7 +151,7 @@
         </NPopover>
 
         <!-- spells -->
-        <div v-if="participant.spells[0] || participant.spells[1]" class="flex flex-col gap-0.5">
+        <div v-if="participant.spells[0] || participant.spells[1]" class="flex shrink-0 flex-col gap-0.5">
           <SummonerSpellDisplay
             v-for="spell in participant.spells"
             :key="spell"
@@ -165,7 +168,7 @@
             participant.perks.perkIds[0] ||
             participant.perks.perkIds[4]
           "
-          class="-ml-0.5 flex flex-col gap-0.5"
+          class="-ml-0.5 flex shrink-0 flex-col gap-0.5"
         >
           <PerkDisplay :perk-id="participant.perks.perkIds[0] ?? undefined" :size="16" />
           <PerkstyleDisplay
@@ -398,7 +401,8 @@ const extraColumns = computed<ColumnConfig[]>(() => {
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
         { name: 'cs', class: 'hidden @[740px]:block min-w-[5rem] text-center' },
         { name: 'gold', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
-        { name: 'items', class: 'w-40 flex gap-0.5 justify-center' }
+        // 装备列：容器 <640px 隐藏（手机端以名字/KDA/伤害三列为主）
+        { name: 'items', class: 'hidden @[640px]:flex w-40 gap-0.5 justify-center' }
       ]
     case 'KIWI':
       return [
@@ -408,7 +412,8 @@ const extraColumns = computed<ColumnConfig[]>(() => {
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
         { name: 'cs', class: 'hidden @[740px]:block min-w-[5rem] text-center' },
         { name: 'gold', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
-        { name: 'items', class: 'min-w-40 flex gap-0.5 justify-center' }
+        // 装备列：容器 <640px 隐藏（手机端以名字/KDA/伤害三列为主）
+        { name: 'items', class: 'hidden @[640px]:flex min-w-40 gap-0.5 justify-center' }
       ]
     default:
       return [
@@ -416,10 +421,12 @@ const extraColumns = computed<ColumnConfig[]>(() => {
         { name: 'kda', class: 'min-w-[7rem] text-center' },
         { name: 'damage', class: 'min-w-[7.5rem] flex gap-2 justify-center' },
         { name: 'cs', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
-        { name: 'gold', class: 'min-w-[5rem] text-center' },
+        // 经济列：与补刀列同策略，容器 <700px（手机）隐藏，展开详情仍可见
+        { name: 'gold', class: 'hidden @[700px]:block min-w-[5rem] text-center' },
         {
           name: 'items',
-          class: `${hasRoleBoundItems ? 'min-w-45' : 'min-w-40'} flex gap-0.5 justify-center`
+          // 装备列：容器 <640px 隐藏（手机端以名字/KDA/伤害三列为主）
+          class: `${hasRoleBoundItems ? 'min-w-45' : 'min-w-40'} hidden @[640px]:flex gap-0.5 justify-center`
         }
       ]
   }

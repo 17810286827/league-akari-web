@@ -262,4 +262,32 @@ function goHome(): void {
   height: 18px;
   fill: var(--text);
 }
+
+/* 小屏（≤900px）：三栏 grid 放开为可换行流式布局——
+   第一行"玩家信息 + 操作按钮"，段位板块换行平铺（order 调序 + basis 占满强制换行）；
+   隐藏"最高段位"第三行文案，为昵称与段位主信息让出宽度 */
+@media (max-width: 900px) {
+  .top-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+
+  /* 玩家信息占据剩余宽度，把操作按钮推到行尾 */
+  .player-info {
+    flex: 1;
+  }
+
+  /* 段位板块换行平铺：缩小间距防溢出 */
+  .rank-sections {
+    order: 3;
+    flex-basis: 100%;
+    gap: 14px;
+  }
+
+  .rank-highest {
+    display: none;
+  }
+}
 </style>

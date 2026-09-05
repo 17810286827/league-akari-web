@@ -1,9 +1,11 @@
 <template>
   <!-- 事件 Tab（任务 15 全量移植原版 MatchCardEventsTab）：
-       左侧 NTimeline 时间线（击杀/一血多杀/拆塔/镀层），右侧控制面板（事件筛选/按英雄筛选/镀层统计） -->
-  <div class="flex h-142 w-full gap-4">
+       左侧 NTimeline 时间线（击杀/一血多杀/拆塔/镀层），右侧控制面板（事件筛选/按英雄筛选/镀层统计）
+       窄容器（手机，<640px）下左右双栏纵向堆叠：容器高度放开为自适应，
+       时间线区域固定 h-96 保证内部 NScrollbar 可滚 -->
+  <div class="flex h-142 w-full gap-4 @max-[640px]:flex-col @max-[640px]:h-auto">
     <!-- 左侧：时间线区域 -->
-    <div class="min-h-0 flex-1">
+    <div class="min-h-0 flex-1 @max-[640px]:h-96 @max-[640px]:flex-none">
       <NScrollbar class="h-full w-full">
         <div class="pt-2 pl-4">
           <NTimeline>
@@ -184,7 +186,8 @@
     </div>
 
     <!-- 右侧：控制面板（与 DiffLineChart 风格一致） -->
-    <NScrollbar class="w-52!">
+    <!-- 右侧控制面板：窄容器下占满行宽（堆叠到时间线下方） -->
+    <NScrollbar class="w-52! @max-[640px]:w-full!">
       <div class="flex flex-col gap-3">
         <!-- 筛选器 -->
         <div class="flex w-full flex-col gap-2">

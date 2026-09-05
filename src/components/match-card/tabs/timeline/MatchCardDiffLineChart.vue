@@ -1,14 +1,15 @@
 <template>
   <!-- 差距线图表（任务 15 全量移植原版 MatchCardDiffLineChart）：
-       左侧 Line 折线图（玩家个人 + 队伍平均），右侧控制面板（数据类型/队伍/玩家选择） -->
-  <div class="flex size-full gap-4">
+       左侧 Line 折线图（玩家个人 + 队伍平均），右侧控制面板（数据类型/队伍/玩家选择）
+       窄容器（手机，<640px）下纵向堆叠：图表固定 h-256 由 chart.js 自适应宽度 -->
+  <div class="flex size-full gap-4 @max-[640px]:flex-col">
     <!-- 图表区域 -->
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 flex-1 @max-[640px]:h-64 @max-[640px]:flex-none">
       <Line :data="chartData" :options="chartOptions" />
     </div>
 
-    <!-- 右侧控制面板 -->
-    <NScrollbar class="w-52!">
+    <!-- 右侧控制面板：窄容器下占满行宽 -->
+    <NScrollbar class="w-52! @max-[640px]:w-full!">
       <div class="flex flex-col gap-3">
         <!-- 数据类型选择器 -->
         <div class="flex flex-col gap-2">

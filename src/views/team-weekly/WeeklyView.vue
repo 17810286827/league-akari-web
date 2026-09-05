@@ -199,7 +199,9 @@ onMounted(load)
             >
               <RankBadge :rank="index + 1" />
               <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
-              <span class="text-sm text-slate-400">{{ entry.detail }}</span>
+              <!-- detail 辅助文案：<768px（手机）隐藏——榜单行仅保留名次/昵称/核心数值，
+                   避免"22.5% 胜率 · 300 场"等长文案在窄行挤压昵称 -->
+              <span class="hidden text-sm text-slate-400 md:inline">{{ entry.detail }}</span>
               <span class="w-24 text-right text-2xl font-bold tabular-nums">
                 <GoldText>{{ formatStat(entry.value) }}</GoldText>
               </span>

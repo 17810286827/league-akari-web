@@ -9,6 +9,8 @@
 import { computed, isRef, onMounted, ref, watch } from 'vue'
 import { NSpin, useMessage } from 'naive-ui'
 import { useRoute, useRouter } from 'vue-router'
+// 窄屏判定：与样式层 900px 媒体查询断点保持一致（侧栏在该宽度切换为抽屉模式）
+import { useMediaQuery } from '@vueuse/core'
 
 import { getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
 import type { MatchDetail, MatchSummary, RecentOpponent, RiotAccount } from '@/api/types'
@@ -88,8 +90,29 @@ const activeQueueId = ref<number | null>(null)
 const page = ref(1)
 // 展开对局 ID：同一时刻至多展开一局（与详情页单局语义一致）
 const expandedGameId = ref<number | null>(null)
-// 侧栏折叠态：小屏默认收起，由折叠按钮切换
-const sidebarCollapsed = ref(false)
+// 窄屏判定：≤900px 时侧栏以 fixed 抽屉呈现（断点与 <style> 媒体查询一致）
+const isNarrowScreen = useMediaQuery('(max-width: 900px)')
+// 侧栏折叠态：桌面默认展开；窄屏（手机）默认收起，经折叠按钮/遮罩开合
+const sidebarCollapsed = ref(isNarrowScreen.value)
+
+// 跨断点同步：窗口拖动穿过 900px 时按新环境重置（窄屏收起防止抽屉遮挡列表）
+watch(isNarrowScreen, (narrow) => {
+  sidebarCollapsed.value = narrow
+  logger.info('Sidebar visibility synced with viewport', { narrow })
+})
+
+/** 切换侧栏开合（小屏抽屉模式）；打点记录便于追踪移动端交互路径 */
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  logger.info('Sidebar toggled', { collapsed: sidebarCollapsed.value })
+}
+
+/** 关闭侧栏抽屉（点击遮罩触发；已收起时幂等返回） */
+function closeSidebar(): void {
+  if (sidebarCollapsed.value) return
+  sidebarCollapsed.value = true
+  logger.info('Sidebar closed via mask')
+}
 // 最近对手：后端列表接口聚合结果（列表查询时即返回，不依赖展开详情）
 const recentOpponents = ref<RecentOpponent[]>([])
 
@@ -394,15 +417,22 @@ watch(
     <TopNavBar :sections="rankSections" :player="playerProfile" @refresh="handleRefresh" />
 
     <div class="body">
-      <!-- 侧栏折叠按钮：小屏可见，点击展开/收起侧栏 -->
+      <!-- 侧栏折叠按钮：小屏可见，点击展开/收起侧栏抽屉 -->
       <button
         type="button"
         class="collapse-btn"
         :class="{ 'collapse-btn-open': sidebarCollapsed }"
-        @click="sidebarCollapsed = !sidebarCollapsed"
+        @click="toggleSidebar"
       >
         {{ sidebarCollapsed ? '展开侧栏' : '收起侧栏' }}
       </button>
+
+      <!-- 遮罩层：小屏抽屉展开时压暗列表区，点击即关闭（宽屏恒为隐藏） -->
+      <div
+        v-show="!sidebarCollapsed && isNarrowScreen"
+        class="sidebar-mask"
+        @click="closeSidebar"
+      />
 
       <!-- 左侧边栏：小屏可折叠（队列筛选/总览/最近队友对手） -->
       <div v-show="!sidebarCollapsed" class="sidebar-wrap">
@@ -607,9 +637,11 @@ watch(
   gap: 14px;
 }
 
-/* 分页栏：列表底部居中（每页条数下拉 + 总条数 + 翻页箭头，淡绿终端风格） */
+/* 分页栏：列表底部居中（每页条数下拉 + 总条数 + 翻页箭头，淡绿终端风格）
+   flex-wrap：手机窄屏页码较多时自动换行，避免横向溢出 */
 .pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -702,25 +734,39 @@ watch(
   font-size: 13px;
 }
 
-/* 小屏：侧栏默认隐藏，通过按钮展开 */
+/* 小屏（≤900px）：侧栏折叠为左侧 fixed 抽屉 + 遮罩点击关闭。
+   旧实现把 fixed 定位嵌在 display:none 内属于死代码，"展开侧栏"按钮点击后
+   无任何反应；现改为：按钮/遮罩开合抽屉（v-show 控制），抽屉随容器收缩 */
 @media (max-width: 900px) {
   .collapse-btn {
     display: block;
   }
 
+  /* 侧栏容器：左侧 fixed 抽屉（脱离文档流，覆盖在列表上方），
+     仅 sidebarCollapsed=false（未折叠）时由 v-show 渲染显示 */
   .sidebar-wrap {
-    display: none;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: min(320px, 85vw);
+    overflow-y: auto;
+    background: var(--bg);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
 
-    /* 侧栏展开时覆盖在列表上方 */
-    .sidebar {
-      position: fixed;
-      top: 60px;
-      bottom: 0;
-      left: 0;
-      z-index: 10;
-      overflow-y: auto;
-      background: var(--bg);
-    }
+  /* 抽屉模式下侧栏面板宽度随容器收缩（覆盖 SidebarPanel 的 310px 固定宽） */
+  .sidebar-wrap :deep(.sidebar) {
+    width: 100%;
+  }
+
+  /* 遮罩层：抽屉展开时压暗并拦截列表区点击，轻点即关闭抽屉 */
+  .sidebar-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.55);
   }
 }
 </style>

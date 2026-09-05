@@ -161,8 +161,9 @@
             </div>
           </div>
 
-          <!-- dmg taken：承伤占比，与伤害占比同风格（百分比 + 荧光数据条 + 数值） -->
-          <div class="min-w-22">
+          <!-- dmg taken：承伤占比，与伤害占比同风格（百分比 + 荧光数据条 + 数值）
+               容器 <560px（手机）隐藏：窄屏优先展示 KDA 与伤害两个核心列 -->
+          <div class="hidden min-w-22 @min-[560px]:block">
             <div class="text-center text-[20px] font-bold">
               {{ dmgTakenPercentage }}%
             </div>
@@ -181,8 +182,9 @@
             </div>
           </div>
 
-          <!-- gold：经济占比，与伤害/承伤占比同风格（百分比 + 荧光数据条 + 数值） -->
-          <div class="min-w-22">
+          <!-- gold：经济占比，与伤害/承伤占比同风格（百分比 + 荧光数据条 + 数值）
+               容器 <620px（手机）隐藏：比承伤更晚消失，极窄屏只保留 KDA/伤害 -->
+          <div class="hidden min-w-22 @min-[620px]:block">
             <div class="text-center text-[20px] font-bold">
               {{ goldPercentage }}%
             </div>
@@ -201,8 +203,9 @@
             </div>
           </div>
 
-          <!-- 伤转：伤害转化率（对英雄伤害 ÷ 金币），数据条 = 玩家/队均（队均 100% 基准） -->
-          <div class="min-w-22" :title="t('matchCard.overview.dgeTip')">
+          <!-- 伤转：伤害转化率（对英雄伤害 ÷ 金币），数据条 = 玩家/队均（队均 100% 基准）
+               容器 <680px（手机）隐藏：伤转为进阶指标，窄屏让位给核心数据列 -->
+          <div class="hidden min-w-22 @min-[680px]:block" :title="t('matchCard.overview.dgeTip')">
             <div class="text-center text-[20px] font-bold tabular-nums">
               {{ dge.toFixed(2) }}
             </div>
@@ -315,8 +318,10 @@
         </div>
       </div>
 
-      <!-- player list (5x5 team only) -->
-      <div v-if="basicInfo.isTwoTeam" class="z-2 my-1.5 flex w-42 max-w-42 gap-2">
+      <!-- player list (5x5 team only)
+           容器 <680px（手机）隐藏右侧队员栏：168px 固定宽在窄屏挤压主数据区，
+           完整名单展开详情可见 -->
+      <div v-if="basicInfo.isTwoTeam" class="z-2 my-1.5 hidden w-42 max-w-42 @min-[680px]:flex gap-2">
         <!-- teams -->
         <div
           v-for="team of twoTeams"
@@ -372,7 +377,7 @@
 
       <div
         v-else-if="basicInfo.isCherrySubteam && !isThreePlayerCherryMode"
-        class="z-2 my-1.5 grid w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-2 gap-x-2"
+        class="z-2 my-1.5 hidden w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-2 @min-[680px]:grid gap-x-2"
       >
         <!-- teams -->
         <div
@@ -432,7 +437,7 @@
 
       <div
         v-else-if="basicInfo.isCherrySubteam"
-        class="z-2 my-3 grid w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-3 content-center gap-x-2 gap-y-1"
+        class="z-2 my-3 hidden w-42 max-w-42 grid-flow-col grid-cols-2 grid-rows-3 content-center @min-[680px]:grid gap-x-2 gap-y-1"
       >
         <!-- teams -->
         <div

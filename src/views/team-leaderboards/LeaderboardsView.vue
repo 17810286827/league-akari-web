@@ -231,7 +231,8 @@ onMounted(load)
               >
                 <RankBadge :rank="index + 1" />
                 <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
-                <span class="text-sm text-slate-400">
+                <!-- 辅助文案：<768px（手机）隐藏，榜单行仅保留名次/昵称/数值 -->
+                <span class="hidden text-sm text-slate-400 md:inline">
                   {{ entry.games }}场 胜率{{ Math.round(((entry.wins ?? 0) / (entry.games || 1)) * 100) }}%
                 </span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
@@ -256,7 +257,7 @@ onMounted(load)
               >
                 <RankBadge :rank="index + 1" />
                 <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">{{ entry.riotId }}</span>
-                <span class="text-sm text-slate-400">{{ entry.detail }}</span>
+                <span class="hidden text-sm text-slate-400 md:inline">{{ entry.detail }}</span>
                 <span class="w-24 text-right text-2xl font-bold tabular-nums">
                   <GoldText>{{ formatStat(entry.value) }}</GoldText>
                 </span>
@@ -314,9 +315,11 @@ onMounted(load)
                   </div>
                 </div>
 
-                <!-- 英雄基线对比：表格禁止折行 + 列间距，避免窄列数字互相挤压 -->
+                <!-- 英雄基线对比：表格禁止折行 + 列间距，避免窄列数字互相挤压；
+                     外层 overflow-x-auto：极窄屏（<360px）下表格横向滚动兜底，不撑破面板 -->
                 <h3 class="mb-2 mt-5 text-sm font-bold tracking-[0.15em] text-hex-gold">英雄基线 · 全时段</h3>
-                <table class="w-full whitespace-nowrap text-left text-sm font-semibold text-slate-200" data-testid="panel-champions">
+                <div class="overflow-x-auto">
+                  <table class="w-full whitespace-nowrap text-left text-sm font-semibold text-slate-200" data-testid="panel-champions">
                   <thead class="text-xs font-semibold tracking-wider text-slate-400">
                     <tr>
                       <th class="px-1.5 pb-1">英雄</th>
@@ -338,6 +341,7 @@ onMounted(load)
                     </tr>
                   </tbody>
                 </table>
+                </div>
               </template>
             </template>
           </div>

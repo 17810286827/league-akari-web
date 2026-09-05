@@ -1,7 +1,8 @@
 <template>
   <!-- 属性时间线（任务 15 全量移植原版 MatchCardStatsLine，仅 SGP 数据有属性值）：
-       左侧选手属性网格 + 帧滑动条 + 地图位置，右侧选手选择 -->
-  <div class="flex size-full gap-4">
+       左侧选手属性网格 + 帧滑动条 + 地图位置，右侧选手选择
+       窄容器（手机，<640px）下纵向堆叠：属性网格自适应（auto-fit），右栏占满行宽 -->
+  <div class="flex size-full gap-4 @max-[640px]:flex-col">
     <!-- 图表区域 -->
     <div v-if="selectedParticipant" class="box-border flex min-w-0 flex-1 flex-col px-2">
       <div class="mb-3 flex items-center gap-2">
@@ -56,7 +57,8 @@
       </NScrollbar>
     </div>
 
-    <div class="flex w-52 flex-col">
+    <!-- 右栏：地图位置 + 选手选择；窄容器下占满行宽（堆叠到属性网格下方） -->
+    <div class="flex w-52 flex-col @max-[640px]:w-full">
       <template v-if="selectedFrameParticipant && isSupportedMap(basicInfo.mapId)">
         <MapPosition
           :size="180"

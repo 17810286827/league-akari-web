@@ -162,6 +162,14 @@ onMounted(loadRoster)
   text-shadow: 0 0 24px rgba(74, 222, 128, 0.35);
 }
 
+/* 手机（≤640px）：标题字号降为 30px——44px 桌面字号在 375px 视口
+   占比过大，且 0.12em 字距会把"LEAGUE AKARI"挤出首行 */
+@media (max-width: 640px) {
+  .home-title {
+    font-size: 30px;
+  }
+}
+
 .home-title-accent {
   background: linear-gradient(90deg, #86efac, #f87171);
   -webkit-background-clip: text;
