@@ -118,7 +118,7 @@ const overviewItems: {
           placeholder="搜索英雄名筛选对局"
         />
       </div>
-      <!-- 英雄磁贴墙：4 列头像网格,常驻"所有英雄"占位;点选选中/再点取消 -->
+      <!-- 英雄磁贴墙：响应式头像网格（每格最小宽度自适应列数），常驻"所有英雄"占位;点选选中/再点取消 -->
       <div v-if="championOptions.length > 0" class="filter-row">
         <div class="tile-grid">
           <button
@@ -299,10 +299,11 @@ const overviewItems: {
   }
 }
 
-/* 英雄磁贴墙：4 列头像网格，仅纵向滚动（长英雄名截断而非横向溢出） */
+/* 英雄磁贴墙：响应式列数（每格最小 72px,容器宽度决定列数,窄侧栏 3 列/宽抽屉 5+ 列），
+   仅纵向滚动（长英雄名截断而非横向溢出） */
 .tile-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 6px;
   width: 100%;
   max-height: 300px;
