@@ -655,26 +655,42 @@ export function getChampionName(championId: number): string {
 }
 
 /**
- * 英雄筛选选项（对局列表按英雄过滤的下拉数据源）
+ * 英雄筛选选项（对局列表按英雄过滤的实时匹配数据源）
  */
 export interface ChampionOption {
   /** 英雄 ID（后端 championId 筛选参数） */
   id: number
   /** 展示名：英雄本名（champion-summary 的 description 字段），缺失回退称号 */
   label: string
+  /** 英雄称号（champion-summary 的 name 字段，如"暗裔剑魔"），与 label 一起参与关键字匹配 */
+  title: string
 }
 
 /**
- * 查询全部可选英雄列表（按英雄过滤对局功能的下拉选项）：
+ * 查询全部可选英雄列表（按英雄过滤对局功能的数据源）：
  * 取自 champion-summary.json，排除非英雄记录（id ≤ 0，如 -1 "无"/自定义对局占位），
- * 按 id 升序稳定排列；数据未就绪或加载失败时返回空数组（下拉回退"所有英雄"单项）
+ * 并按本名去重——CDragon 数据含 60001+ 段旧称号重复记录（如"流浪法师 瑞兹"#60013
+ * vs 现行"符文法师 瑞兹"#13），同名保留正式 id（数值更小，即称号最新）的一条；
+ * 按 id 升序稳定排列；数据未就绪或加载失败时返回空数组（组件回退"所有英雄"单项）
  */
 export async function listChampionOptions(): Promise<ChampionOption[]> {
   try {
     const champions = await loadChampions()
-    return [...champions.entries()]
-      .filter(([id]) => id > 0)
-      .map(([id, champion]) => ({ id, label: champion.description || champion.name || String(id) }))
+    // 按本名去重：key 取本名（description），缺失回退称号，再缺失回退 id 字符串
+    const byName = new Map<string, ChampionSummary>()
+    for (const [id, champion] of champions) {
+      if (id <= 0) continue
+      const key = champion.description || champion.name || String(id)
+      const existing = byName.get(key)
+      // 同名时保留正式 id（数值更小）的记录，即称号最新的那条
+      if (!existing || id < existing.id) byName.set(key, champion)
+    }
+    return [...byName.values()]
+      .map((champion) => {
+        const label = champion.description || champion.name || String(champion.id)
+        // 称号与展示名同源：label 回退称号时 title 与之一致，避免空串不参与匹配
+        return { id: champion.id, label, title: champion.name || label }
+      })
       .sort((a, b) => a.id - b.id)
   } catch {
     return []

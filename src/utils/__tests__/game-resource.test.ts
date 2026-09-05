@@ -243,14 +243,15 @@ describe('装备图标动态版本 + CDragon 兜底', () => {
 })
 
 /**
- * 英雄筛选下拉数据源（按英雄过滤对局功能）：
- * champion-summary 的 name 为称号、description 为本名，下拉展示本名；
- * 非英雄记录（id ≤ 0，如 -1 "无"）必须排除。
+ * 英雄筛选选项数据源（按英雄过滤对局功能）：
+ * champion-summary 的 name 为称号、description 为本名，选项双字段供称号/本名实时匹配；
+ * 非英雄记录（id ≤ 0，如 -1 "无"）必须排除；
+ * 60001+ 段旧称号重复记录按本名去重，保留正式 id（称号最新）的一条。
  */
 describe('listChampionOptions 英雄筛选选项', () => {
   beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ data: [] }))))
 
-  it('返回全部正 id 英雄，label 取本名（description），按 id 升序', async () => {
+  it('返回全部正 id 英雄，label 取本名（description），title 取称号（name），按 id 升序', async () => {
     vi.resetModules()
     const fresh = await import('../game-resource')
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -262,15 +263,15 @@ describe('listChampionOptions 英雄筛选选项', () => {
       ])
     )
     const options = await fresh.listChampionOptions()
-    // 排除 id=-1；按 id 升序；label 为本名（description）
+    // 排除 id=-1；按 id 升序；label 为本名（description）、title 为称号（name）
     expect(options).toEqual([
-      { id: 1, label: '安妮' },
-      { id: 22, label: '厄运小姐' },
-      { id: 266, label: '莫甘娜' }
+      { id: 1, label: '安妮', title: '黑暗之女' },
+      { id: 22, label: '厄运小姐', title: '赏金猎人' },
+      { id: 266, label: '莫甘娜', title: '堕天使' }
     ])
   })
 
-  it('description 缺失时回退称号（name），两者皆缺回退 id 字符串', async () => {
+  it('description 缺失时 label 回退称号（name），title 同步回退，两者皆缺回退 id 字符串', async () => {
     vi.resetModules()
     const fresh = await import('../game-resource')
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -280,8 +281,27 @@ describe('listChampionOptions 英雄筛选选项', () => {
       ])
     )
     const options = await fresh.listChampionOptions()
-    expect(options).toContainEqual({ id: 10, label: '时光守护者' })
-    expect(options).toContainEqual({ id: 20, label: '20' })
+    expect(options).toContainEqual({ id: 10, label: '时光守护者', title: '时光守护者' })
+    expect(options).toContainEqual({ id: 20, label: '20', title: '20' })
+  })
+
+  it('60001+ 段旧称号重复记录去重：同本名保留正式 id（数值更小）的一条', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        // 正式 id 现行称号（应保留）
+        { id: 13, name: '符文法师', description: '瑞兹', alias: 'Ryze' },
+        // 60001+ 段旧称号重复（应丢弃）
+        { id: 60013, name: '流浪法师', description: '瑞兹', alias: 'Ryze' },
+        { id: 266, name: '暗裔剑魔', description: '亚托克斯', alias: 'Aatrox' }
+      ])
+    )
+    const options = await fresh.listChampionOptions()
+    expect(options).toEqual([
+      { id: 13, label: '瑞兹', title: '符文法师' },
+      { id: 266, label: '亚托克斯', title: '暗裔剑魔' }
+    ])
   })
 
   it('加载失败返回空数组（下拉回退"所有英雄"单项，不抛错）', async () => {

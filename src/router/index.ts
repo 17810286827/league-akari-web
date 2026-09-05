@@ -7,6 +7,11 @@ import GameStatsView from '@/views/game-stats/GameStatsView.vue'
 import WeeklyView from '@/views/team-weekly/WeeklyView.vue'
 import LeaderboardsView from '@/views/team-leaderboards/LeaderboardsView.vue'
 
+// 【原型】响应式布局评审页：仅 dev 构建注册（一次性原型，选定方案后随组件一起移除）
+const prototypeRoutes = import.meta.env.DEV
+  ? [{ path: '/prototype/responsive', name: 'prototype-responsive', component: () => import('@/views/prototype/ResponsivePrototype.vue') }]
+  : []
+
 // 创建路由实例：使用 HTML5 History 模式
 const router = createRouter({
   history: createWebHistory(),
@@ -21,7 +26,9 @@ const router = createRouter({
     // 车队周报：默认上一周，可切任意周（?date=yyyy-MM-dd 语义同后端）
     { path: '/weekly', name: 'team-weekly', component: WeeklyView },
     // 榜单中心：维度/模式/时间筛选 + 成员卡
-    { path: '/leaderboards', name: 'team-leaderboards', component: LeaderboardsView }
+    { path: '/leaderboards', name: 'team-leaderboards', component: LeaderboardsView },
+    // 原型路由展开（dev-only，见上方 prototypeRoutes）
+    ...prototypeRoutes
   ]
 })
 

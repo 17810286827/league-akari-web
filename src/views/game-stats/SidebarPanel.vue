@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 左侧边栏：队列筛选区 + 英雄筛选区 + 总览统计区 + 最近队友区 + 最近对手区
+ * 左侧边栏：队列筛选区 + 英雄筛选区（实时匹配磁贴墙）+ 总览统计区 + 最近队友区 + 最近对手区
  * 队列/英雄筛选（真实 queueId / championId）与父组件同步；数据均来自父组件聚合结果
  * （召唤师查询已移至页面顶部居中搜索栏，分页已移至战绩列表底部）
  */
@@ -8,36 +8,55 @@ import { onMounted, ref, computed } from 'vue'
 
 import { championIconUrl } from '@/utils/icon-url'
 import { listChampionOptions, type ChampionOption } from '@/utils/game-resource'
+import { createLogger } from '@/utils/logger'
 
 import { QUEUE_OPTIONS } from './adapter'
 import type { GameStatsData, OverviewStats, RecentPlayer } from './types'
+
+const logger = createLogger('SidebarPanel')
 
 // 页面数据（props 注入）与后端总条数；具名引用供模板函数使用
 const props = defineProps<{ data: GameStatsData; total: number }>()
 
 // 队列筛选（下拉框，值为后端 queueId，null 为所有模式）
 const queue = defineModel<number | null>('queue', { default: null })
-// 英雄筛选（下拉框，值为后端 championId，null 为所有英雄）：过滤该玩家本局使用此英雄的对局
+// 英雄筛选（磁贴墙点选，值为后端 championId，null 为所有英雄）：过滤该玩家本局使用此英雄的对局
 const champion = defineModel<number | null>('champion', { default: null })
 
-// ---- 英雄筛选下拉数据源 ----
+// ---- 英雄筛选磁贴墙数据源 ----
 
-/** 全量英雄选项（CDragon champion-summary 加载，id 升序） */
+/** 全量英雄选项（CDragon champion-summary 加载，已按本名去重，id 升序） */
 const championOptions = ref<ChampionOption[]>([])
-/** 英雄搜索框输入（按中文名过滤下拉选项，避免 160+ 选项长列表滚动） */
+/** 英雄搜索框输入（称号/本名双字段实时匹配过滤磁贴） */
 const championSearch = ref('')
 
-/** 过滤后的英雄选项：按本名/称号包含匹配（不区分大小写），无输入时展示全量 */
+/**
+ * 过滤后的英雄选项：关键字与称号 OR 本名任一"包含"即命中（不区分大小写）——
+ * "剑魔"命中称号"暗裔剑魔"，"亚托克斯"命中本名，指向同一英雄；无输入时展示全量
+ */
 const filteredChampionOptions = computed(() => {
   const keyword = championSearch.value.trim().toLowerCase()
   if (!keyword) return championOptions.value
-  return championOptions.value.filter((option) => option.label.toLowerCase().includes(keyword))
+  return championOptions.value.filter(
+    (option) => option.label.toLowerCase().includes(keyword) || option.title.toLowerCase().includes(keyword)
+  )
 })
 
-// 挂载时加载英雄选项（失败静默：下拉仅剩"所有英雄"单项，不影响其它筛选）
+// 挂载时加载英雄选项（失败静默：磁贴区空态，不影响其它筛选）
 onMounted(async () => {
   championOptions.value = await listChampionOptions()
+  logger.info('英雄筛选选项加载完成', { count: championOptions.value.length })
 })
+
+/**
+ * 点选英雄磁贴：选中新英雄或取消已选中（再点同一磁贴 = 回到"所有英雄"）
+ * 关键交互节点打点追踪
+ */
+function toggleChampion(option: ChampionOption): void {
+  const next = champion.value === option.id ? null : option.id
+  champion.value = next
+  logger.info('英雄筛选切换', { championId: next })
+}
 
 /** 总览统计字段配置：标签 + 取值函数 + 是否百分比；百分比项渲染 mini 渐变进度条 */
 const overviewItems: {
@@ -83,6 +102,7 @@ const overviewItems: {
     <!-- 一、筛选区：队列 + 英雄（两者叠加生效，切换由父组件触发重新加载） -->
     <section class="panel">
       <div class="filter-row">
+        <!-- 队列下拉：去原生外观 + 自绘主题绿箭头（暗色主题下原生样式突兀） -->
         <select v-model="queue" class="queue-select">
           <option v-for="option in QUEUE_OPTIONS" :key="option.label" :value="option.queueId">
             {{ option.label }}
@@ -90,7 +110,7 @@ const overviewItems: {
         </select>
       </div>
       <div class="filter-row">
-        <!-- 英雄搜索框：输入中文名过滤下拉选项（英雄 160+，无搜索的长列表不可用） -->
+        <!-- 英雄搜索框：输入称号片段或本名实时过滤下方磁贴（如"剑魔"/"亚托克斯"均命中暗裔剑魔） -->
         <input
           v-model="championSearch"
           type="text"
@@ -98,14 +118,35 @@ const overviewItems: {
           placeholder="搜索英雄名筛选对局"
         />
       </div>
-      <div class="filter-row">
-        <select v-model="champion" class="queue-select">
-          <!-- null 显式选中"所有英雄"（点击已选中的选项不触发 change，需占位项兜底） -->
-          <option :value="null">所有英雄</option>
-          <option v-for="option in filteredChampionOptions" :key="option.id" :value="option.id">
-            {{ option.label }}
-          </option>
-        </select>
+      <!-- 英雄磁贴墙：4 列头像网格,常驻"所有英雄"占位;点选选中/再点取消 -->
+      <div v-if="championOptions.length > 0" class="filter-row">
+        <div class="tile-grid">
+          <button
+            type="button"
+            class="tile"
+            :class="{ selected: champion === null }"
+            title="所有英雄"
+            @click="champion = null"
+          >
+            <span class="tile-all">ALL</span>
+            <span class="tile-label">所有英雄</span>
+          </button>
+          <button
+            v-for="option in filteredChampionOptions"
+            :key="option.id"
+            type="button"
+            class="tile"
+            :class="{ selected: champion === option.id }"
+            :title="`${option.title}（${option.label}）`"
+            @click="toggleChampion(option)"
+          >
+            <img :src="championIconUrl(option.id)" :alt="option.label" class="tile-icon" />
+            <span class="tile-label">{{ option.label }}</span>
+          </button>
+          <p v-if="filteredChampionOptions.length === 0" class="tile-empty">无匹配英雄</p>
+        </div>
+        <!-- 实时匹配计数：让用户确认过滤已生效与结果规模 -->
+        <p class="match-count">实时匹配：{{ filteredChampionOptions.length }} / {{ championOptions.length }} 个英雄</p>
       </div>
     </section>
 
@@ -222,12 +263,25 @@ const overviewItems: {
 
 .queue-select {
   flex: 1;
-  padding: 6px 8px;
+  padding: 6px 30px 6px 8px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--surface-hover);
   color: var(--text);
   font-size: 16px;
+  cursor: pointer;
+  /* 去原生外观 + 自绘主题绿箭头（暗色主题下原生样式突兀） */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%234ade80' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+
+  /* 下拉展开的选项面板：跟随暗色主题 */
+  option {
+    background: var(--surface-active);
+    color: var(--text);
+  }
 }
 
 /* 英雄搜索框：与队列下拉同规格（宽度 100%，与筛选行对齐） */
@@ -242,6 +296,110 @@ const overviewItems: {
 
   &::placeholder {
     color: var(--text-muted);
+  }
+}
+
+/* 英雄磁贴墙：4 列头像网格，仅纵向滚动（长英雄名截断而非横向溢出） */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px;
+}
+
+/* 磁贴：图标 + 本名标签；min-width 归零防长文本撑宽列 */
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: var(--surface-hover);
+  }
+
+  /* 选中磁贴：绿描边 + 亮色文字标识当前筛选 */
+  &.selected {
+    border-color: var(--primary);
+    color: var(--primary-2);
+    background: var(--surface-active);
+  }
+}
+
+.tile-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+/* "所有英雄"占位磁贴：无头像,虚线圆圈 + ALL 字样 */
+.tile-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px dashed var(--border-strong);
+  font-size: 12px;
+}
+
+.tile-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 无匹配空态 */
+.tile-empty {
+  grid-column: 1 / -1;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* 实时匹配计数 */
+.match-count {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* 磁贴墙滚动条：暗色主题自定义样式（透明轨道 + 暗绿圆角滑块，hover 提亮） */
+.tile-grid {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--primary);
+    }
   }
 }
 
