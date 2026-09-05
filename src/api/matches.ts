@@ -61,7 +61,7 @@ export async function getMatchDetail(gameId: number): Promise<MatchDetail> {
  * 流式场景不能走 axios（无法增量消费响应体），改用 fetch + ReadableStream 逐行解析
  */
 
-/** AI 分析 SSE 事件回调（对应后端 AiAnalysisService 的 start/chunk/reasoning/done/error 协议） */
+/** AI 分析 SSE 事件回调（对应后端 AiAnalysisService 的 start/chunk/reasoning/reasoning-reset/done/error 协议） */
 export interface AnalyzeStreamHandlers {
   /** 流开始：携带是否命中后端缓存（2 分钟内已分析过） */
   onStart?: (fromCache: boolean) => void
@@ -69,6 +69,11 @@ export interface AnalyzeStreamHandlers {
   onChunk?: (content: string) => void
   /** 模型思考过程增量（reasoning_content 思维链；仅当后端模型支持思考模式时才有事件，详见 server docs/adr/0006） */
   onReasoning?: (content: string) => void
+  /**
+   * 思维链缓冲重置：后端"思维链耗尽预算、正文为空"自动重试前推送——
+   * 前端须清空已累积的思维链缓冲（两次尝试的思维链拼接会变成杂乱文本）
+   */
+  onReasoningReset?: () => void
   /** 流正常结束（truncated=true 表示输出被长度预算截断，正文可能不完整） */
   onDone?: (truncated: boolean) => void
   /** 流中途出错（error 事件，message 为后端返回的明确原因） */
@@ -208,6 +213,11 @@ function handleSseEvent(
       handlers.onReasoning?.(event.content ?? '')
       onChunk?.()
       onChunkChars?.(event.content?.length ?? 0)
+      break
+    case 'reasoning-reset':
+      // 后端自动重试前清空思维链缓冲（首次尝试的思维链已作废，拼接会变杂乱文本）
+      logger.info('AI analysis reasoning reset event')
+      handlers.onReasoningReset?.()
       break
     case 'done':
       handlers.onDone?.(event.truncated ?? false)

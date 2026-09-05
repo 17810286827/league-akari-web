@@ -329,6 +329,13 @@ export function useMatchAnalysis(options: UseMatchAnalysisOptions): MatchAnalysi
             if (hasPublishedFirstChunk) reasoning.value = temporaryReasoning
           }
         },
+        onReasoningReset: () => {
+          // 后端"思维链耗尽预算、正文为空"自动重试：首次尝试的思维链已作废，清空缓冲
+          if (requestId === latestRequestId && !streamFailed) {
+            temporaryReasoning = ''
+            reasoning.value = ''
+          }
+        },
         onChunk: (content) => {
           // 每个 chunk 到达时都重新确认请求归属，因为回调可能在新请求启动后才执行。
           if (requestId === latestRequestId && !streamFailed) {

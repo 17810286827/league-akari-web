@@ -146,4 +146,54 @@ describe('analyzeMatch SSE 开流前失败（对齐后端 #26：HTTP 200 + JSON 
     expect(events).toEqual(['start', 'chunk', 'done'])
     expect(chunkText).toBe('你好')
   })
+
+  it('reasoning-reset 事件：后端自动重试前分发 onReasoningReset（思维链缓冲清空信号）', async () => {
+    // 生产故障场景回放：首次尝试只推思维链（预算耗尽正文空）→ 后端重试 →
+    // reset 信号 → 重试的 reasoning/chunk 正常分发 → done
+    const sse = [
+      'data: {"type":"start","fromCache":false}',
+      '',
+      'data: {"type":"reasoning","content":"第一轮思考"}',
+      '',
+      'data: {"type":"reasoning-reset"}',
+      '',
+      'data: {"type":"reasoning","content":"第二轮思考"}',
+      '',
+      'data: {"type":"chunk","content":"重试后的正文"}',
+      '',
+      'data: {"type":"done"}',
+      ''
+    ].join('\n')
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(sse))
+        controller.close()
+      }
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/event-stream' },
+      body: stream
+    }))
+
+    const events: string[] = []
+    await analyzeMatch(123, {
+      onStart: () => events.push('start'),
+      onChunk: () => events.push('chunk'),
+      onReasoning: (content) => events.push('reasoning:' + content),
+      onReasoningReset: () => events.push('reasoning-reset'),
+      onDone: () => events.push('done')
+    })
+
+    // 事件按到达顺序分发；reset 信号独立成事件（composable 据此清空思维链缓冲）
+    expect(events).toEqual([
+      'start',
+      'reasoning:第一轮思考',
+      'reasoning-reset',
+      'reasoning:第二轮思考',
+      'chunk',
+      'done'
+    ])
+  })
 })
