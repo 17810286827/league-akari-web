@@ -3,13 +3,10 @@
  * 所有函数返回 Promise，失败时抛出 ApiError（携带业务码与可展示文案），由调用方决定如何处理；
  * 统一信封（{code, message, data}）的失败判别收口在 http.ts 响应拦截器，本层只做 data 解包
  */
-import { API_BASE_URL } from '@/api/config'
-import http, { ApiError } from './http'
-import { createLogger } from '@/utils/logger'
+import http from './http'
+import type { SseStreamHandlers } from './sse'
+import { consumeSseStream } from './sse'
 import type { ApiResult, MatchDetail, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
-
-// 带 'MatchesAPI' 标签的日志器，便于在 DevTools 按来源过滤流式请求链路
-const logger = createLogger('MatchesAPI')
 
 /** 对局列表查询参数：分页 + 可选的过滤条件 */
 export interface MatchQueryParams {
@@ -58,35 +55,16 @@ export async function getMatchDetail(gameId: number): Promise<MatchDetail> {
  * AI 对局表现分析（"战犯出列"，SSE 流式）：
  * 后端取本局详情组装数据摘要，流式调用 opencode go 模型，通过 text/event-stream
  * 逐块推送分析文本（打字机效果）；结果后端 JVM 缓存 2 分钟，命中时 start 事件 fromCache=true。
- * 流式场景不能走 axios（无法增量消费响应体），改用 fetch + ReadableStream 逐行解析
+ * SSE 消费原语（fetch + ReadableStream + 事件分发）已抽取到 sse.ts，
+ * 与周报锐评流式端点共用（工单 #33）。
  */
 
-/** AI 分析 SSE 事件回调（对应后端 AiAnalysisService 的 start/chunk/reasoning/reasoning-reset/done/error 协议） */
-export interface AnalyzeStreamHandlers {
-  /** 流开始：携带是否命中后端缓存（2 分钟内已分析过） */
-  onStart?: (fromCache: boolean) => void
-  /** 增量文本片段（按到达顺序拼接即为完整分析） */
-  onChunk?: (content: string) => void
-  /** 模型思考过程增量（reasoning_content 思维链；仅当后端模型支持思考模式时才有事件，详见 server docs/adr/0006） */
-  onReasoning?: (content: string) => void
-  /**
-   * 思维链缓冲重置：后端"思维链耗尽预算、正文为空"自动重试前推送——
-   * 前端须清空已累积的思维链缓冲（两次尝试的思维链拼接会变成杂乱文本）
-   */
-  onReasoningReset?: () => void
-  /** 流正常结束（truncated=true 表示输出被长度预算截断，正文可能不完整） */
-  onDone?: (truncated: boolean) => void
-  /** 流中途出错（error 事件，message 为后端返回的明确原因） */
-  onError?: (message: string) => void
-}
+/** AI 分析 SSE 事件回调（单局分析场景别名，协议见 sse.ts 的 SseStreamHandlers） */
+export type AnalyzeStreamHandlers = SseStreamHandlers
 
 /**
  * 发起 AI 对局分析（SSE 流式）：POST /api/matches/{gameId}/ai-analysis
- * - 开流前失败（后端统一契约：HTTP 200 + JSON 错误体，如 4101 无 Key / 2001 对局不存在）：
- *   以 content-type 判定非 event-stream 后解析信封，抛 ApiError(message)——
- *   与旧"HTTP 非 200 抛错"行为对齐，由调用方 catch 通知页面层
- * - HTTP 非 200（未达业务，如路由/网关故障）：解析 message 后抛 Error(message)
- * - 流已建立后的错误（error 事件）：调用 onError 回调，正常结束
+ * 开流前失败抛 ApiError（如 4101 无 Key / 2001 对局不存在），流中错误经 onError 回调
  *
  * @param gameId   对局 ID
  * @param handlers 流式事件回调（全部可选）
@@ -96,140 +74,7 @@ export async function analyzeMatch(
   gameId: number,
   handlers: AnalyzeStreamHandlers = {}
 ): Promise<void> {
-  // 统一从 config 模块取基础地址（默认相对路径，走 nginx 反代/vite proxy）
-  const url = `${API_BASE_URL}/api/matches/${gameId}/ai-analysis`
-  // 请求发出前打日志：若此处之后长时间无 "response received"，说明后端响应头迟迟未返回
-  logger.info('AI analysis fetch starting', { gameId, url })
-  // Accept: text/event-stream 让后端按 SSE 协议返回（fetch 天然支持流式读取响应体）
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Accept: 'text/event-stream' }
-  })
-  // 响应头到达日志：status/content-type 用于确认后端是否按 SSE 协议应答
-  logger.info('AI analysis response received', {
-    gameId,
-    status: response.status,
-    contentType: response.headers.get('content-type')
-  })
-  // 开流前失败判定（后端统一契约）：HTTP 200 但 content-type 非 event-stream，
-  // 说明响应体是 JSON 错误信封（如 4101 Key 未配置 / 2001 对局不存在）——
-  // 解析后抛 ApiError 走调用方 catch（与旧"HTTP 非 200 抛错"行为对齐，useMatchAnalysis 零改动）
-  const contentType = response.headers.get('content-type') ?? ''
-  if (response.ok && !contentType.includes('text/event-stream')) {
-    const body = (await response.json().catch(() => null)) as { code?: number; message?: string } | null
-    const message = body?.message ?? `AI 分析请求失败（HTTP ${response.status}）`
-    logger.error('AI analysis pre-stream failure', { gameId, status: response.status, code: body?.code, message })
-    throw new ApiError(body?.code ?? 5000, message)
-  }
-  // 非 200：请求未达业务（路由/网关级故障），提取 message 抛出
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { message?: string } | null
-    const message = body?.message ?? `请求失败（HTTP ${response.status}）`
-    logger.error('AI analysis HTTP error', { gameId, status: response.status, message })
-    throw new Error(message)
-  }
-  // 流式读取：逐块解码并按行切分，data: 前缀行为事件负载
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('浏览器不支持流式读取')
-  }
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let chunkCount = 0
-  let totalChars = 0
-  const streamStart = Date.now()
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) {
-      break
-    }
-    buffer += decoder.decode(value, { stream: true })
-    // 按换行切分完整行（SSE 事件行以 data: 开头，空行分隔事件）
-    let newlineIndex = buffer.indexOf('\n')
-    while (newlineIndex >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim()
-      buffer = buffer.slice(newlineIndex + 1)
-      if (line.startsWith('data:')) {
-        handleSseEvent(line.slice(5).trim(), handlers, () => {
-          chunkCount++
-        }, (len) => {
-          totalChars += len
-        })
-      }
-      newlineIndex = buffer.indexOf('\n')
-    }
-  }
-  // 收尾：处理未换行结尾的剩余内容
-  const tail = buffer.trim()
-  if (tail.startsWith('data:')) {
-    handleSseEvent(tail.slice(5).trim(), handlers, () => {
-      chunkCount++
-    }, (len) => {
-      totalChars += len
-    })
-  }
-  // 流结束统计：若无任何 chunk 但已收到响应头，说明后端流建立后未推送数据
-  logger.info('AI analysis stream ended', {
-    gameId,
-    chunks: chunkCount,
-    chars: totalChars,
-    durationMs: Date.now() - streamStart
-  })
-}
-
-/**
- * 解析单条 SSE 事件（data: 后的 JSON，形如 {"type":"start","fromCache":true}）并分发回调；
- * 无法解析的行（异常数据）忽略，保证流不受单条坏数据影响。
- * chunk 统计回调用于流结束时的汇总日志（确认后端是否真的推送了内容）
- */
-function handleSseEvent(
-  data: string,
-  handlers: AnalyzeStreamHandlers,
-  onChunk?: () => void,
-  onChunkChars?: (len: number) => void
-): void {
-  if (!data || data === '[DONE]') {
-    return
-  }
-  let event: { type?: string; fromCache?: boolean; content?: string; message?: string; truncated?: boolean }
-  try {
-    event = JSON.parse(data)
-  } catch {
-    // 单条事件解析失败：跳过（可能是异常空事件），不影响后续块
-    return
-  }
-  switch (event.type) {
-    case 'start':
-      logger.info('AI analysis start event', { fromCache: event.fromCache })
-      handlers.onStart?.(event.fromCache ?? false)
-      break
-    case 'chunk':
-      handlers.onChunk?.(event.content ?? '')
-      onChunk?.()
-      onChunkChars?.(event.content?.length ?? 0)
-      break
-    case 'reasoning':
-      // 模型思考过程（思维链）：单独回调，前端与正文分区展示
-      handlers.onReasoning?.(event.content ?? '')
-      onChunk?.()
-      onChunkChars?.(event.content?.length ?? 0)
-      break
-    case 'reasoning-reset':
-      // 后端自动重试前清空思维链缓冲（首次尝试的思维链已作废，拼接会变杂乱文本）
-      logger.info('AI analysis reasoning reset event')
-      handlers.onReasoningReset?.()
-      break
-    case 'done':
-      handlers.onDone?.(event.truncated ?? false)
-      break
-    case 'error':
-      logger.error('AI analysis error event', { message: event.message })
-      handlers.onError?.(event.message ?? 'AI 分析失败，请稍后重试')
-      break
-    default:
-      // 未知事件类型：忽略（后端协议扩展时向前兼容）
-      break
-  }
+  await consumeSseStream(`/api/matches/${gameId}/ai-analysis`, 'POST', 'AI analysis', handlers)
 }
 
 /** 查询对局时间线（不存在时拦截器抛 ApiError 2002；帧结构未建模，透传 unknown 供消费方防御处理） */

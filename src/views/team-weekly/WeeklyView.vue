@@ -1,7 +1,9 @@
 <!--
   车队周报页（/weekly）：海克斯魔典风（ADR 0002）。
   默认展示上一周车队战报，可切换任意周；八栏目（总览/七榜单/名场面/AI 锐评）+ 一键生成分享图。
-  数据层走 getWeeklyReport（/api/team/weekly），AI 失败时后端已降级为 null，页面空态展示。
+  数据层走 getWeeklyReport（/api/team/weekly，统计即时返回）；
+  AI 锐评经 useWeeklyComment 流式拉取（打字机效果，工单 #33 / ADR 0007），
+  AI 失败只影响锐评区块（降级提示），榜单/名场面不受影响。
   视觉元素复用 src/components/hex/ 共享组件。
 -->
 <script setup lang="ts">
@@ -10,6 +12,7 @@ import { useRouter } from 'vue-router'
 
 import { getWeeklyReport, apiErrorMessage } from '@/api/team'
 import type { TeamBoardEntry, TeamWeeklyReport } from '@/api/team'
+import { useWeeklyComment } from '@/composables/useWeeklyComment'
 import { formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
@@ -34,6 +37,9 @@ const weekDate = ref(defaultWeekDate())
 const report = ref<TeamWeeklyReport | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
+
+/** AI 锐评流式状态：统计先行渲染，锐评打字机逐字推送（工单 #33） */
+const aiComment = useWeeklyComment()
 
 /** 默认周锚点：今天回退 7 天的 ISO 日期 */
 function defaultWeekDate(): string {
@@ -82,7 +88,7 @@ function durationParts(seconds: number): { value: string; unit: string } {
   return h > 0 ? { value: String(h), unit: `小时${m}分` } : { value: String(m), unit: '分钟' }
 }
 
-/** 加载指定周的周报 */
+/** 加载指定周的周报统计 + 锐评流（统计先返回先渲染，锐评打字机随后推送） */
 async function load(): Promise<void> {
   loading.value = true
   errorMsg.value = ''
@@ -95,6 +101,8 @@ async function load(): Promise<void> {
   } finally {
     loading.value = false
   }
+  // 锐评流独立拉取：失败只影响锐评区块（useWeeklyComment 内部降级），不阻塞统计渲染
+  await aiComment.load(weekDate.value)
 }
 
 /** 周切换（上一周/下一周） */
@@ -231,16 +239,61 @@ onMounted(load)
       </div>
     </HexPanel>
 
-    <!-- AI 锐评：青铜神谕 -->
+    <!-- AI 锐评：青铜神谕（流式打字机，工单 #33）——
+         统计渲染后立即出现区块（loading 态），锐评逐字推送；AI 失败仅降级本区块 -->
     <section
-      v-if="report.aiComment"
       class="mt-10 border border-hex-teal/40 bg-hex-teal/[0.05] p-5"
       data-testid="ai-comment"
     >
       <div class="flex items-center gap-2 text-[17px] font-bold tracking-[0.2em] text-hex-teal">
         <span>☾</span> 神谕 · AI 锐评
+        <!-- 打字机进行中的呼吸点 -->
+        <span v-if="aiComment.streaming.value" class="animate-pulse text-sm font-normal">……</span>
       </div>
-      <p class="mt-2 text-lg leading-9 text-slate-200">{{ report.aiComment }}</p>
+
+      <!-- 思维链折叠区（仅思考模式模型有内容；点击展开/收起） -->
+      <button
+        v-if="aiComment.reasoning.value"
+        type="button"
+        class="mt-2 text-sm font-semibold text-slate-400 hover:text-slate-200"
+        data-testid="ai-comment-reasoning-toggle"
+        @click="aiComment.toggleReasoning()"
+      >
+        {{ aiComment.reasoningCollapsed.value ? '🧠 模型思考过程（点击展开）' : '🧠 模型思考过程（点击收起）' }}
+      </button>
+      <div
+        v-if="aiComment.reasoning.value && !aiComment.reasoningCollapsed.value"
+        class="mt-1 whitespace-pre-wrap border-l-2 border-hex-teal/30 pl-3 text-sm leading-6 text-slate-400"
+        data-testid="ai-comment-reasoning"
+      >
+        {{ aiComment.reasoning.value }}
+      </div>
+
+      <!-- 锐评正文：打字机逐字累积；缓存命中时全文一次性到达 -->
+      <p
+        v-if="aiComment.comment.value"
+        class="mt-2 text-lg leading-9 text-slate-200"
+        data-testid="ai-comment-text"
+      >
+        {{ aiComment.comment.value }}
+      </p>
+      <!-- 正文尚未开始：等待提示（思考阶段可能持续数十秒） -->
+      <p v-else-if="aiComment.streaming.value" class="mt-2 text-lg text-slate-400">
+        神谕正在降临……
+      </p>
+
+      <!-- 失败降级：仅影响本区块，榜单/名场面不受影响 -->
+      <p
+        v-if="aiComment.errorMsg.value"
+        class="mt-2 text-[15px] text-[#cd6a5a]"
+        data-testid="ai-comment-error"
+      >
+        ⚠ {{ aiComment.errorMsg.value }}
+      </p>
+      <!-- 截断提示（输出被长度预算截断） -->
+      <p v-if="aiComment.truncatedTip.value" class="mt-1 text-sm text-slate-400">
+        {{ aiComment.truncatedTip.value }}
+      </p>
     </section>
   </HexPageShell>
 </template>

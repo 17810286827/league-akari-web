@@ -1,21 +1,23 @@
 /**
  * 车队周报 / 榜单中心 API：与后端 league-akari-server TeamController 契约一一对齐（统一信封解包，失败判别在 http.ts 拦截器）
- * - GET /api/team/weekly?date=        车队周报（date 为该周任意一天 ISO，缺省=上一周）
+ * - GET /api/team/weekly?date=        车队周报统计（date 为该周任意一天 ISO，缺省=上一周；
+ *                                     不含 AI 锐评——锐评经 SSE 端点单独流式拉取，工单 #33 / ADR 0007）
+ * - GET /api/team/weekly/ai-comment   周报 AI 锐评（SSE 流式，事件契约与单局分析一致）
  * - GET /api/team/leaderboards?...    榜单中心单维度榜单
  * - GET /api/team/members             roster 成员与出勤
  * - GET /api/team/members/{puuid}     成员卡（成长曲线 + 英雄基线对比）
  * - POST /api/team/backfill           触发 Riot 历史对局回填（异步）
  */
 import http from './http'
+import type { SseStreamHandlers } from './sse'
+import { consumeSseStream } from './sse'
 import type { ApiResult } from './types'
 
 /**
  * 车队接口的超时时间（毫秒）——按请求覆盖全局的 10s：
- * - 周报聚合里同步生成 AI 锐评（模型 25~90s，空正文还会重试一次），
- *   10s 会被前端掐断，表现为"周报加载失败/切换周无效"；
- * - 榜单/成员卡要实时重算对局评分（历史回填后数据量大时更慢），也需放宽
+ * - 榜单/成员卡要实时重算对局评分（历史回填后数据量大时更慢），需放宽；
+ * - 周报统计已不含 AI 锐评（拆分到 SSE 端点），回到全局 10s
  */
-const WEEKLY_TIMEOUT_MS = 180_000
 const STATS_TIMEOUT_MS = 90_000
 
 /** 榜单条目：value 为主排序值（后端已保留两位小数），detail 为口径说明（与后端 BoardEntry 对齐） */
@@ -99,9 +101,13 @@ export interface TeamWeeklyReport {
   carryBoard: TeamBoardEntry[] | null
   signatureBoard: TeamBoardEntry[] | null
   attendanceBoard: TeamBoardEntry[] | null
+  /** 名场面集合 */
   highlights: TeamHighlights | null
-  /** AI 锐评（AI 不可用时为 null，页面需优雅降级） */
-  aiComment: string | null
+  /**
+   * AI 锐评——统计接口恒为 null（锐评经 streamWeeklyComment 流式拉取，工单 #33）；
+   * 字段保留用于后端 DTO 对齐，前端不应从统计响应读取锐评
+   */
+  aiComment?: string | null
 }
 
 /** 榜单中心响应（与后端 LeaderboardResponse 对齐） */
@@ -172,14 +178,31 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   return detail ?? (error instanceof Error ? error.message : fallback)
 }
 
-/** 查询车队周报（date 为该周内任意一天 ISO 字符串，缺省=上一周） */
+/** 查询车队周报统计（date 为该周内任意一天 ISO 字符串，缺省=上一周；不含 AI 锐评） */
 export async function getWeeklyReport(date?: string): Promise<TeamWeeklyReport> {
-  // GET /api/team/weekly：后端包 { data }，这里解包；AI 锐评同步生成，须放宽超时
+  // GET /api/team/weekly：后端包 { data }，这里解包；统计聚合较快，走全局超时
   const { data } = await http.get<ApiResult<TeamWeeklyReport>>('/api/team/weekly', {
-    params: date ? { date } : {},
-    timeout: WEEKLY_TIMEOUT_MS
+    params: date ? { date } : {}
   })
   return data.data as TeamWeeklyReport
+}
+
+/**
+ * 周报 AI 锐评（SSE 流式，工单 #33 / ADR 0007）：
+ * GET /api/team/weekly/ai-comment?date= —— 周报页先渲染统计，锐评打字机逐字推送。
+ * 事件契约与单局 AI 分析一致（start/chunk/reasoning/reasoning-reset/done/error，
+ * 消费原语见 sse.ts）；后端按周标签缓存 10 分钟，命中时 start 事件 fromCache=true
+ *
+ * @param date     该周内任意一天 ISO 字符串（缺省=上一周，与统计接口同语义）
+ * @param handlers 流式事件回调（全部可选）
+ * @returns 流结束时 resolve；开流前失败（如 4101 Key 未配置）时 reject ApiError
+ */
+export async function streamWeeklyComment(
+  date?: string,
+  handlers: SseStreamHandlers = {}
+): Promise<void> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  await consumeSseStream(`/api/team/weekly/ai-comment${query}`, 'GET', 'Weekly AI comment', handlers)
 }
 
 /** 查询榜单中心单维度榜单 */
