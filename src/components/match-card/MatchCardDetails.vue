@@ -159,6 +159,27 @@ function toggleReasoning(): void {
   word-break: break-word;
   max-height: 260px;
   overflow-y: auto;
+
+  /* 滚动条主题化：透明轨道 + 暗绿圆角滑块（hover 提亮），与侧栏磁贴墙统一 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 154, 143, 0.4) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 154, 143, 0.4);
+    border-radius: 4px;
+
+    &:hover {
+      background: #4ade80;
+    }
+  }
 }
 
 /* 分析结果：markdown 渲染区（绿调分隔；v-html 内容用 :deep 命中内部元素） */

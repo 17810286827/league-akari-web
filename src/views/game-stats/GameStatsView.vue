@@ -765,6 +765,27 @@ watch(
     overflow-y: auto;
     background: var(--bg);
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+
+    /* 滚动条主题化：透明轨道 + 暗绿圆角滑块（hover 提亮），与磁贴墙统一 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 4px;
+
+      &:hover {
+        background: var(--primary);
+      }
+    }
   }
 
   /* 抽屉模式下侧栏面板宽度随容器收缩（覆盖 SidebarPanel 的 310px 固定宽） */
