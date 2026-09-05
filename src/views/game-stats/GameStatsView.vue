@@ -258,11 +258,11 @@ async function loadMatches(): Promise<void> {
         ? `${queryPlayer.value.gameName}#${queryPlayer.value.tagLine}`
         : undefined
     })
-    matches.value = res.data
+    matches.value = res.items
     total.value = res.total
     // 最近对手：后端列表接口聚合结果（列表查询时即返回）
     recentOpponents.value = res.recentOpponents ?? []
-    logger.info('Loaded match list', { page: page.value, total: res.total, count: res.data.length })
+    logger.info('Loaded match list', { page: page.value, total: res.total, count: res.items.length })
   } catch (error) {
     // 列表加载失败：记录日志并提示用户，列表置空展示空态
     logger.error('Failed to load match list', error)

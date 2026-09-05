@@ -1,11 +1,12 @@
 /**
  * 对局相关 API：召唤师搜索、分页列表、详情查询
- * 所有函数返回 Promise，失败时抛出错误（如 404），由调用方决定如何处理
+ * 所有函数返回 Promise，失败时抛出 ApiError（携带业务码与可展示文案），由调用方决定如何处理；
+ * 统一信封（{code, message, data}）的失败判别收口在 http.ts 响应拦截器，本层只做 data 解包
  */
 import { API_BASE_URL } from '@/api/config'
-import http from './http'
+import http, { ApiError } from './http'
 import { createLogger } from '@/utils/logger'
-import type { MatchDetail, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
+import type { ApiResult, MatchDetail, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
 
 // 带 'MatchesAPI' 标签的日志器，便于在 DevTools 按来源过滤流式请求链路
 const logger = createLogger('MatchesAPI')
@@ -28,27 +29,27 @@ export interface MatchQueryParams {
   endTime?: number
 }
 
-/** 按"昵称#tag"搜索召唤师账号（Riot Account-V1，后端带 JVM 缓存；404 时抛出） */
+/** 按"昵称#tag"搜索召唤师账号（Riot Account-V1，后端库缓存优先；不存在时抛 ApiError 3001） */
 export async function searchRiotAccount(riotName: string): Promise<RiotAccount> {
-  // GET /api/riot/accounts/by-name：后端返回账号信息（puuid/gameName/tagLine）
-  const { data } = await http.get<RiotAccount>('/api/riot/accounts/by-name', {
+  // GET /api/riot/accounts/by-name：统一信封 data 内为账号信息（puuid/gameName/tagLine）
+  const { data } = await http.get<ApiResult<RiotAccount>>('/api/riot/accounts/by-name', {
     params: { riotName }
   })
-  return data
+  return data.data as RiotAccount
 }
 
-/** 分页查询对局列表（按玩家过滤） */
+/** 分页查询对局列表（按玩家过滤）：信封 data 内为 { items, page, pageSize, total } */
 export async function listMatches(params: MatchQueryParams): Promise<PageResponse<MatchSummary>> {
-  // GET /api/matches：后端直接返回统一分页结构，无需解包
-  const { data } = await http.get<PageResponse<MatchSummary>>('/api/matches', { params })
-  return data
+  // GET /api/matches：解包信封取出分页结构（列表字段已由后端更名 data → items）
+  const { data } = await http.get<ApiResult<PageResponse<MatchSummary>>>('/api/matches', { params })
+  return data.data as PageResponse<MatchSummary>
 }
 
-/** 查询对局详情（404 时抛出，由调用方处理） */
+/** 查询对局详情（不存在时拦截器抛 ApiError 2001，由调用方处理） */
 export async function getMatchDetail(gameId: number): Promise<MatchDetail> {
-  // GET /api/matches/{gameId}：后端将详情包在 { data } 中，这里解包后返回
-  const { data } = await http.get<{ data: MatchDetail }>(`/api/matches/${gameId}`)
-  return data.data
+  // GET /api/matches/{gameId}：统一信封 data 内为详情，解包后返回
+  const { data } = await http.get<ApiResult<MatchDetail>>(`/api/matches/${gameId}`)
+  return data.data as MatchDetail
 }
 
 /**
@@ -74,7 +75,10 @@ export interface AnalyzeStreamHandlers {
 
 /**
  * 发起 AI 对局分析（SSE 流式）：POST /api/matches/{gameId}/ai-analysis
- * - HTTP 非 200（如 404 对局不存在 / 503 无 API Key）：解析 { code, message } 后抛 Error(message)
+ * - 开流前失败（后端统一契约：HTTP 200 + JSON 错误体，如 4101 无 Key / 2001 对局不存在）：
+ *   以 content-type 判定非 event-stream 后解析信封，抛 ApiError(message)——
+ *   与旧"HTTP 非 200 抛错"行为对齐，由调用方 catch 通知页面层
+ * - HTTP 非 200（未达业务，如路由/网关故障）：解析 message 后抛 Error(message)
  * - 流已建立后的错误（error 事件）：调用 onError 回调，正常结束
  *
  * @param gameId   对局 ID
@@ -100,7 +104,17 @@ export async function analyzeMatch(
     status: response.status,
     contentType: response.headers.get('content-type')
   })
-  // 非 200：错误响应体为 { code, message }（如 404/503），提取 message 抛出
+  // 开流前失败判定（后端统一契约）：HTTP 200 但 content-type 非 event-stream，
+  // 说明响应体是 JSON 错误信封（如 4101 Key 未配置 / 2001 对局不存在）——
+  // 解析后抛 ApiError 走调用方 catch（与旧"HTTP 非 200 抛错"行为对齐，useMatchAnalysis 零改动）
+  const contentType = response.headers.get('content-type') ?? ''
+  if (response.ok && !contentType.includes('text/event-stream')) {
+    const body = (await response.json().catch(() => null)) as { code?: number; message?: string } | null
+    const message = body?.message ?? `AI 分析请求失败（HTTP ${response.status}）`
+    logger.error('AI analysis pre-stream failure', { gameId, status: response.status, code: body?.code, message })
+    throw new ApiError(body?.code ?? 5000, message)
+  }
+  // 非 200：请求未达业务（路由/网关级故障），提取 message 抛出
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null
     const message = body?.message ?? `请求失败（HTTP ${response.status}）`
@@ -206,9 +220,9 @@ function handleSseEvent(
   }
 }
 
-/** 查询对局时间线（404 时抛出，由调用方处理；帧结构未建模，透传 unknown 供消费方防御处理） */
+/** 查询对局时间线（不存在时拦截器抛 ApiError 2002；帧结构未建模，透传 unknown 供消费方防御处理） */
 export async function getMatchTimeline(gameId: number): Promise<MatchTimelineFrame[]> {
-  // GET /api/matches/{gameId}/timeline：后端将帧数组包在 { data } 中，这里解包后返回
-  const { data } = await http.get<{ data: MatchTimelineFrame[] }>(`/api/matches/${gameId}/timeline`)
-  return data.data
+  // GET /api/matches/{gameId}/timeline：统一信封 data 内为帧数组，解包后返回
+  const { data } = await http.get<ApiResult<MatchTimelineFrame[]>>(`/api/matches/${gameId}/timeline`)
+  return data.data as MatchTimelineFrame[]
 }

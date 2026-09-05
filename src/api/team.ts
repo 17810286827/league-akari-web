@@ -1,5 +1,5 @@
 /**
- * 车队周报 / 榜单中心 API：与后端 league-akari-server TeamController 契约一一对齐
+ * 车队周报 / 榜单中心 API：与后端 league-akari-server TeamController 契约一一对齐（统一信封解包，失败判别在 http.ts 拦截器）
  * - GET /api/team/weekly?date=        车队周报（date 为该周任意一天 ISO，缺省=上一周）
  * - GET /api/team/leaderboards?...    榜单中心单维度榜单
  * - GET /api/team/members             roster 成员与出勤
@@ -7,6 +7,7 @@
  * - POST /api/team/backfill           触发 Riot 历史对局回填（异步）
  */
 import http from './http'
+import type { ApiResult } from './types'
 
 /**
  * 车队接口的超时时间（毫秒）——按请求覆盖全局的 10s：
@@ -174,11 +175,11 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
 /** 查询车队周报（date 为该周内任意一天 ISO 字符串，缺省=上一周） */
 export async function getWeeklyReport(date?: string): Promise<TeamWeeklyReport> {
   // GET /api/team/weekly：后端包 { data }，这里解包；AI 锐评同步生成，须放宽超时
-  const { data } = await http.get<{ data: TeamWeeklyReport }>('/api/team/weekly', {
+  const { data } = await http.get<ApiResult<TeamWeeklyReport>>('/api/team/weekly', {
     params: date ? { date } : {},
     timeout: WEEKLY_TIMEOUT_MS
   })
-  return data.data
+  return data.data as TeamWeeklyReport
 }
 
 /** 查询榜单中心单维度榜单 */
@@ -188,31 +189,31 @@ export async function getTeamLeaderboard(params: {
   start?: number
   end?: number
 }): Promise<TeamLeaderboard> {
-  const { data } = await http.get<{ data: TeamLeaderboard }>('/api/team/leaderboards', {
+  const { data } = await http.get<ApiResult<TeamLeaderboard>>('/api/team/leaderboards', {
     params,
     timeout: STATS_TIMEOUT_MS
   })
-  return data.data
+  return data.data as TeamLeaderboard
 }
 
 /** 查询车队成员列表与出勤 */
 export async function getTeamMembers(): Promise<TeamMember[]> {
-  const { data } = await http.get<{ data: { members: TeamMember[] } }>('/api/team/members', {
+  const { data } = await http.get<ApiResult<{ members: TeamMember[] }>>('/api/team/members', {
     timeout: STATS_TIMEOUT_MS
   })
-  return data.data.members
+  return (data.data as { members: TeamMember[] }).members
 }
 
 /** 查询成员卡（成长曲线 + 英雄基线对比） */
 export async function getMemberCard(puuid: string): Promise<TeamMemberCard> {
-  const { data } = await http.get<{ data: TeamMemberCard }>(`/api/team/members/${puuid}`, {
+  const { data } = await http.get<ApiResult<TeamMemberCard>>(`/api/team/members/${puuid}`, {
     timeout: STATS_TIMEOUT_MS
   })
-  return data.data
+  return data.data as TeamMemberCard
 }
 
 /** 触发 Riot 历史对局回填（异步；返回是否成功启动，false=已在运行） */
 export async function triggerTeamBackfill(): Promise<boolean> {
-  const { data } = await http.post<{ code: number; data: { started: boolean } }>('/api/team/backfill')
-  return data.data.started
+  const { data } = await http.post<ApiResult<{ started: boolean }>>('/api/team/backfill')
+  return (data.data as { started: boolean }).started
 }

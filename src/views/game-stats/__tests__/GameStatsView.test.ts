@@ -221,7 +221,7 @@ describe('GameStatsView', () => {
     route.query.tag = 'CN1'
     // 默认：列表 1 条轻量摘要；详情成功（失败用例按需覆盖）
     vi.mocked(listMatches).mockResolvedValue({
-      data: [makeSummary()],
+      items: [makeSummary()],
       total: 1,
       page: 1,
       pageSize: 20
@@ -371,7 +371,7 @@ describe('GameStatsView', () => {
     const summaryA = makeSummary(123)
     const summaryB = { ...makeSummary(456), selfPuuid: 'lcu-p2' }
     vi.mocked(listMatches).mockImplementation(async () => ({
-      data: [route.params.puuid === 'lcu-p1' ? summaryA : summaryB],
+      items: [route.params.puuid === 'lcu-p1' ? summaryA : summaryB],
       total: 1,
       page: 1,
       pageSize: 20
@@ -415,7 +415,7 @@ describe('GameStatsView', () => {
   it('竞态：点 A 后立即点 B，A 详情失败不收起 B（过期响应不改动展开状态）', async () => {
     // 两张卡：A（gameId=123）与 B（gameId=456）；A 的详情请求挂起，B 的详情立即成功
     vi.mocked(listMatches).mockResolvedValue({
-      data: [makeSummary(), makeSummary(456)],
+      items: [makeSummary(), makeSummary(456)],
       total: 2,
       page: 1,
       pageSize: 20

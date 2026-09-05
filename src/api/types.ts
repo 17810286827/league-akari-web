@@ -4,6 +4,22 @@
  * 后续接口联调时以本文件为唯一事实来源，避免类型漂移。
  */
 
+/**
+ * 后端统一响应信封（对齐后端 #26）：所有 JSON 接口返回 { code, message, data }，HTTP 一律 200。
+ * - code：业务码，0=成功，非 0=失败（后端 common/exception/ErrorCode 登记，前端唯一判失败依据）
+ * - message：成功固定 "ok"，失败为可直接展示的文案
+ * - data：业务数据，后端有值才序列化（失败响应不带 data 字段）
+ * 前端判别式统一收口在 http.ts 响应拦截器：code !== 0 → 抛 ApiError
+ */
+export interface ApiResult<T> {
+  /** 业务码：0=成功，非 0=失败 */
+  code: number
+  /** 提示信息：成功 "ok"，失败可展示文案 */
+  message: string
+  /** 业务数据（失败响应缺省） */
+  data?: T
+}
+
 /** 对局列表摘要：用于列表页的轻量展示，含双方 10 人轻量档案（不含 statsJson 全量快照） */
 export interface MatchSummary {
   /** 对局唯一标识（Riot 的 gameId） */
@@ -182,8 +198,8 @@ export interface MatchTeammate {
 
 /** 通用分页响应结构：后端所有分页接口的统一返回格式 */
 export interface PageResponse<T> {
-  /** 当前页数据列表 */
-  data: T[]
+  /** 当前页数据列表（原字段名 data，后端统一信封后更名 items，避免 data.data 嵌套歧义） */
+  items: T[]
   /** 当前页码（从 1 开始） */
   page: number
   /** 每页条数 */
