@@ -16,14 +16,21 @@ vi.mock('@/api/matches', () => ({
   streamReplayComment: vi.fn()
 }))
 
-// vue-chartjs 整体 mock（jsdom 无 canvas 2d 上下文，断言聚焦数据 prop 传入）
+// vue-chartjs 整体 mock（jsdom 无 canvas 2d 上下文，断言聚焦 data/options prop 传入）
 vi.mock('vue-chartjs', async () => {
   const vue = await import('vue')
   return {
     Line: vue.defineComponent({
       name: 'Line',
       props: ['data', 'options'],
-      template: '<div class="line-stub" :data-datasets="data.datasets.length" />'
+      // 暴露数据点与轴类型属性：供断言散点时间戳定位与线性时间轴配置
+      template: `<div class="line-stub"
+        :data-datasets="data.datasets.length"
+        :data-line-points="JSON.stringify(data.datasets[0].data)"
+        :data-kill-points="JSON.stringify(data.datasets[1].data)"
+        :data-turning-points="JSON.stringify(data.datasets[3].data)"
+        :data-x-axis-type="options.scales.x.type"
+      />`
     })
   }
 })
@@ -102,6 +109,34 @@ describe('ReplayPanel', () => {
     expect(points[1].text()).toContain('被反超')
   })
 
+  it('x 轴为线性时间轴：折线与散点均以 timestampMs 定位，不再有重复分类标签', async () => {
+    // 渲染修复（2026-09-07）：原实现 x 轴为分类轴（"N分"标签重复）且散点用帧索引，
+    // 触发 tooltip 泄露原始 x/y/_info 与坐标错位。改为 linear 时间轴后：
+    // 折线/散点统一用 timestampMs 定位，刻度回调格式化为 mm:ss
+    vi.mocked(getMatchReplay).mockResolvedValue(availableFixture())
+
+    const wrapper = mount(ReplayPanel, { props: { gameId: 123 } })
+    await flushPromises()
+
+    const chart = wrapper.find('.line-stub')
+    // x 轴类型：linear（时间毫秒数值轴）
+    expect(chart.attributes('data-x-axis-type')).toBe('linear')
+    // 折线数据点：{x: timestampMs, y: goldDiff}（不再是纯数字数组配分类标签）
+    const linePoints = JSON.parse(chart.attributes('data-line-points')!)
+    expect(linePoints).toEqual([
+      { x: 60_000, y: 2000 },
+      { x: 120_000, y: -1000 }
+    ])
+    // 击杀散点：x 直接用事件 timestampMs（65s 的击杀定位在 65s，不是帧索引）
+    const killPoints = JSON.parse(chart.attributes('data-kill-points')!)
+    expect(killPoints[0].x).toBe(65_000)
+    expect(killPoints[0].y).toBe(2000)
+    // 转折点散点：同样 timestampMs 定位（65s 一血 / 120s 反超）
+    const turningPoints = JSON.parse(chart.attributes('data-turning-points')!)
+    expect(turningPoints[0].x).toBe(65_000)
+    expect(turningPoints[1].x).toBe(120_000)
+  })
+
   it('转折点涉及成员渲染英雄头像，缺失 ID 回退文字', async () => {
     vi.mocked(getMatchReplay).mockResolvedValue(availableFixture())
 
@@ -131,7 +166,10 @@ describe('ReplayPanel', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="replay-unavailable"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="replay-unavailable"]').text()).toContain('没有时间线数据')
+    expect(wrapper.find('[data-testid="replay-unavailable"]').text()).toContain('暂未采集到时间线数据')
+    // 文案修正（2026-09-07）：不再断言"历史回填的对局普遍缺失"——新对局也可能因
+    // 桌面端推送失败而暂时缺失（自动补推机制已上线），旧文案对新对局有误导性
+    expect(wrapper.find('[data-testid="replay-unavailable"]').text()).not.toContain('历史回填')
     // stats 简要信息：对局时长（spec 要求降级分支带简要统计）
     expect(wrapper.find('[data-testid="replay-unavailable"]').text()).toContain('30 分 30 秒')
     expect(wrapper.find('[data-testid="replay-chart"]').exists()).toBe(false)

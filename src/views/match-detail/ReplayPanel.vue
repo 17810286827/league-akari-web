@@ -60,24 +60,19 @@ const TURNING_POINT_META: Record<string, { label: string; color: string }> = {
 /** 未知类型的兜底展示 */
 const UNKNOWN_META = { label: '转折点', color: '#8a8a8a' }
 
-/** 事件时间戳 → 最近的帧索引（散点定位到曲线 x 轴） */
-function nearestFrameIndex(timestampMs: number): number {
+/** 事件时间戳 → 最近的帧（散点 y 值取该帧经济差，x 直接用事件时间戳） */
+function frameAt(timestampMs: number): { timestampMs: number; goldDiff: number } {
   const series = replay.value?.goldDiffSeries ?? []
-  let index = 0
+  let best = series[0] ?? { timestampMs, goldDiff: 0 }
   let bestGap = Number.POSITIVE_INFINITY
-  for (let i = 0; i < series.length; i++) {
-    const gap = Math.abs(series[i].timestampMs - timestampMs)
+  for (const p of series) {
+    const gap = Math.abs(p.timestampMs - timestampMs)
     if (gap < bestGap) {
       bestGap = gap
-      index = i
+      best = p
     }
   }
-  return index
-}
-
-/** 帧时间戳 → 分钟标签（x 轴刻度） */
-function minuteLabel(timestampMs: number): string {
-  return `${Math.floor(timestampMs / 60000)}分`
+  return best
 }
 
 /** 对局内时间 → mm:ss 展示 */
@@ -88,17 +83,13 @@ function formatTime(timestampMs: number): string {
   return `${minutes}:${seconds}`
 }
 
-/** 曲线 x 轴标签（帧分钟） */
-const labels = computed(() => (replay.value?.goldDiffSeries ?? []).map((p) => minuteLabel(p.timestampMs)))
-
-/** 击杀散点数据（定位到最近帧，取该帧经济差为 y 值；直接携带敌我标记供分组过滤） */
+/** 击杀散点数据（x 用事件时间戳精确定位，y 取最近帧经济差；直接携带敌我标记供分组过滤） */
 const killPoints = computed(() => {
-  const series = replay.value?.goldDiffSeries ?? []
   return (replay.value?.killEvents ?? []).map((kill) => {
-    const index = nearestFrameIndex(kill.timestampMs)
+    const frame = frameAt(kill.timestampMs)
     return {
-      x: index,
-      y: series[index]?.goldDiff ?? 0,
+      x: kill.timestampMs,
+      y: frame.goldDiff,
       // 敌我标记：数据集分组过滤用（不依赖与 killEvents 的下标对齐）
       _perspective: kill.killerIsPerspective,
       // 自定义字段：tooltip 回调读取（敌我 + 击杀者/被击杀者）
@@ -107,33 +98,40 @@ const killPoints = computed(() => {
   })
 })
 
-/** 转折点散点数据（定位到最近帧） */
+/** 转折点散点数据（x 用转折点时间戳精确定位） */
 const turningPoints = computed(() => replay.value?.turningPoints ?? [])
 
 const turningPointScatter = computed(() => {
-  const series = replay.value?.goldDiffSeries ?? []
   return turningPoints.value.map((point) => {
-    const index = nearestFrameIndex(point.timestampMs)
+    const frame = frameAt(point.timestampMs)
     return {
-      x: index,
-      y: series[index]?.goldDiff ?? 0,
+      x: point.timestampMs,
+      y: frame.goldDiff,
       _info: `${point.title} · ${point.detail}`
     }
   })
 })
 
+/** 曲线 x 轴最大值（对局末帧时间戳）：x 轴从 0 到末帧，避免 Chart.js 自动留白压缩曲线 */
+const maxX = computed(() => {
+  const series = replay.value?.goldDiffSeries ?? []
+  return series.length ? series[series.length - 1].timestampMs : 0
+})
+
 /**
  * Chart.js 数据集：经济差折线 + 击杀散点（敌我分色）+ 转折点散点。
+ * 渲染修复（2026-09-07）：x 轴改为 linear 时间轴（毫秒），折线/散点统一以
+ * {x: timestampMs, y: goldDiff} 定位——原分类轴（"N分"标签重复）+ 帧索引散点
+ * 会造成坐标错位与 tooltip 泄露原始 x/y/_info。
  * Line 组件泛型为 "line" 而数据集混入 scatter 类型（Chart.js 运行时支持
  * 混合图表控制器的数据集），以 as 收窄类型——散点数据形状与线数据点兼容
  */
 const chartData = computed(() => ({
-  labels: labels.value,
   datasets: [
     {
       type: 'line' as const,
       label: '经济差（正 = 我方领先）',
-      data: (replay.value?.goldDiffSeries ?? []).map((p) => p.goldDiff),
+      data: (replay.value?.goldDiffSeries ?? []).map((p) => ({ x: p.timestampMs, y: p.goldDiff })),
       borderColor: '#3d8bfd',
       backgroundColor: 'rgba(61, 139, 253, 0.15)',
       borderWidth: 2,
@@ -172,34 +170,42 @@ const chartData = computed(() => ({
   ]
 }) as unknown as ChartData<'line'>)
 
-/** Chart.js 配置：tooltip 展示散点自定义信息（击杀/转折点详情） */
+/** Chart.js 配置：linear 时间轴（mm:ss 刻度）+ tooltip 展示散点自定义信息 */
 const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   animation: { duration: 300 },
   interaction: { mode: 'nearest' as const, axis: 'x' as const, intersect: false },
   scales: {
-    x: { ticks: { maxTicksLimit: 12 } },
+    x: {
+      type: 'linear' as const,
+      min: 0,
+      max: maxX.value,
+      ticks: {
+        // 刻度格式化为 mm:ss（对局内时间），最多 12 个刻度防拥挤
+        maxTicksLimit: 12,
+        callback: (value: number) => formatTime(value)
+      }
+    },
     y: { title: { display: true, text: '经济差' } }
   },
   plugins: {
     tooltip: {
       callbacks: {
-        // 标题行：显示时刻（分钟标签）——散点数据的 x 是帧索引，
-        // 默认回调会把原始 x/y 渲染成 "x: 12, y: 3400" 泄露到标题，必须覆盖
-        title: (items: Array<{ dataIndex: number }>) => {
+        // 标题行：显示时刻（mm:ss）——数据点 x 是毫秒时间戳，
+        // 默认回调会把原始 x/y 渲染成 "x: 120000, y: -1000" 泄露到标题，必须覆盖
+        title: (items: Array<{ parsed: { x: number } }>) => {
           const first = items[0]
-          return first ? (labels.value[first.dataIndex] ?? '') : ''
+          return first ? formatTime(first.parsed.x) : ''
         },
         // 散点（击杀/转折点）携带 _info 自定义文案；折线显示经济差数值
-        label: (context: { dataset: { data: unknown }; dataIndex: number }) => {
+        label: (context: { dataset: { data: unknown }; dataIndex: number; parsed: { y: number } }) => {
           const point = (context.dataset.data as Array<{ _info?: string }>)[context.dataIndex]
           if (point?._info) {
             return point._info
           }
-          // 折线数据点是纯数字（经济差）：显示千分位，替代默认的裸数值
-          const value = (context.dataset.data as number[])[context.dataIndex]
-          return `经济差 ${Math.round(value).toLocaleString()}`
+          // 折线数据点：显示千分位经济差，替代默认的裸数值
+          return `经济差 ${Math.round(context.parsed.y).toLocaleString()}`
         }
       }
     }
@@ -311,10 +317,11 @@ onMounted(async () => {
       class="py-6"
     />
 
-    <!-- 无时间线降级：提示 + 不渲染空白曲线 -->
+    <!-- 无时间线降级：提示 + 不渲染空白曲线（新对局也可能因桌面端推送失败而暂时缺失，
+         稍后由定时同步自动补推，文案不预设"历史回填"误导） -->
     <div v-else-if="!replay?.available" class="py-6 text-center text-sm opacity-70" data-testid="replay-unavailable">
-      该对局没有时间线数据（历史回填的对局普遍缺失），无法生成复盘曲线。
-      <br />时间线由桌面端实时采集，之后的对局会自动支持复盘。
+      该对局暂未采集到时间线数据，稍后同步完成后将自动支持复盘。
+      <br />时间线由桌面端实时采集，请保持 LeagueAkari 运行以完成补同步。
       <!-- stats 简要信息：时长 + 结果/KDA 等详细统计见上方对局卡片 -->
       <p v-if="formatDuration(durationSeconds)" class="mt-2 text-xs">
         本局时长 {{ formatDuration(durationSeconds) }} · 详细统计见上方对局卡片
