@@ -15,6 +15,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # CDN 代理缓存目录：预建并授权给 nginx worker 用户（proxy_cache_path 写入需要）
 RUN mkdir -p /var/cache/nginx/cdn && chown -R nginx:nginx /var/cache/nginx
+# 配置语法闸：nginx 指令拼错/参数无效在镜像构建期即失败，
+# 不会推到生产容器启动崩溃进重启循环（实例：http_5xx 通配不被
+# proxy_cache_use_stale 支持，曾致部署健康检查超时回滚）
+RUN nginx -t
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
   CMD wget -q --spider http://127.0.0.1/ || exit 1
