@@ -9,9 +9,10 @@ import { ensureDdDragonVersion, itemIconUrl } from '@/utils/icon-url'
 
 const logger = createLogger('GameResource')
 
-// CommunityDragon 数据根地址（与主仓库 storybook.ts 常量一致）
-const CDRAGON_GAME_DATA_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global'
-const CDRAGON_DEFAULT_ASSET_BASE = `${CDRAGON_GAME_DATA_BASE}/default`
+// CommunityDragon 数据根路径（经同源 /cdn/cdragon 代理缓存，根治海外直连慢，见 icon-url.ts）
+const CDRAGON_GAME_DATA_PATH = '/cdn/cdragon/plugins/rcp-be-lol-game-data/global'
+const CDRAGON_GAME_DATA_BASE = CDRAGON_GAME_DATA_PATH
+const CDRAGON_DEFAULT_ASSET_BASE = `${CDRAGON_GAME_DATA_PATH}/default`
 // LCU 资源路径前缀（iconPath 以它开头）
 const LCU_ASSET_PREFIX = '/lol-game-data/assets/'
 

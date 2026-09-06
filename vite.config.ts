@@ -20,7 +20,19 @@ export default defineConfig({
     // 开发环境 API 代理：前端代码用相对路径 /api，开发时转发到本机后端 8081
     // （与生产环境容器内 nginx 反代行为对齐，代码无需区分环境）
     proxy: {
-      '/api': 'http://localhost:8081'
+      '/api': 'http://localhost:8081',
+      // 游戏资源图片同源代理（与生产 nginx /cdn/** 反代缓存对齐）：
+      // 开发时同样由本地转发到 Riot CDN，URL 生成逻辑不区分环境
+      '/cdn/cdragon': {
+        target: 'https://raw.communitydragon.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/cdn\/cdragon/, '')
+      },
+      '/cdn/ddragon': {
+        target: 'https://ddragon.leagueoflegends.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/cdn\/ddragon/, '')
+      }
     }
   }
 })

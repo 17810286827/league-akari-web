@@ -15,9 +15,9 @@ describe('CdnImage', () => {
       props: { path: '/lol-game-data/assets/v1/champion-icons/103.png' }
     })
     const img = wrapper.get('img')
-    // 转换结果应为完整 CDN 地址（https 协议），而非 akari:// 协议
+    // 转换结果应为同源代理路径（/cdn/cdragon，由 nginx/vite 转发到 CDN），而非 akari:// 协议
     expect(img.attributes('src')).toContain('champion-icons/103.png')
-    expect(img.attributes('src')).toMatch(/^https?:/)
+    expect(img.attributes('src')).toMatch(/^\/cdn\/cdragon\//)
   })
 
   it('已解析的完整 URL 直接透传（不重复拼接 CDragon 根）', () => {
