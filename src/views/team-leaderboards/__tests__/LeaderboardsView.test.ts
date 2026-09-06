@@ -189,7 +189,7 @@ describe('LeaderboardsView', () => {
   /** 用例（工单 #37）：组合 tab 加载搭档胜率矩阵——胜率/局数渲染与小样本弱化 */
   it('组合 tab 渲染搭档胜率矩阵（小样本格子弱化）', async () => {
     vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())
-    vi.mocked(getMemberCard).mockResolvedValue(cardFixture())
+    vi.mocked(getMemberCard).mockResolvedValue(memberCardFixture())
     vi.mocked(getDuoMatrix).mockResolvedValue({
       members: ['A#tw2', 'B#tw2'],
       matrix: [
@@ -222,5 +222,4 @@ describe('LeaderboardsView', () => {
     // 小样本（<5 局非对角线）弱化
     expect(cell.classes()).toContain('opacity-40')
   })
-}
 })
