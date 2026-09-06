@@ -158,21 +158,21 @@ const chartOptions = {
     <!-- 报告主体 -->
     <HexPageShell v-else max-width="5xl">
       <header class="mt-6 text-center">
-        <div class="flex items-start justify-between text-[17px] font-semibold text-hex-gold/90">
+        <div class="flex items-start justify-between text-[20px] font-semibold text-hex-gold/90">
           <button class="hover:text-hex-gold-2" data-testid="home-button" @click="goHome">❖ 主页</button>
           <button class="hover:text-hex-gold-2" data-testid="season-regenerate" @click="report = null">❖ 重新生成</button>
         </div>
-        <div class="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-hex-teal">Season Chronicle</div>
+        <div class="mt-3 text-[17px] font-semibold uppercase tracking-[0.35em] text-hex-teal">Season Chronicle</div>
         <h1 class="mt-2 text-6xl font-black tracking-[0.12em]">
           <GoldText>赛季报告</GoldText>
         </h1>
-        <p class="mt-3 text-lg font-semibold tracking-[0.2em] text-hex-teal" data-testid="season-summary">
+        <p class="mt-3 text-[21px] font-semibold tracking-[0.2em] text-hex-teal" data-testid="season-summary">
           {{ startDate }} ~ {{ endDate }} · {{ report.totalGames }} 局 · 总胜率 {{ Math.round(report.totalWinRate * 100) }}%
         </p>
       </header>
 
       <!-- 版本胜率曲线 -->
-      <HexPanel v-if="report.versionStats.length" class="mt-10" data-testid="season-versions">
+      <HexPanel v-if="report.versionStats.length" class="season-report-panel mt-10" data-testid="season-versions">
         <div class="p-5">
           <SectionTitle title="版本胜率曲线" meta="车队胜率随版本走势" symbol="📈" />
           <div class="relative h-72">
@@ -182,27 +182,27 @@ const chartOptions = {
       </HexPanel>
 
       <!-- 高光时刻 -->
-      <HexPanel v-if="report.mostKills" gold class="mt-5" data-testid="season-highlights">
+      <HexPanel v-if="report.mostKills" gold class="season-report-panel mt-5" data-testid="season-highlights">
         <div class="p-5">
           <SectionTitle title="赛季高光 · 战功簿" symbol="⚔" />
           <div class="border-l-2 border-hex-gold/50 pl-3">
-            <div class="text-lg font-bold tracking-wider">
+            <div class="text-[21px] font-bold tracking-wider">
               <GoldText>{{ report.mostKills.title }}</GoldText>
             </div>
-            <div class="mt-1 text-[17px] font-medium text-slate-200">{{ report.mostKills.detail }}</div>
+            <div class="mt-1 text-[20px] font-medium text-slate-200">{{ report.mostKills.detail }}</div>
           </div>
         </div>
       </HexPanel>
 
       <!-- 英雄池漂移 -->
-      <HexPanel class="mt-5" data-testid="season-drift">
+      <HexPanel class="season-report-panel mt-5" data-testid="season-drift">
         <div class="p-5">
           <SectionTitle title="英雄池漂移" meta="谁一直玩本命，谁每版换爹" symbol="🧬" />
           <div class="space-y-4">
             <div v-for="drift in report.memberDrifts" :key="drift.riotId" :data-testid="`drift-${drift.riotId}`">
-              <div class="font-semibold text-slate-100">{{ drift.riotId }}</div>
+              <div class="text-[19px] font-semibold text-slate-100">{{ drift.riotId }}</div>
               <div class="mt-1 flex flex-wrap gap-2">
-                <div v-for="v in drift.versions" :key="v.version" class="border border-hex-line/50 px-3 py-1.5 text-sm">
+                <div v-for="v in drift.versions" :key="v.version" class="border border-hex-line/50 px-3 py-1.5 text-[17px]">
                   <span class="font-semibold text-hex-teal">{{ v.version }}</span>
                   <span class="ml-2 flex flex-wrap items-center gap-1 text-slate-300">
                     <template v-if="v.champions.length">
@@ -217,7 +217,7 @@ const chartOptions = {
                           :src="championIconUrl(c.championId)"
                           :alt="c.champion"
                           :data-testid="`champion-avatar-${c.champion}`"
-                          class="h-4 w-4 rounded object-cover"
+                          class="h-[19px] w-[19px] rounded object-cover"
                         />
                         <span>{{ c.champion }}×{{ c.games }}</span>
                       </span>
@@ -233,3 +233,14 @@ const chartOptions = {
     </HexPageShell>
   </div>
 </template>
+
+<style scoped>
+/* 赛季报告整体增大 3px：区块标题（SectionTitle 为共享组件，经深穿透只放大本页）
+   text-lg(18px) → 21px，meta 副文案 text-sm(14px) → 17px */
+:deep(.season-report-panel h2) {
+  font-size: 21px;
+}
+:deep(.season-report-panel h2 .ml-auto) {
+  font-size: 17px;
+}
+</style>
