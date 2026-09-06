@@ -316,6 +316,53 @@ export async function getDuoExtended(params: {
   return data.data as DuoExtended
 }
 
+/** 版本胜率单点（与后端 SeasonReportResponse.VersionStat 对齐，工单 #42） */
+export interface SeasonVersionStat {
+  version: string
+  games: number
+  wins: number
+  losses: number
+  winRate: number
+}
+
+/** 成员单版本的英雄分布（与后端 SeasonReportResponse.VersionChampions 对齐） */
+export interface SeasonVersionChampions {
+  version: string
+  /** 英雄中文名 → 局数（按局数降序） */
+  champions: Array<[string, number]>
+}
+
+/** 成员英雄池漂移（与后端 SeasonReportResponse.MemberDrift 对齐） */
+export interface SeasonMemberDrift {
+  riotId: string
+  versions: SeasonVersionChampions[]
+}
+
+/** 赛季报告高光时刻 */
+export interface SeasonHighlight {
+  gameId: number
+  title: string
+  detail: string
+}
+
+/** 赛季报告响应（与后端 SeasonReportResponse 对齐，工单 #42 / spec #32） */
+export interface SeasonReport {
+  totalGames: number
+  totalWinRate: number
+  versionStats: SeasonVersionStat[]
+  memberDrifts: SeasonMemberDrift[]
+  mostKills: SeasonHighlight | null
+}
+
+/** 查询赛季报告（工单 #42）：赛季起止人工指定（毫秒时间戳），纯数据聚合即时返回 */
+export async function getSeasonReport(start: number, end: number): Promise<SeasonReport> {
+  const { data } = await http.get<ApiResult<SeasonReport>>('/api/team/season-report', {
+    params: { start, end },
+    timeout: STATS_TIMEOUT_MS
+  })
+  return data.data as SeasonReport
+}
+
 /** 触发 Riot 历史对局回填（异步；返回是否成功启动，false=已在运行） */
 export async function triggerTeamBackfill(): Promise<boolean> {
   const { data } = await http.post<ApiResult<{ started: boolean }>>('/api/team/backfill')
