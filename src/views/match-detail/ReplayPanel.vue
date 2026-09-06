@@ -15,7 +15,9 @@ import {
   LinearScale,
   LineElement,
   PointElement,
-  Tooltip
+  Tooltip,
+  type ChartData,
+  type ChartOptions
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 
@@ -114,7 +116,11 @@ const turningPointScatter = computed(() => {
   })
 })
 
-/** Chart.js 数据集：经济差折线 + 击杀散点（敌我分色）+ 转折点散点 */
+/**
+ * Chart.js 数据集：经济差折线 + 击杀散点（敌我分色）+ 转折点散点。
+ * Line 组件泛型为 "line" 而数据集混入 scatter 类型（Chart.js 运行时支持
+ * 混合图表控制器的数据集），以 as 收窄类型——散点数据形状与线数据点兼容
+ */
 const chartData = computed(() => ({
   labels: labels.value,
   datasets: [
@@ -158,10 +164,10 @@ const chartData = computed(() => ({
       backgroundColor: '#d4a017'
     }
   ]
-}))
+}) as unknown as ChartData<'line'>)
 
 /** Chart.js 配置：tooltip 展示散点自定义信息（击杀/转折点详情） */
-const chartOptions = {
+const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   animation: { duration: 300 },
@@ -176,7 +182,11 @@ const chartOptions = {
         // 散点（击杀/转折点）携带 _info 自定义文案；折线走默认 label
         label: (context: { dataset: { data: unknown }; dataIndex: number }) => {
           const point = (context.dataset.data as Array<{ _info?: string }>)[context.dataIndex]
-          return point?._info ?? null
+          // 折线数据点无 _info：返回 void（tooltip 回调允许无返回值跳过该行）
+          if (!point?._info) {
+            return
+          }
+          return point._info
         }
       }
     }

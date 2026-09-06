@@ -385,8 +385,8 @@ onMounted(load)
           </HexPanel>
         </template>
 
-        <!-- 其他维度：单卷排行 -->
-        <HexPanel v-else>
+        <!-- 其他维度：单卷排行（组合 tab 时 leaderboard 为 null，v-else 链兜底不渲染） -->
+        <HexPanel v-else-if="leaderboard">
           <div class="p-5">
             <SectionTitle :title="dimensionLabel" :meta="`${leaderboard.entries.length} 人登榜`" />
             <template v-if="leaderboard.entries.length">
