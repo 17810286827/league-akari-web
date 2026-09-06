@@ -325,11 +325,17 @@ export interface SeasonVersionStat {
   winRate: number
 }
 
+/** 英雄使用次数（与后端 SeasonReportResponse.ChampionCount 对齐） */
+export interface SeasonChampionCount {
+  champion: string
+  games: number
+}
+
 /** 成员单版本的英雄分布（与后端 SeasonReportResponse.VersionChampions 对齐） */
 export interface SeasonVersionChampions {
   version: string
-  /** 英雄中文名 → 局数（按局数降序） */
-  champions: Array<[string, number]>
+  /** 英雄分布（按局数降序） */
+  champions: SeasonChampionCount[]
 }
 
 /** 成员英雄池漂移（与后端 SeasonReportResponse.MemberDrift 对齐） */

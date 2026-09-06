@@ -7,6 +7,7 @@
  * 数据经 getMatchReplay（GET /api/matches/{gameId}/replay），不依赖 AI。
  */
 import { computed, onMounted, ref } from 'vue'
+import MarkdownIt from 'markdown-it'
 import { NEmpty, NSpin } from 'naive-ui'
 import {
   CategoryScale,
@@ -202,6 +203,14 @@ const aiNarration = ref('')
 const aiReasoning = ref('')
 const aiStreaming = ref(false)
 const aiError = ref('')
+/** 思维链折叠状态（与"战犯出列"同款交互：默认折叠，点击展开/收起） */
+const aiReasoningCollapsed = ref(true)
+
+// markdown 渲染器：关闭内联 HTML（模型输出转义，防 XSS），与战犯出列同款配置
+const markdown = new MarkdownIt({ html: false, linkify: false })
+
+/** 叙述正文的 markdown 渲染结果（打字机逐块追加时自动重算） */
+const renderedNarration = computed(() => markdown.render(aiNarration.value))
 
 /** 触发 AI 复盘叙述（转折点驱动，SSE 流式打字机） */
 async function narrate(): Promise<void> {
@@ -343,15 +352,19 @@ onMounted(async () => {
         >
           {{ aiStreaming ? '教练正在复盘……' : aiNarration ? '重新复盘' : '✦ AI 复盘叙述' }}
         </button>
-        <!-- 思维链折叠（思考模式模型） -->
-        <details v-if="aiReasoning" class="mt-2">
-          <summary class="cursor-pointer text-xs opacity-60">🧠 模型思考过程</summary>
-          <div class="mt-1 whitespace-pre-wrap text-xs leading-5 opacity-60">{{ aiReasoning }}</div>
-        </details>
-        <!-- 叙述正文（打字机） -->
-        <p v-if="aiNarration" class="mt-2 text-sm leading-6" data-testid="replay-ai-text">
-          {{ aiNarration }}
-        </p>
+        <!-- 思维链折叠（与"战犯出列"同款交互与视觉：默认折叠，虚线框灰字，主题化滚动条） -->
+        <button
+          v-if="aiReasoning"
+          type="button"
+          class="ai-reasoning-toggle"
+          data-testid="replay-ai-reasoning-toggle"
+          @click="aiReasoningCollapsed = !aiReasoningCollapsed"
+        >
+          {{ aiReasoningCollapsed ? '🧠 模型思考过程（点击展开）' : '🧠 模型思考过程（点击收起）' }}
+        </button>
+        <div v-if="aiReasoning && !aiReasoningCollapsed" class="ai-reasoning">{{ aiReasoning }}</div>
+        <!-- 叙述正文（markdown 渲染：## 小节 / - 列表 / **加粗**，打字机逐块追加自动重算） -->
+        <div v-if="aiNarration" class="ai-narration" data-testid="replay-ai-text" v-html="renderedNarration"></div>
         <!-- 失败降级（仅影响本区块） -->
         <p v-if="aiError" class="mt-2 text-sm" style="color: #d03050" data-testid="replay-ai-error">
           ⚠ {{ aiError }}
@@ -373,5 +386,83 @@ onMounted(async () => {
 .replay-chart {
   position: relative;
   height: 320px;
+}
+
+/* 思维链折叠条（战犯出列同款：小字灰虚线框，hover 提亮） */
+.ai-reasoning-toggle {
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px dashed rgba(74, 222, 128, 0.2);
+  background: rgba(17, 22, 17, 0.5);
+  color: #8b9a8f;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ai-reasoning-toggle:hover {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #a7f3d0;
+}
+
+/* 模型思考过程（战犯出列同款：灰字小号 + 虚线框 + 限高滚动 + 主题化滚动条） */
+.ai-reasoning {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px dashed rgba(74, 222, 128, 0.18);
+  background: rgba(17, 22, 17, 0.5);
+  color: #8b9a8f;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  /* 滚动条主题化：透明轨道 + 暗绿圆角滑块（hover 提亮），与侧栏/战犯出列统一 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 154, 143, 0.4) transparent;
+}
+
+.ai-reasoning::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-reasoning::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-reasoning::-webkit-scrollbar-thumb {
+  background: rgba(139, 154, 143, 0.4);
+  border-radius: 4px;
+}
+
+.ai-reasoning::-webkit-scrollbar-thumb:hover {
+  background: #4ade80;
+}
+
+/* 叙述正文：markdown 渲染区（v-html 内容用 :deep 命中内部元素） */
+.ai-narration {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.ai-narration :deep(h2),
+.ai-narration :deep(h3) {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai-narration :deep(ul),
+.ai-narration :deep(ol) {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.ai-narration :deep(p) {
+  margin: 6px 0;
 }
 </style>

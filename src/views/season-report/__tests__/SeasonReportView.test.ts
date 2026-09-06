@@ -50,15 +50,15 @@ function reportFixture(): SeasonReport {
       {
         riotId: 'A#tw2',
         versions: [
-          { version: '16.14', champions: [['阿狸', 5]] },
-          { version: '16.15', champions: [['锐雯', 7]] }
+          { version: '16.14', champions: [{ champion: '阿狸', games: 5 }] },
+          { version: '16.15', champions: [{ champion: '锐雯', games: 7 }] }
         ]
       },
       {
         riotId: 'B#tw2',
         versions: [
-          { version: '16.14', champions: [['盲僧', 5]] },
-          { version: '16.15', champions: [['盲僧', 7]] }
+          { version: '16.14', champions: [{ champion: '盲僧', games: 5 }] },
+          { version: '16.15', champions: [{ champion: '盲僧', games: 7 }] }
         ]
       }
     ],

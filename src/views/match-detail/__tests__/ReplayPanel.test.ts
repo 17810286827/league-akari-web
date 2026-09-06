@@ -158,7 +158,8 @@ describe('ReplayPanel', () => {
     await flushPromises()
 
     expect(streamReplayComment).toHaveBeenCalledWith(123, expect.anything())
-    expect(wrapper.find('[data-testid="replay-ai-text"]').text()).toBe('这局胜负手在中期被反超')
+    // markdown 渲染：正文经 markdown-it 渲染（纯文本段落仍完整呈现）
+    expect(wrapper.find('[data-testid="replay-ai-text"]').text()).toContain('这局胜负手在中期被反超')
 
     // 开流前失败（如 4101）：降级提示
     vi.mocked(streamReplayComment).mockRejectedValue(
@@ -167,5 +168,31 @@ describe('ReplayPanel', () => {
     await wrapper.find('[data-testid="replay-ai-button"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="replay-ai-error"]').text()).toContain('AI API Key 未配置')
+  })
+
+  /** 用例（回归：思考过程折叠交互）：默认折叠，点击展开/收起（战犯出列同款） */
+  it('AI 思考过程默认折叠，点击展开再收起', async () => {
+    vi.mocked(getMatchReplay).mockResolvedValue(availableFixture())
+    vi.mocked(streamReplayComment).mockImplementation(async (_gameId, handlers = {}) => {
+      handlers.onReasoning?.('正在复盘')
+      handlers.onChunk?.('正文')
+    })
+
+    const wrapper = mount(ReplayPanel, { props: { gameId: 123 } })
+    await flushPromises()
+    await wrapper.find('[data-testid="replay-ai-button"]').trigger('click')
+    await flushPromises()
+
+    // 默认折叠：思考内容不可见
+    const toggle = wrapper.find('[data-testid="replay-ai-reasoning-toggle"]')
+    expect(toggle.text()).toContain('点击展开')
+    expect(wrapper.find('.ai-reasoning').exists()).toBe(false)
+    // 展开
+    await toggle.trigger('click')
+    expect(wrapper.find('.ai-reasoning').text()).toContain('正在复盘')
+    expect(toggle.text()).toContain('点击收起')
+    // 收起
+    await toggle.trigger('click')
+    expect(wrapper.find('.ai-reasoning').exists()).toBe(false)
   })
 })

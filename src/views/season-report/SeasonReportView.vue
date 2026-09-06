@@ -204,7 +204,7 @@ const chartOptions = {
                 <div v-for="v in drift.versions" :key="v.version" class="border border-hex-line/50 px-3 py-1.5 text-sm">
                   <span class="font-semibold text-hex-teal">{{ v.version }}</span>
                   <span class="ml-2 text-slate-300">
-                    {{ v.champions.map(([c, n]) => `${c}×${n}`).join(' · ') || '未出战' }}
+                    {{ v.champions.map((c) => `${c.champion}×${c.games}`).join(' · ') || '未出战' }}
                   </span>
                 </div>
               </div>
