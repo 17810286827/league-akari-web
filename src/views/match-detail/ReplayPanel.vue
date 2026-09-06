@@ -185,14 +185,21 @@ const chartOptions: ChartOptions<'line'> = {
   plugins: {
     tooltip: {
       callbacks: {
-        // 散点（击杀/转折点）携带 _info 自定义文案；折线走默认 label
+        // 标题行：显示时刻（分钟标签）——散点数据的 x 是帧索引，
+        // 默认回调会把原始 x/y 渲染成 "x: 12, y: 3400" 泄露到标题，必须覆盖
+        title: (items: Array<{ dataIndex: number }>) => {
+          const first = items[0]
+          return first ? (labels.value[first.dataIndex] ?? '') : ''
+        },
+        // 散点（击杀/转折点）携带 _info 自定义文案；折线显示经济差数值
         label: (context: { dataset: { data: unknown }; dataIndex: number }) => {
           const point = (context.dataset.data as Array<{ _info?: string }>)[context.dataIndex]
-          // 折线数据点无 _info：返回 void（tooltip 回调允许无返回值跳过该行）
-          if (!point?._info) {
-            return
+          if (point?._info) {
+            return point._info
           }
-          return point._info
+          // 折线数据点是纯数字（经济差）：显示千分位，替代默认的裸数值
+          const value = (context.dataset.data as number[])[context.dataIndex]
+          return `经济差 ${Math.round(value).toLocaleString()}`
         }
       }
     }
