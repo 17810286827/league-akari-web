@@ -11,6 +11,7 @@ import { useRouter } from 'vue-router'
 import {
   CategoryScale,
   Chart as ChartJS,
+  Filler,
   Legend,
   LinearScale,
   LineElement,
@@ -29,7 +30,8 @@ import RankBadge from '@/components/hex/RankBadge.vue'
 import SectionTitle from '@/components/hex/SectionTitle.vue'
 
 // Chart.js 模块注册（项目惯例：各图表组件模块级注册一次）
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
+// Filler：fill:'origin' 填充必需
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const router = useRouter()
 

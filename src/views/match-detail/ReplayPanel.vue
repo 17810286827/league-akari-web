@@ -11,10 +11,12 @@ import { NEmpty, NSpin } from 'naive-ui'
 import {
   CategoryScale,
   Chart as ChartJS,
+  Filler,
   Legend,
   LinearScale,
   LineElement,
   PointElement,
+  ScatterController,
   Tooltip,
   type ChartData,
   type ChartOptions
@@ -28,7 +30,9 @@ import { createLogger } from '@/utils/logger'
 const logger = createLogger('ReplayPanel')
 
 // Chart.js 模块注册（项目惯例：各图表组件模块级注册一次，全局生效）
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
+// Filler：fill:'origin' 填充必需；ScatterController：击杀/转折点散点数据集必需
+// （未注册时运行时抛 "scatter" is not a registered controller，面板渲染崩溃）
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ScatterController, Tooltip, Legend, Filler)
 
 const props = defineProps<{
   /** 对局 ID（LCU） */
