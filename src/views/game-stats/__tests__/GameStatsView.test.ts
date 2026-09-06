@@ -541,13 +541,11 @@ describe('GameStatsView', () => {
 
   /** 用例（回归：面板脱挂 bug）：卡片展开态渲染时间线复盘与对局诊断面板 */
   it('卡片展开态渲染复盘与诊断面板（主路径可见）', async () => {
-    vi.mocked(listMatches).mockResolvedValue(summaryPageFixture())
-    vi.mocked(getMatchDetail).mockResolvedValue(detailFixture())
-
+    // beforeEach 已默认打桩（列表 1 条摘要 + 详情 fixture），无需重复
     const wrapper = mountView()
     await flushPromises()
     // 点击折叠卡展开（懒加载详情）
-    await wrapper.find('[data-testid="game-card"]').trigger('click')
+    await wrapper.find('.collapsed').trigger('click')
     await flushPromises()
 
     // 两个面板在卡片下方渲染（此前只挂在无入口的 /matches/:gameId 孤岛路由）
@@ -557,4 +555,4 @@ describe('GameStatsView', () => {
     expect(vi.mocked(getMatchReplay)).toHaveBeenCalled()
     expect(vi.mocked(getMatchDiagnosis)).toHaveBeenCalled()
   })
-}
+})
