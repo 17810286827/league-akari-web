@@ -130,6 +130,36 @@ export interface DuoMatrix {
   matrix: DuoMatrixCell[][]
 }
 
+/** 时段统计单桶（与后端 DuoExtendedResponse.TimeSlotStats 对齐，工单 #41） */
+export interface TimeSlotStats {
+  /** 时段键（morning/afternoon/evening/lateNight/weeHours） */
+  key: string
+  /** 时段中文名（如"晚间开黑"） */
+  label: string
+  games: number
+  wins: number
+  losses: number
+  /** 胜率（0-1）；0 局时为 null */
+  winRate: number | null
+}
+
+/** 常用阵容（与后端 DuoExtendedResponse.LineupStats 对齐，工单 #41） */
+export interface LineupStats {
+  /** 阵容成员（riotId） */
+  members: string[]
+  games: number
+  wins: number
+  losses: number
+  /** 胜率（0-1） */
+  winRate: number
+}
+
+/** 组合扩展统计响应（与后端 DuoExtendedResponse 对齐，工单 #41 / spec #31） */
+export interface DuoExtended {
+  timeSlots: TimeSlotStats[]
+  lineups: LineupStats[]
+}
+
 /** 榜单中心响应（与后端 LeaderboardResponse 对齐） */
 export interface TeamLeaderboard {
   dimension: string
@@ -270,6 +300,20 @@ export async function getDuoMatrix(params: {
     timeout: STATS_TIMEOUT_MS
   })
   return data.data as DuoMatrix
+}
+
+/** 查询组合扩展统计（工单 #41）：时段胜率 + 常用阵容 */
+export async function getDuoExtended(params: {
+  mode?: string
+  start?: number
+  end?: number
+  version?: string
+}): Promise<DuoExtended> {
+  const { data } = await http.get<ApiResult<DuoExtended>>('/api/team/duo-extended', {
+    params,
+    timeout: STATS_TIMEOUT_MS
+  })
+  return data.data as DuoExtended
 }
 
 /** 触发 Riot 历史对局回填（异步；返回是否成功启动，false=已在运行） */

@@ -8,8 +8,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getDuoMatrix, getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
-import type { DuoMatrix, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
+import { getDuoExtended, getDuoMatrix, getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
+import type { DuoExtended, DuoMatrix, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
 import { format2, formatInt, formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
@@ -46,6 +46,8 @@ const VERSION_OPTIONS = ['16.16', '16.15', '16.14', '16.13', '16.12', '16.11', '
 const leaderboard = ref<TeamLeaderboard | null>(null)
 /** 搭档胜率矩阵（组合 tab，工单 #37） */
 const duoMatrix = ref<DuoMatrix | null>(null)
+/** 组合扩展统计（工单 #41）：时段胜率 + 常用阵容 */
+const duoExtended = ref<DuoExtended | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
@@ -100,12 +102,19 @@ async function load(): Promise<void> {
         end,
         version: version.value ?? undefined
       })
+      duoExtended.value = await getDuoExtended({
+        mode: mode.value ?? undefined,
+        start,
+        end,
+        version: version.value ?? undefined
+      })
       leaderboard.value = null
       selectedEntry.value = null
       memberCard.value = null
       return
     }
     duoMatrix.value = null
+    duoExtended.value = null
     leaderboard.value = await getTeamLeaderboard({
       dimension: dimension.value,
       mode: mode.value ?? undefined,
@@ -300,6 +309,51 @@ onMounted(load)
             </p>
           </div>
         </HexPanel>
+
+        <!-- 组合扩展（工单 #41）：时段胜率 + 常用阵容 -->
+        <template v-if="duoExtended">
+          <HexPanel data-testid="time-slots-panel">
+            <div class="p-5">
+              <SectionTitle title="时段胜率" meta="几点开黑状态最好" symbol="🕐" />
+              <div class="space-y-2" data-testid="time-slots">
+                <div
+                  v-for="slot in duoExtended.timeSlots"
+                  :key="slot.key"
+                  class="flex items-center gap-3 border-b border-hex-line/30 py-2 last:border-0"
+                  :class="slot.games === 0 ? 'opacity-40' : ''"
+                  :data-testid="`slot-${slot.key}`"
+                >
+                  <span class="w-28 font-semibold text-slate-100">{{ slot.label }}</span>
+                  <span class="flex-1 text-sm text-slate-400">{{ slot.games }}局</span>
+                  <span class="w-20 text-right text-xl font-bold tabular-nums">
+                    <GoldText>{{ slot.winRate != null ? Math.round(slot.winRate * 100) + '%' : '—' }}</GoldText>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </HexPanel>
+          <HexPanel v-if="duoExtended.lineups.length" class="mt-5" data-testid="lineups-panel">
+            <div class="p-5">
+              <SectionTitle title="常用阵容" meta="同局成员组合 · 按局数排序" symbol="⚔" />
+              <div class="space-y-2" data-testid="lineups">
+                <div
+                  v-for="(lineup, index) in duoExtended.lineups"
+                  :key="lineup.members.join(',')"
+                  class="flex items-center gap-3 border-b border-hex-line/30 py-2 last:border-0"
+                >
+                  <RankBadge :rank="index + 1" />
+                  <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">
+                    {{ lineup.members.map((m) => m.split('#')[0]).join(' + ') }}
+                  </span>
+                  <span class="text-sm text-slate-400">{{ lineup.games }}局</span>
+                  <span class="w-20 text-right text-xl font-bold tabular-nums">
+                    <GoldText>{{ Math.round(lineup.winRate * 100) }}%</GoldText>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </HexPanel>
+        </template>
 
         <template v-else-if="signatureGroups">
           <HexPanel

@@ -8,7 +8,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getDuoMatrix, getMemberCard, getTeamLeaderboard } from '@/api/team'
+import { getDuoExtended, getDuoMatrix, getMemberCard, getTeamLeaderboard } from '@/api/team'
 import type { TeamLeaderboard, TeamMemberCard } from '@/api/team'
 
 import LeaderboardsView from '../LeaderboardsView.vue'
@@ -20,6 +20,7 @@ vi.mock('@/api/team', async (importOriginal) => {
     ...actual,
     getTeamLeaderboard: vi.fn(),
     getDuoMatrix: vi.fn(),
+    getDuoExtended: vi.fn(),
     getMemberCard: vi.fn()
   }
 })
@@ -190,6 +191,15 @@ describe('LeaderboardsView', () => {
   it('组合 tab 渲染搭档胜率矩阵（小样本格子弱化）', async () => {
     vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())
     vi.mocked(getMemberCard).mockResolvedValue(memberCardFixture())
+    vi.mocked(getDuoExtended).mockResolvedValue({
+      timeSlots: [
+        { key: 'evening', label: '晚间开黑', games: 3, wins: 4, losses: 2, winRate: 2 / 3 },
+        { key: 'morning', label: '上午开黑', games: 0, wins: 0, losses: 0, winRate: null }
+      ],
+      lineups: [
+        { members: ['A#tw2', 'B#tw2'], games: 3, wins: 4, losses: 2, winRate: 2 / 3 }
+      ]
+    })
     vi.mocked(getDuoMatrix).mockResolvedValue({
       members: ['A#tw2', 'B#tw2'],
       matrix: [
@@ -221,6 +231,10 @@ describe('LeaderboardsView', () => {
     expect(wrapper.find('[data-testid="duo-cell-1-1"]').text()).toContain('—')
     // 小样本（<5 局非对角线）弱化
     expect(cell.classes()).toContain('opacity-40')
+    // 时段胜率 + 常用阵容（工单 #41）
+    expect(wrapper.find('[data-testid="slot-evening"]').text()).toContain('67%')
+    expect(wrapper.find('[data-testid="slot-morning"]').text()).toContain('—')
+    expect(wrapper.find('[data-testid="lineups"]').text()).toContain('A + B')
   })
 
   /** 用例（工单 #38）：版本筛选——选择主版本后请求携带 version 参数 */
