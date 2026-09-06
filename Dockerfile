@@ -19,9 +19,13 @@ RUN mkdir -p /var/cache/nginx/cdn && chown -R nginx:nginx /var/cache/nginx
 # 不会推到生产容器启动崩溃进重启循环（实例：http_5xx 通配不被
 # proxy_cache_use_stale 支持，曾致部署健康检查超时回滚）。
 # 注意：/api 反代的 host.docker.internal 是 compose 运行期 extra_hosts 注入的，
-# 构建容器内无此主机名——校验前先写一条 hosts 占位让配置可解析，
-# 运行时被真实映射覆盖（占位 IP 永不会被真正使用）
-RUN echo "203.0.113.1 host.docker.internal" >> /etc/hosts && nginx -t
+# 构建容器内无此主机名（且 buildx 中 /etc/hosts 只读不可追加）——
+# 校验在临时副本上执行：sed 把主机名换成 127.0.0.1 仅为让 upstream 可解析
+# （只验语法不实际连接），镜像内的真实配置文件不被触碰
+RUN printf 'events {}\nhttp { include /tmp/default.conf; }\n' > /tmp/test-main.conf \
+  && sed 's/host.docker.internal/127.0.0.1/' /etc/nginx/conf.d/default.conf > /tmp/default.conf \
+  && nginx -t -c /tmp/test-main.conf \
+  && rm -f /tmp/test-main.conf /tmp/default.conf
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
   CMD wget -q --spider http://127.0.0.1/ || exit 1
