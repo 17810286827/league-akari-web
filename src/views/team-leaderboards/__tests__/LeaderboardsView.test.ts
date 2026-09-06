@@ -222,4 +222,21 @@ describe('LeaderboardsView', () => {
     // 小样本（<5 局非对角线）弱化
     expect(cell.classes()).toContain('opacity-40')
   })
+
+  /** 用例（工单 #38）：版本筛选——选择主版本后请求携带 version 参数 */
+  it('版本筛选：选择 16.15 后请求携带 version', async () => {
+    vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())
+    vi.mocked(getMemberCard).mockResolvedValue(memberCardFixture())
+
+    const wrapper = mount(LeaderboardsView)
+    await flushPromises()
+    vi.mocked(getTeamLeaderboard).mockClear()
+
+    const versionSelect = wrapper.find('[data-testid="version-select"]')
+    await versionSelect.setValue('16.15')
+    await flushPromises()
+
+    const lastCall = vi.mocked(getTeamLeaderboard).mock.calls.at(-1)?.[0]
+    expect(lastCall?.version).toBe('16.15')
+  })
 })

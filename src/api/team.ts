@@ -231,6 +231,8 @@ export async function getTeamLeaderboard(params: {
   mode?: string
   start?: number
   end?: number
+  /** 主版本筛选（如 "16.15"，工单 #38） */
+  version?: string
 }): Promise<TeamLeaderboard> {
   const { data } = await http.get<ApiResult<TeamLeaderboard>>('/api/team/leaderboards', {
     params,
@@ -260,6 +262,8 @@ export async function getDuoMatrix(params: {
   mode?: string
   start?: number
   end?: number
+  /** 主版本筛选（如 "16.15"，工单 #38） */
+  version?: string
 }): Promise<DuoMatrix> {
   const { data } = await http.get<ApiResult<DuoMatrix>>('/api/team/duo-matrix', {
     params,

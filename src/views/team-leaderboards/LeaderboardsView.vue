@@ -38,6 +38,10 @@ const rangeKey = ref<TimeRangeKey>('all')
 /** 自定义起止（rangeKey=custom 时生效） */
 const customStart = ref('')
 const customEnd = ref('')
+/** 版本筛选（工单 #38）：主版本（如 "16.15"）；null = 全部版本 */
+const version = ref<string | null>(null)
+/** 可选版本列表（静态常见主版本，按新到旧；后端按归一口径精确匹配） */
+const VERSION_OPTIONS = ['16.16', '16.15', '16.14', '16.13', '16.12', '16.11', '16.10']
 
 const leaderboard = ref<TeamLeaderboard | null>(null)
 /** 搭档胜率矩阵（组合 tab，工单 #37） */
@@ -93,7 +97,8 @@ async function load(): Promise<void> {
       duoMatrix.value = await getDuoMatrix({
         mode: mode.value ?? undefined,
         start,
-        end
+        end,
+        version: version.value ?? undefined
       })
       leaderboard.value = null
       selectedEntry.value = null
@@ -105,7 +110,8 @@ async function load(): Promise<void> {
       dimension: dimension.value,
       mode: mode.value ?? undefined,
       start,
-      end
+      end,
+      version: version.value ?? undefined
     })
     // 联动体验：榜单刷新后默认选中第一名
     const first = leaderboard.value?.entries?.[0]
@@ -140,7 +146,7 @@ async function selectMember(entry: TeamBoardEntry): Promise<void> {
 }
 
 /** 筛选变化自动重查 */
-watch([dimension, mode, rangeKey], load)
+watch([dimension, mode, rangeKey, version], load)
 onMounted(load)
 </script>
 
@@ -199,6 +205,15 @@ onMounted(load)
           data-testid="mode-select"
         >
           <option v-for="m in MODE_OPTIONS" :key="m.label" :value="m.value">{{ m.label }}</option>
+        </select>
+        <!-- 版本筛选（工单 #38）：主版本，与模式/时间叠加生效 -->
+        <select
+          v-model="version"
+          class="border border-hex-line bg-hex-blue-2 px-4 py-2 text-[17px] font-semibold tracking-wider text-hex-gold focus:outline-none"
+          data-testid="version-select"
+        >
+          <option :value="null">全部版本</option>
+          <option v-for="v in VERSION_OPTIONS" :key="v" :value="v">{{ v }}</option>
         </select>
         <select
           v-model="rangeKey"
