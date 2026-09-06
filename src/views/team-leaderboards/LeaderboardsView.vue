@@ -8,8 +8,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
-import type { TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
+import { getDuoMatrix, getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
+import type { DuoMatrix, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
 import { format2, formatInt, formatStat } from '@/utils/format'
 
 import GoldText from '@/components/hex/GoldText.vue'
@@ -40,8 +40,16 @@ const customStart = ref('')
 const customEnd = ref('')
 
 const leaderboard = ref<TeamLeaderboard | null>(null)
+/** 搭档胜率矩阵（组合 tab，工单 #37） */
+const duoMatrix = ref<DuoMatrix | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
+
+/** 组合 tab 维度键（与七榜并列的第八个 tab，走矩阵端点而非榜单引擎） */
+const DUO_DIMENSION = 'duo'
+
+/** 全部维度（七榜 + 组合 tab） */
+const ALL_DIMENSIONS = [...LEADERBOARD_DIMENSIONS, { key: DUO_DIMENSION, label: '组合' }]
 
 /** 当前选中的成员条目（右栏成员卡联动） */
 const selectedEntry = ref<TeamBoardEntry | null>(null)
@@ -80,6 +88,19 @@ async function load(): Promise<void> {
   errorMsg.value = ''
   try {
     const { start, end } = rangeToParams(rangeKey.value, customStart.value, customEnd.value)
+    if (dimension.value === DUO_DIMENSION) {
+      // 组合 tab：搭档胜率矩阵（无右栏成员卡联动）
+      duoMatrix.value = await getDuoMatrix({
+        mode: mode.value ?? undefined,
+        start,
+        end
+      })
+      leaderboard.value = null
+      selectedEntry.value = null
+      memberCard.value = null
+      return
+    }
+    duoMatrix.value = null
     leaderboard.value = await getTeamLeaderboard({
       dimension: dimension.value,
       mode: mode.value ?? undefined,
@@ -140,8 +161,8 @@ onMounted(load)
     </div>
   </div>
 
-  <!-- 榜单主体：海克斯魔典版式 -->
-  <HexPageShell v-else-if="leaderboard" max-width="5xl">
+  <!-- 榜单主体：海克斯魔典版式（榜单或组合矩阵） -->
+  <HexPageShell v-else-if="leaderboard || duoMatrix" max-width="5xl">
     <!-- 标题区：主页 + 眉题 + 金渐变大标题 -->
     <header class="mt-6 text-center">
       <div class="text-[17px] font-semibold text-hex-gold/90">
@@ -155,7 +176,7 @@ onMounted(load)
       <!-- 维度：符文按钮环 -->
       <nav class="mt-6 flex flex-wrap justify-center gap-2" data-testid="dimension-tabs">
         <button
-          v-for="d in LEADERBOARD_DIMENSIONS"
+          v-for="d in ALL_DIMENSIONS"
           :key="d.key"
           class="rounded-full border px-5 py-2.5 text-lg font-semibold tracking-wide transition-colors"
           :class="
@@ -213,7 +234,59 @@ onMounted(load)
       <!-- 左：排行（绝活榜按英雄分卷，其余平铺） -->
       <main class="min-w-0 flex-1" data-testid="leaderboard-table">
         <!-- 绝活榜：英雄分卷 -->
-        <template v-if="signatureGroups">
+        <!-- 组合 tab：搭档胜率矩阵（工单 #37）——小样本格子以局数标注弱化 -->
+        <HexPanel v-if="duoMatrix" data-testid="duo-matrix-panel">
+          <div class="p-5">
+            <SectionTitle title="搭档胜率矩阵" meta="只统计车队对局 · 胜负按人次" symbol="⚔" />
+            <div class="overflow-x-auto" data-testid="duo-matrix">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-hex-line/40 text-left">
+                    <th class="py-2 pr-4 font-semibold text-slate-300">搭档</th>
+                    <th
+                      v-for="member in duoMatrix.members"
+                      :key="member"
+                      class="py-2 pr-4 font-semibold text-slate-300"
+                    >
+                      {{ member.split('#')[0] }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, rowIndex) in duoMatrix.matrix"
+                    :key="duoMatrix.members[rowIndex]"
+                    class="border-b border-hex-line/20"
+                  >
+                    <td class="py-2 pr-4 font-medium text-slate-100">
+                      {{ duoMatrix.members[rowIndex].split('#')[0] }}
+                    </td>
+                    <td
+                      v-for="(cell, colIndex) in row"
+                      :key="duoMatrix.members[colIndex]"
+                      class="py-2 pr-4"
+                      :class="cell.games < 5 && rowIndex !== colIndex ? 'opacity-40' : ''"
+                      :data-testid="`duo-cell-${rowIndex}-${colIndex}`"
+                    >
+                      <template v-if="cell.games === 0">—</template>
+                      <template v-else>
+                        <span class="font-bold tabular-nums">
+                          <GoldText>{{ Math.round((cell.winRate ?? 0) * 100) }}%</GoldText>
+                        </span>
+                        <span class="ml-1 text-xs text-slate-400">{{ cell.games }}局</span>
+                      </template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-xs tracking-wide text-slate-400">
+              对角线为个人车队局；格子淡显 = 样本不足 5 局（胜率参考性有限）；胜率按成员人次计。
+            </p>
+          </div>
+        </HexPanel>
+
+        <template v-else-if="signatureGroups">
           <HexPanel
             v-for="group in signatureGroups"
             :key="group.champion"

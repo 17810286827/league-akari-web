@@ -110,6 +110,26 @@ export interface TeamWeeklyReport {
   aiComment?: string | null
 }
 
+/** 搭档胜率矩阵单格（与后端 DuoMatrixResponse.Cell 对齐，工单 #37） */
+export interface DuoMatrixCell {
+  /** 搭档局数 */
+  games: number
+  /** 人次胜场 */
+  wins: number
+  /** 人次负场 */
+  losses: number
+  /** 胜率（0-1）；0 局时为 null */
+  winRate: number | null
+}
+
+/** 搭档胜率矩阵响应（与后端 DuoMatrixResponse 对齐，工单 #37 / spec #31） */
+export interface DuoMatrix {
+  /** 矩阵轴成员（roster 顺序，riotId） */
+  members: string[]
+  /** N×N 对称矩阵 */
+  matrix: DuoMatrixCell[][]
+}
+
 /** 榜单中心响应（与后端 LeaderboardResponse 对齐） */
 export interface TeamLeaderboard {
   dimension: string
@@ -233,6 +253,19 @@ export async function getMemberCard(puuid: string): Promise<TeamMemberCard> {
     timeout: STATS_TIMEOUT_MS
   })
   return data.data as TeamMemberCard
+}
+
+/** 查询搭档胜率矩阵（工单 #37）：只统计车队对局，胜负按成员人次计 */
+export async function getDuoMatrix(params: {
+  mode?: string
+  start?: number
+  end?: number
+}): Promise<DuoMatrix> {
+  const { data } = await http.get<ApiResult<DuoMatrix>>('/api/team/duo-matrix', {
+    params,
+    timeout: STATS_TIMEOUT_MS
+  })
+  return data.data as DuoMatrix
 }
 
 /** 触发 Riot 历史对局回填（异步；返回是否成功启动，false=已在运行） */

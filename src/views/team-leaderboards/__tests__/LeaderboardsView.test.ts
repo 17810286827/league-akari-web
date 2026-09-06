@@ -8,7 +8,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getMemberCard, getTeamLeaderboard } from '@/api/team'
+import { getDuoMatrix, getMemberCard, getTeamLeaderboard } from '@/api/team'
 import type { TeamLeaderboard, TeamMemberCard } from '@/api/team'
 
 import LeaderboardsView from '../LeaderboardsView.vue'
@@ -19,6 +19,7 @@ vi.mock('@/api/team', async (importOriginal) => {
   return {
     ...actual,
     getTeamLeaderboard: vi.fn(),
+    getDuoMatrix: vi.fn(),
     getMemberCard: vi.fn()
   }
 })
@@ -184,4 +185,41 @@ describe('LeaderboardsView', () => {
 
     expect(wrapper.find('[data-testid="leaderboard-error"]').text()).toContain('车队名单未配置')
   })
-})
+
+  /** 用例（工单 #37）：组合 tab 加载搭档胜率矩阵——胜率/局数渲染与小样本弱化 */
+  it('组合 tab 渲染搭档胜率矩阵（小样本格子弱化）', async () => {
+    vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())
+    vi.mocked(getMemberCard).mockResolvedValue(cardFixture())
+    vi.mocked(getDuoMatrix).mockResolvedValue({
+      members: ['A#tw2', 'B#tw2'],
+      matrix: [
+        [
+          { games: 4, wins: 3, losses: 1, winRate: 0.75 },
+          { games: 2, wins: 3, losses: 1, winRate: 0.75 }
+        ],
+        [
+          { games: 2, wins: 3, losses: 1, winRate: 0.75 },
+          { games: 0, wins: 0, losses: 0, winRate: null }
+        ]
+      ]
+    })
+
+    const wrapper = mount(LeaderboardsView)
+    await flushPromises()
+    // 切到组合 tab
+    const duoButton = wrapper.findAll('[data-testid="dimension-tabs"] button')
+      .find((b) => b.text().includes('组合'))
+    await duoButton!.trigger('click')
+    await flushPromises()
+
+    // 走矩阵端点（带模式/时间参数）
+    expect(getDuoMatrix).toHaveBeenCalled()
+    // 矩阵渲染：格子胜率 + 局数；0 局格显示 —
+    const cell = wrapper.find('[data-testid="duo-cell-0-1"]')
+    expect(cell.text()).toContain('75%')
+    expect(cell.text()).toContain('2局')
+    expect(wrapper.find('[data-testid="duo-cell-1-1"]').text()).toContain('—')
+    // 小样本（<5 局非对角线）弱化
+    expect(cell.classes()).toContain('opacity-40')
+  })
+}
