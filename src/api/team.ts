@@ -253,15 +253,26 @@ export async function getWeeklyReport(date?: string): Promise<TeamWeeklyReport> 
  * 事件契约与单局 AI 分析一致（start/chunk/reasoning/reasoning-reset/done/error，
  * 消费原语见 sse.ts）；后端按周标签缓存 10 分钟，命中时 start 事件 fromCache=true
  *
- * @param date     该周内任意一天 ISO 字符串（缺省=上一周，与统计接口同语义）
+ * @param date     该周内任意一天 ISO 字符串（缺省=本周，与统计接口同语义，ADR 0010）
  * @param handlers 流式事件回调（全部可选）
+ * @param force    强制刷新（ADR 0010）：跳过缓存重新生成；仅当前周生效，
+ *                 历史周被后端忽略（不可变），同周 60 秒冷却由服务端兜底
  * @returns 流结束时 resolve；开流前失败（如 4101 Key 未配置）时 reject ApiError
  */
 export async function streamWeeklyComment(
   date?: string,
-  handlers: SseStreamHandlers = {}
+  handlers: SseStreamHandlers = {},
+  force = false
 ): Promise<void> {
-  const query = date ? `?date=${encodeURIComponent(date)}` : ''
+  // 查询参数逐个拼接：仅在有值时追加（普通请求不带 force，URL 与既有行为一致）
+  const params = new URLSearchParams()
+  if (date) {
+    params.set('date', date)
+  }
+  if (force) {
+    params.set('force', 'true')
+  }
+  const query = params.size > 0 ? `?${params.toString()}` : ''
   await consumeSseStream(`/api/team/weekly/ai-comment${query}`, 'GET', 'Weekly AI comment', handlers)
 }
 

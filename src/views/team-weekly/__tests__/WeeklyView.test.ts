@@ -28,6 +28,7 @@ vi.mock('@/api/team', async (importOriginal) => {
 // mock 锐评流 composable：页面测试只验装配（调用与区块渲染），
 // 打字机/竞态/降级细节由 useWeeklyComment.test.ts 覆盖
 const aiCommentLoad = vi.fn()
+const aiCommentRefresh = vi.fn()
 vi.mock('@/composables/useWeeklyComment', () => ({
   useWeeklyComment: vi.fn()
 }))
@@ -81,9 +82,9 @@ function reportFixture(): TeamWeeklyReport {
 }
 
 /** 构造锐评流 composable 的 mock 返回值（Refs 由页面渲染读取） */
-function mockCommentState(overrides: Partial<Record<'comment' | 'reasoning' | 'errorMsg', unknown>> = {}) {
+function mockCommentState(overrides: Partial<Record<'comment' | 'reasoning' | 'errorMsg' | 'streaming', unknown>> = {}) {
   return {
-    streaming: ref(false),
+    streaming: ref((overrides.streaming as boolean) ?? false),
     comment: ref((overrides.comment as string) ?? ''),
     reasoning: ref((overrides.reasoning as string) ?? ''),
     reasoningCollapsed: ref(true),
@@ -91,6 +92,7 @@ function mockCommentState(overrides: Partial<Record<'comment' | 'reasoning' | 'e
     errorMsg: ref((overrides.errorMsg as string) ?? ''),
     truncatedTip: ref(''),
     load: aiCommentLoad,
+    refresh: aiCommentRefresh,
     toggleReasoning: vi.fn()
   }
 }
@@ -107,6 +109,7 @@ beforeEach(() => {
   vi.mocked(downloadShareImage).mockReset()
   routerPush.mockReset()
   aiCommentLoad.mockReset().mockResolvedValue(undefined)
+  aiCommentRefresh.mockReset().mockResolvedValue(undefined)
   vi.mocked(useWeeklyComment).mockReset().mockReturnValue(mockCommentState())
 })
 
@@ -208,5 +211,43 @@ describe('WeeklyView', () => {
 
     expect(downloadShareImage).toHaveBeenCalledTimes(1)
     expect(vi.mocked(downloadShareImage).mock.calls[0]?.[0].weekLabel).toBe('2026-08-24 ~ 2026-08-30')
+  })
+
+  it('当前周显示刷新按钮，点击触发锐评强制刷新（ADR 0010）', async () => {
+    // weekEndMs 在未来 → 当前周（进行中）
+    const currentWeek = reportFixture()
+    currentWeek.weekEndMs = Date.now() + 86_400_000
+    vi.mocked(getWeeklyReport).mockResolvedValue(currentWeek)
+
+    const wrapper = await mountView()
+    const refreshButton = wrapper.find('[data-testid="ai-comment-refresh"]')
+    expect(refreshButton.exists()).toBe(true)
+
+    await refreshButton.trigger('click')
+
+    expect(aiCommentRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('历史周隐藏刷新按钮（锐评已归档不可变，ADR 0007/0010）', async () => {
+    // weekEndMs 在过去 → 历史周（已结束）
+    const historicalWeek = reportFixture()
+    historicalWeek.weekEndMs = Date.now() - 86_400_000
+    vi.mocked(getWeeklyReport).mockResolvedValue(historicalWeek)
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="ai-comment-refresh"]').exists()).toBe(false)
+  })
+
+  it('流式生成中刷新按钮置灰（disabled，防并发刷新）', async () => {
+    const currentWeek = reportFixture()
+    currentWeek.weekEndMs = Date.now() + 86_400_000
+    vi.mocked(getWeeklyReport).mockResolvedValue(currentWeek)
+    vi.mocked(useWeeklyComment).mockReturnValue(mockCommentState({ streaming: true }))
+
+    const wrapper = await mountView()
+    const refreshButton = wrapper.find('[data-testid="ai-comment-refresh"]')
+
+    expect((refreshButton.element as HTMLButtonElement).disabled).toBe(true)
   })
 })

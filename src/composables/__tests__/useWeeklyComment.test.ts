@@ -175,4 +175,67 @@ describe('useWeeklyComment', () => {
     expect(state.errorMsg.value).toBe('')
     expect(state.streaming.value).toBe(false)
   })
+
+  it('refresh 绕过同周去重：流进行中仍可强制重新发起（force=true，ADR 0010）', async () => {
+    // 第一条流挂起（模拟锐评生成中）
+    let releaseFirst: () => void = () => {}
+    const firstPending = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    vi.mocked(streamWeeklyComment).mockImplementationOnce(() => firstPending)
+    vi.mocked(streamWeeklyComment).mockResolvedValueOnce(undefined)
+    const state = useWeeklyComment()
+
+    const first = state.load('2026-09-02')
+    // 流进行中 refresh：普通 load 会被去重闸门拦截，refresh 必须放行
+    const second = state.refresh('2026-09-02')
+
+    expect(streamWeeklyComment).toHaveBeenCalledTimes(2)
+    // 第二次调用携带 force=true
+    const secondCall = vi.mocked(streamWeeklyComment).mock.calls[1]
+    expect(secondCall?.[0]).toBe('2026-09-02')
+    expect(secondCall?.[2]).toBe(true)
+
+    // 新流（refresh）推送新内容，旧流回调被丢弃
+    const refreshHandlers = lastHandlers()
+    refreshHandlers.onStart?.(false)
+    refreshHandlers.onChunk?.('刷新后的锐评')
+    refreshHandlers.onDone?.(false)
+    await second
+
+    const firstHandlers = vi.mocked(streamWeeklyComment).mock.calls[0]?.[1] as SseStreamHandlers
+    firstHandlers.onChunk?.('旧流迟到内容')
+    releaseFirst()
+    await first
+    await settle()
+
+    expect(state.comment.value).toBe('刷新后的锐评')
+  })
+
+  it('refresh 前清空旧锐评（新流从空开始，不残留旧文本）', async () => {
+    vi.mocked(streamWeeklyComment).mockResolvedValue(undefined)
+    const state = useWeeklyComment()
+
+    // 第一条流完成（有正文）
+    const first = state.load('2026-09-02')
+    const handlers = lastHandlers()
+    handlers.onStart?.(false)
+    handlers.onChunk?.('旧的锐评内容')
+    handlers.onDone?.(false)
+    await first
+    await settle()
+    expect(state.comment.value).toBe('旧的锐评内容')
+
+    // refresh：正文/思维链/错误/截断提示全部复位后重新拉流
+    const second = state.refresh('2026-09-02')
+    // 复位发生在发起时刻（不等新流回调）
+    expect(state.comment.value).toBe('')
+    expect(state.errorMsg.value).toBe('')
+    expect(state.reasoning.value).toBe('')
+    await second
+    await settle()
+
+    // 第二次调用携带 force=true
+    expect(vi.mocked(streamWeeklyComment).mock.calls[1]?.[2]).toBe(true)
+  })
 })

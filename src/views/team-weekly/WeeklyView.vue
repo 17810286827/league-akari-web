@@ -31,7 +31,7 @@ function goHome(): void {
   router.push('/')
 }
 
-/** 周锚点（该周内任意一天）：默认今天回退 7 天（即"上一周"） */
+/** 周锚点（该周内任意一天）：默认今天（本周，ADR 0010） */
 const weekDate = ref(defaultWeekDate())
 /** 周报数据 */
 const report = ref<TeamWeeklyReport | null>(null)
@@ -41,10 +41,17 @@ const errorMsg = ref('')
 /** AI 锐评流式状态：统计先行渲染，锐评打字机逐字推送（工单 #33） */
 const aiComment = useWeeklyComment()
 
-/** 默认周锚点：今天回退 7 天的 ISO 日期 */
+/**
+ * 当前周判定（刷新按钮显隐，ADR 0010）：周结束时间戳在当前时间之后即进行中。
+ * weekEndMs 缺失时按当前周处理（宽容口径，与后端判定一致：null 不视为已结束）
+ */
+const isCurrentWeek = computed(
+  () => report.value?.weekEndMs == null || report.value.weekEndMs > Date.now()
+)
+
+/** 默认周锚点：今天的 ISO 日期（本周，ADR 0010；原为今天减 7 天的上一周） */
 function defaultWeekDate(): string {
   const date = new Date()
-  date.setDate(date.getDate() - 7)
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
@@ -108,6 +115,15 @@ async function load(): Promise<void> {
 /** 周切换（上一周/下一周） */
 function shiftWeek(weeks: number): void {
   weekDate.value = weekShift(weekDate.value, weeks)
+}
+
+/** 强制刷新锐评（ADR 0010）：仅当前周渲染按钮；流式生成中按钮置灰不可点 */
+function refreshComment(): void {
+  // 生成中防护双保险（按钮已 disabled，这里再挡一道防程序化调用）
+  if (aiComment.streaming.value) {
+    return
+  }
+  aiComment.refresh(weekDate.value)
 }
 
 // 周锚点变化（含切换）自动重查
@@ -249,6 +265,18 @@ onMounted(load)
         <span>☾</span> 神谕 · AI 锐评
         <!-- 打字机进行中的呼吸点 -->
         <span v-if="aiComment.streaming.value" class="animate-pulse text-sm font-normal">……</span>
+        <!-- 强制刷新（ADR 0010）：仅当前周渲染（历史周锐评已归档不可变）；
+             流式生成中置灰，防止并发刷新 -->
+        <button
+          v-if="isCurrentWeek"
+          type="button"
+          class="ml-auto text-sm font-semibold text-hex-gold/80 hover:text-hex-gold-2 disabled:cursor-not-allowed disabled:opacity-40"
+          data-testid="ai-comment-refresh"
+          :disabled="aiComment.streaming.value"
+          @click="refreshComment"
+        >
+          ⟳ 刷新锐评
+        </button>
       </div>
 
       <!-- 思维链折叠区（仅思考模式模型有内容；点击展开/收起） -->

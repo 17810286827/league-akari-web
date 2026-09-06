@@ -145,4 +145,47 @@ describe('streamWeeklyComment SSE（工单 #33：周报 AI 锐评流式）', () 
 
     expect(errors).toEqual(['AI 接口调用失败（HTTP 502）'])
   })
+
+  it('force=true 强制刷新：请求 URL 追加 force=true（ADR 0010，仅当前周生效由后端判定）', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close()
+      }
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/event-stream' },
+      body: stream
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await streamWeeklyComment('2026-09-02', {}, true)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/team/weekly/ai-comment?date=2026-09-02&force=true'),
+      expect.objectContaining({ headers: { Accept: 'text/event-stream' } })
+    )
+  })
+
+  it('不传 force：URL 不携带 force 参数（普通请求与既有行为一致）', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close()
+      }
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/event-stream' },
+      body: stream
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await streamWeeklyComment('2026-09-02')
+
+    const url = fetchMock.mock.calls[0]?.[0] as string
+    expect(url).toContain('date=2026-09-02')
+    expect(url).not.toContain('force=')
+  })
 })

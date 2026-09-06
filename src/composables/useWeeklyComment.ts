@@ -45,6 +45,11 @@ export interface WeeklyCommentState {
   truncatedTip: Ref<string>
   /** 拉取指定周的锐评流（切周时调用，旧流结果自动丢弃） */
   load: (date: string | undefined) => Promise<void>
+  /**
+   * 强制刷新当前周锐评（ADR 0010）：带 force=true 重新发起流式，
+   * 绕过同周去重闸门（刷新是显式意图）。历史周由后端忽略 force（不可变）
+   */
+  refresh: (date: string | undefined) => Promise<void>
   /** 切换思维链折叠 */
   toggleReasoning: () => void
 }
@@ -61,13 +66,17 @@ export function useWeeklyComment(): WeeklyCommentState {
   const errorMsg = ref('')
   const truncatedTip = ref('')
 
-  /** 拉取指定周的锐评流：快速切周时以最后发起的流为准（序号闸门丢弃过期结果） */
-  async function load(date: string | undefined): Promise<void> {
-    // 周键：undefined（上一周）与具体日期统一为字符串键
+  /**
+   * 拉取指定周的锐评流：快速切周时以最后发起的流为准（序号闸门丢弃过期结果）。
+   * force=true（刷新路径）时绕过同周去重闸门——刷新是显式意图，不等旧流结束
+   */
+  async function load(date: string | undefined, force = false): Promise<void> {
+    // 周键：undefined（本周）与具体日期统一为字符串键
     const key = date ?? ''
-    // 同周的流正在进行且仍是最新流：不重复发起（防双击/重入重复请求）
+    // 同周的流正在进行且仍是最新流：不重复发起（防双击/重入重复请求）；
+    // force 刷新除外——旧流会被新流夺取写入权（序号闸门保证不串台）
     const existing = activeByDate.get(key)
-    if (existing != null && latestRequest === existing) {
+    if (!force && existing != null && latestRequest === existing) {
       return
     }
     if (existing != null) {
@@ -123,7 +132,7 @@ export function useWeeklyComment(): WeeklyCommentState {
           }
           errorMsg.value = message
         }
-      })
+      }, force)
     } catch (error) {
       // 开流前失败（如 4101 Key 未配置）：转为页面可展示的错误状态
       if (latestRequest === requestId) {
@@ -142,6 +151,14 @@ export function useWeeklyComment(): WeeklyCommentState {
     }
   }
 
+  /**
+   * 强制刷新锐评（ADR 0010）：绕过同周去重重新发起 force=true 流式。
+   * 历史周后端会忽略 force（不可变），前端按钮仅在当前周渲染
+   */
+  function refresh(date: string | undefined): Promise<void> {
+    return load(date, true)
+  }
+
   /** 切换思维链折叠（有 reasoning 时页面渲染折叠按钮） */
   function toggleReasoning(): void {
     reasoningCollapsed.value = !reasoningCollapsed.value
@@ -156,6 +173,7 @@ export function useWeeklyComment(): WeeklyCommentState {
     errorMsg,
     truncatedTip,
     load,
+    refresh,
     toggleReasoning
   }
 }
