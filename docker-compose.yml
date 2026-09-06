@@ -8,12 +8,6 @@ services:
       - "8002:80" # 对外端口与安全组放行一致（8081 已被后端占用）
     environment:
       TZ: Asia/Shanghai
-    volumes:
-      # CDN 图片代理缓存持久化：容器重建不清空，跨版本复用（图片内容与镜像版本无关）
-      - cdn-cache:/var/cache/nginx/cdn
     extra_hosts:
       # nginx 反代通过宿主机映射端口访问后端容器（与后端访问 lol-mysql 同机制）
       - "host.docker.internal:host-gateway"
-
-volumes:
-  cdn-cache:

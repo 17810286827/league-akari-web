@@ -31,13 +31,13 @@ describe('game-resource 扩展', () => {
       ok({
         data: {
           '3089': { name: '无尽之刃', from: [1038], priceTotal: 3400, price: 1200 },
-          '1038': { name: '长剑', from: [], priceTotal: 350, price: 350, iconPath: '/cdn/ddragon/cdn/16.16.1/img/item/1038.png' }
+          '1038': { name: '长剑', from: [], priceTotal: 350, price: 350, iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1038.png' }
         }
       })
     )
     const display = await itemDisplay(3089)
     // 合成组件按 items 记录组装（含名称与图标路径）；组件图标由 itemIconUrl 动态版本构建（此处探测到 16.17.1）
-    expect(display.from).toEqual([{ id: 1038, name: '长剑', iconPath: '/cdn/ddragon/cdn/16.17.1/img/item/1038.png' }])
+    expect(display.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1038.png' }])
     expect(display.priceTotal).toBe(3400)
   })
 
@@ -61,7 +61,7 @@ describe('game-resource 扩展', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       ok([
         { id: 3089, name: '无尽之刃', description: '', price: 1200, priceTotal: 3400, from: [1038], to: [1053], iconPath: '/lol-game-data/assets/v1/3089.png' },
-        { id: 1038, name: '长剑', description: '', price: 350, priceTotal: 350, from: [], to: [3089], iconPath: '/cdn/ddragon/cdn/16.16.1/img/item/1038.png' }
+        { id: 1038, name: '长剑', description: '', price: 350, priceTotal: 350, from: [], to: [3089], iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1038.png' }
       ])
     )
     // perks.json 真实为数组（longDesc 为填充数值后的 HTML 描述）
@@ -74,7 +74,7 @@ describe('game-resource 扩展', () => {
     )
     const item = await fresh.itemDisplay(3089)
     expect(item.name).toBe('无尽之刃')
-    expect(item.from).toEqual([{ id: 1038, name: '长剑', iconPath: '/cdn/ddragon/cdn/16.17.1/img/item/1038.png' }])
+    expect(item.from).toEqual([{ id: 1038, name: '长剑', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1038.png' }])
     // to 指向 1053，但 mock 无该记录：组件未命中时跳过（图标无法推导）
     expect(item.to).toEqual([])
     expect(item.priceTotal).toBe(3400)
@@ -154,15 +154,15 @@ describe('修复回归：海克斯占位符与装备合成路径', () => {
       ok({
         data: {
           '3089': { name: '灭世者的死亡之帽', from: [1058, 1058], to: 0, priceTotal: 3600, price: 1200, iconPath: '/x.png' },
-          '1058': { name: '灭世法典', from: [], priceTotal: 1200, price: 1200, iconPath: '/cdn/ddragon/cdn/16.16.1/img/item/1058.png' }
+          '1058': { name: '灭世法典', from: [], priceTotal: 1200, price: 1200, iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/1058.png' }
         }
       })
     )
     const display = await fresh.itemDisplay(3089)
     // 组件图标由 itemIconUrl 动态版本构建（本用例探测到 16.17.1）
     expect(display.from).toEqual([
-      { id: 1058, name: '灭世法典', iconPath: '/cdn/ddragon/cdn/16.17.1/img/item/1058.png' },
-      { id: 1058, name: '灭世法典', iconPath: '/cdn/ddragon/cdn/16.17.1/img/item/1058.png' }
+      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1058.png' },
+      { id: 1058, name: '灭世法典', iconPath: 'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1058.png' }
     ])
     expect(display.to).toEqual([])
   })
@@ -196,11 +196,11 @@ describe('装备图标动态版本 + CDragon 兜底', () => {
     const display = await fresh.itemDisplay(226668)
     // 主源：Data Dragon（探测到的最新版本，写死版本下该图标 404）
     expect(display.iconUrl).toBe(
-      '/cdn/ddragon/cdn/16.17.1/img/item/226668.png'
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/226668.png'
     )
     // 兜底源：iconPath 去 LCU 前缀 + 小写化 → CDragon 资源地址（已实测可达）
     expect(display.fallbackIconUrl).toBe(
-      '/cdn/cdragon/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png'
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png'
     )
   })
 
@@ -223,7 +223,7 @@ describe('装备图标动态版本 + CDragon 兜底', () => {
     const display = await fresh.itemDisplay(226668)
     // 探测失败：主源 URL 退回写死版本（此时由 CdnImage 的 fallback 链路兜底）
     expect(display.iconUrl).toBe(
-      '/cdn/ddragon/cdn/16.16.1/img/item/226668.png'
+      'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png'
     )
     expect(display.fallbackIconUrl).toContain('aram_ultimatehydra_64.png')
   })

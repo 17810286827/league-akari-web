@@ -95,9 +95,9 @@ describe('ItemDisplay 合成路径', () => {
     vi.mocked(itemDisplay).mockResolvedValueOnce({
       id: 226668,
       name: '终极九头蛇',
-      iconUrl: '/cdn/ddragon/cdn/16.16.1/img/item/226668.png',
+      iconUrl: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png',
       fallbackIconUrl:
-        '/cdn/cdragon/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png',
+        'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png',
       descriptionHtml: '',
       price: 0,
       totalPrice: 2500,

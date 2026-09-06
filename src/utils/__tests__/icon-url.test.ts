@@ -19,7 +19,7 @@ describe('icon-url Data Dragon 动态版本', () => {
     const mod = await import('../icon-url')
     // 兜底语义：探测从未发生时，行为与旧实现一致（写死版本）
     expect(mod.itemIconUrl(6653)).toBe(
-      '/cdn/ddragon/cdn/16.16.1/img/item/6653.png'
+      'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/6653.png'
     )
   })
 
@@ -30,11 +30,11 @@ describe('icon-url Data Dragon 动态版本', () => {
     expect(version).toBe('16.17.1')
     // 新装备（终极九头蛇 226668，16.17.1 才有）拼出最新版本 URL
     expect(mod.itemIconUrl(226668)).toBe(
-      '/cdn/ddragon/cdn/16.17.1/img/item/226668.png'
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/226668.png'
     )
     // 召唤师头像与出装同源，版本跟随动态值
     expect(mod.profileIconUrl(948)).toBe(
-      '/cdn/ddragon/cdn/16.17.1/img/profileicon/948.png'
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/profileicon/948.png'
     )
   })
 

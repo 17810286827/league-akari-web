@@ -11,21 +11,8 @@ RUN npm run build
 # 运行阶段：nginx 托管静态文件并反代后端 API（alpine 自带 wget 做健康检查）
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-# 覆盖默认站点配置：history 兜底 + /api 反代 + SSE 不缓冲 + /cdn 图片代理缓存
+# 覆盖默认站点配置：history 兜底 + /api 反代 + SSE 不缓冲
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# CDN 代理缓存目录：预建并授权给 nginx worker 用户（proxy_cache_path 写入需要）
-RUN mkdir -p /var/cache/nginx/cdn && chown -R nginx:nginx /var/cache/nginx
-# 配置语法闸：nginx 指令拼错/参数无效在镜像构建期即失败，
-# 不会推到生产容器启动崩溃进重启循环（实例：http_5xx 通配不被
-# proxy_cache_use_stale 支持，曾致部署健康检查超时回滚）。
-# 注意：/api 反代的 host.docker.internal 是 compose 运行期 extra_hosts 注入的，
-# 构建容器内无此主机名（且 buildx 中 /etc/hosts 只读不可追加）——
-# 校验在临时副本上执行：sed 把主机名换成 127.0.0.1 仅为让 upstream 可解析
-# （只验语法不实际连接），镜像内的真实配置文件不被触碰
-RUN printf 'events {}\nhttp { include /tmp/default.conf; }\n' > /tmp/test-main.conf \
-  && sed 's/host.docker.internal/127.0.0.1/' /etc/nginx/conf.d/default.conf > /tmp/default.conf \
-  && nginx -t -c /tmp/test-main.conf \
-  && rm -f /tmp/test-main.conf /tmp/default.conf
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
   CMD wget -q --spider http://127.0.0.1/ || exit 1
