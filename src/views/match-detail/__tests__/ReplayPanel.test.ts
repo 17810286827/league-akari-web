@@ -12,7 +12,8 @@ import ReplayPanel from '../ReplayPanel.vue'
 
 // mock 数据层：只替换 getMatchReplay
 vi.mock('@/api/matches', () => ({
-  getMatchReplay: vi.fn()
+  getMatchReplay: vi.fn(),
+  streamReplayComment: vi.fn()
 }))
 
 // vue-chartjs 整体 mock（jsdom 无 canvas 2d 上下文，断言聚焦数据 prop 传入）
@@ -27,7 +28,7 @@ vi.mock('vue-chartjs', async () => {
   }
 })
 
-import { getMatchReplay } from '@/api/matches'
+import { getMatchReplay, streamReplayComment } from '@/api/matches'
 
 /** 构造可用复盘夹具：两帧曲线 + 敌我各一次击杀 + 一血/反超两个转折点 */
 function availableFixture(): MatchReplay {
@@ -139,5 +140,32 @@ describe('ReplayPanel', () => {
 
     expect(wrapper.find('[data-testid="replay-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="replay-chart"]').exists()).toBe(false)
+  })
+
+  /** 用例（工单 #40）：AI 复盘按钮——点击触发 SSE，叙述打字机渲染，失败降级 */
+  it('AI 复盘叙述：点击按钮流式渲染正文，开流前失败降级提示', async () => {
+    vi.mocked(getMatchReplay).mockResolvedValue(availableFixture())
+    // SSE 回放：start 后两个 chunk
+    vi.mocked(streamReplayComment).mockImplementation(async (_gameId, handlers = {}) => {
+      handlers.onChunk?.('这局胜负手在')
+      handlers.onChunk?.('中期被反超')
+    })
+
+    const wrapper = mount(ReplayPanel, { props: { gameId: 123 } })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="replay-ai-button"]').trigger('click')
+    await flushPromises()
+
+    expect(streamReplayComment).toHaveBeenCalledWith(123, expect.anything())
+    expect(wrapper.find('[data-testid="replay-ai-text"]').text()).toBe('这局胜负手在中期被反超')
+
+    // 开流前失败（如 4101）：降级提示
+    vi.mocked(streamReplayComment).mockRejectedValue(
+      Object.assign(new Error('AI API Key 未配置，无法生成复盘叙述'), { code: 4101 })
+    )
+    await wrapper.find('[data-testid="replay-ai-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="replay-ai-error"]').text()).toContain('AI API Key 未配置')
   })
 })

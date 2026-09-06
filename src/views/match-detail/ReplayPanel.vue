@@ -19,7 +19,7 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 
-import { getMatchReplay } from '@/api/matches'
+import { getMatchReplay, streamReplayComment } from '@/api/matches'
 import type { MatchReplay, ReplayTurningPoint } from '@/api/types'
 import { createLogger } from '@/utils/logger'
 
@@ -183,6 +183,41 @@ const chartOptions = {
   }
 }
 
+/** AI 复盘叙述状态（工单 #40）：手动按钮触发，打字机流式 */
+const aiNarration = ref('')
+const aiReasoning = ref('')
+const aiStreaming = ref(false)
+const aiError = ref('')
+
+/** 触发 AI 复盘叙述（转折点驱动，SSE 流式打字机） */
+async function narrate(): Promise<void> {
+  if (aiStreaming.value) {
+    return
+  }
+  aiStreaming.value = true
+  aiNarration.value = ''
+  aiReasoning.value = ''
+  aiError.value = ''
+  try {
+    await streamReplayComment(props.gameId, {
+      onChunk: (content) => {
+        aiNarration.value += content
+      },
+      onReasoning: (content) => {
+        aiReasoning.value += content
+      },
+      onReasoningReset: () => {
+        aiReasoning.value = ''
+      }
+    })
+  } catch (error) {
+    // 开流前失败（4101 无 Key / 2002 无时间线）：锐评区降级提示
+    aiError.value = error instanceof Error ? error.message : 'AI 复盘生成失败，请稍后重试'
+  } finally {
+    aiStreaming.value = false
+  }
+}
+
 /** 当前选中的转折点索引（点击列表项高亮，再次点击取消） */
 const selectedTurningPoint = ref<number | null>(null)
 
@@ -283,6 +318,31 @@ onMounted(async () => {
         </li>
       </ol>
       <p v-else class="mt-3 text-center text-xs opacity-50">本局未提取到关键转折点</p>
+
+      <!-- AI 复盘叙述（工单 #40）：手动按钮触发，只消费转折点做解读 -->
+      <div class="mt-4 border-t border-gray-300/20 pt-3" data-testid="replay-ai">
+        <button
+          class="rounded border border-current px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
+          :disabled="aiStreaming"
+          data-testid="replay-ai-button"
+          @click="narrate"
+        >
+          {{ aiStreaming ? '教练正在复盘……' : aiNarration ? '重新复盘' : '✦ AI 复盘叙述' }}
+        </button>
+        <!-- 思维链折叠（思考模式模型） -->
+        <details v-if="aiReasoning" class="mt-2">
+          <summary class="cursor-pointer text-xs opacity-60">🧠 模型思考过程</summary>
+          <div class="mt-1 whitespace-pre-wrap text-xs leading-5 opacity-60">{{ aiReasoning }}</div>
+        </details>
+        <!-- 叙述正文（打字机） -->
+        <p v-if="aiNarration" class="mt-2 text-sm leading-6" data-testid="replay-ai-text">
+          {{ aiNarration }}
+        </p>
+        <!-- 失败降级（仅影响本区块） -->
+        <p v-if="aiError" class="mt-2 text-sm" style="color: #d03050" data-testid="replay-ai-error">
+          ⚠ {{ aiError }}
+        </p>
+      </div>
     </template>
   </section>
 </template>

@@ -104,3 +104,16 @@ export async function getMatchDiagnosis(gameId: number): Promise<MatchDiagnosis>
   const { data } = await http.get<ApiResult<MatchDiagnosis>>(`/api/matches/${gameId}/diagnosis`)
   return data.data as MatchDiagnosis
 }
+
+/**
+ * AI 复盘叙述（SSE 流式，工单 #40 / spec #29）：
+ * POST /api/matches/{gameId}/replay/ai-comment——AI 只消费转折点 + 摘要（不喂原始
+ * frames），解读不编造。事件契约与单局分析一致（消费原语见 sse.ts）；
+ * 开流前失败（4101 无 Key / 2002 无时间线）reject ApiError
+ */
+export async function streamReplayComment(
+  gameId: number,
+  handlers: SseStreamHandlers = {}
+): Promise<void> {
+  await consumeSseStream(`/api/matches/${gameId}/replay/ai-comment`, 'POST', 'Replay AI', handlers)
+}
