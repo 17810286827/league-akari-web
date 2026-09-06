@@ -182,9 +182,10 @@ const chartOptions: ChartOptions<'line'> = {
       min: 0,
       max: maxX.value,
       ticks: {
-        // 刻度格式化为 mm:ss（对局内时间），最多 12 个刻度防拥挤
+        // 刻度格式化为 mm:ss（对局内时间），最多 12 个刻度防拥挤。
+        // 参数类型按 Chart.js 官方签名（string | number），函数体内收窄
         maxTicksLimit: 12,
-        callback: (value: number) => formatTime(value)
+        callback: (value) => (typeof value === 'number' ? formatTime(value) : String(value))
       }
     },
     y: { title: { display: true, text: '经济差' } }
@@ -193,19 +194,22 @@ const chartOptions: ChartOptions<'line'> = {
     tooltip: {
       callbacks: {
         // 标题行：显示时刻（mm:ss）——数据点 x 是毫秒时间戳，
-        // 默认回调会把原始 x/y 渲染成 "x: 120000, y: -1000" 泄露到标题，必须覆盖
-        title: (items: Array<{ parsed: { x: number } }>) => {
-          const first = items[0]
-          return first ? formatTime(first.parsed.x) : ''
+        // 默认回调会把原始 x/y 渲染成 "x: 120000, y: -1000" 泄露到标题，必须覆盖。
+        // parsed.x 官方类型为 number | null（防御性收窄后格式化）
+        title: (items) => {
+          const x = items[0]?.parsed.x
+          return typeof x === 'number' ? formatTime(x) : ''
         },
-        // 散点（击杀/转折点）携带 _info 自定义文案；折线显示经济差数值
-        label: (context: { dataset: { data: unknown }; dataIndex: number; parsed: { y: number } }) => {
+        // 散点（击杀/转折点）携带 _info 自定义文案；折线显示经济差数值。
+        // parsed.y 官方类型为 number | null（防御性收窄后格式化）
+        label: (context) => {
           const point = (context.dataset.data as Array<{ _info?: string }>)[context.dataIndex]
           if (point?._info) {
             return point._info
           }
           // 折线数据点：显示千分位经济差，替代默认的裸数值
-          return `经济差 ${Math.round(context.parsed.y).toLocaleString()}`
+          const y = context.parsed.y
+          return typeof y === 'number' ? `经济差 ${Math.round(y).toLocaleString()}` : '经济差 -'
         }
       }
     }
