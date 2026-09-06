@@ -6,7 +6,7 @@
 import http from './http'
 import type { SseStreamHandlers } from './sse'
 import { consumeSseStream } from './sse'
-import type { ApiResult, MatchDetail, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
+import type { ApiResult, MatchDetail, MatchReplay, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
 
 /** 对局列表查询参数：分页 + 可选的过滤条件 */
 export interface MatchQueryParams {
@@ -82,4 +82,15 @@ export async function getMatchTimeline(gameId: number): Promise<MatchTimelineFra
   // GET /api/matches/{gameId}/timeline：统一信封 data 内为帧数组，解包后返回
   const { data } = await http.get<ApiResult<MatchTimelineFrame[]>>(`/api/matches/${gameId}/timeline`)
   return data.data as MatchTimelineFrame[]
+}
+
+/**
+ * 查询时间线复盘（工单 #35 / spec #29）：经济差序列 + 击杀事件 + 关键转折点。
+ * 转折点由后端规则引擎从 frames 确定性提取（可复算，不依赖 AI）；
+ * 无时间线对局返回 available=false（优雅降级，不报 2002）
+ */
+export async function getMatchReplay(gameId: number): Promise<MatchReplay> {
+  // GET /api/matches/{gameId}/replay：统一信封 data 内为复盘数据，解包后返回
+  const { data } = await http.get<ApiResult<MatchReplay>>(`/api/matches/${gameId}/replay`)
+  return data.data as MatchReplay
 }

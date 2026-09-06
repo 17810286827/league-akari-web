@@ -17,6 +17,7 @@ import MatchCard from '@/components/match-card/MatchCard.vue'
 import { createLogger } from '@/utils/logger'
 import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
 import type { MatchAnalysisState } from '@/composables/useMatchAnalysis'
+import ReplayPanel from './ReplayPanel.vue'
 
 const logger = createLogger('MatchDetail')
 const message = useMessage()
@@ -91,6 +92,9 @@ onMounted(async () => {
 
         <!-- 加载失败空态 -->
         <n-empty v-else-if="!loading" description="对局不存在" />
+
+        <!-- 时间线复盘面板（工单 #35）：独立加载独立降级，无时间线对局显示提示 -->
+        <ReplayPanel v-if="summary" :game-id="gameId" :duration-seconds="summary.gameDuration" />
       </n-spin>
     </main>
   </div>

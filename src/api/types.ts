@@ -368,3 +368,68 @@ export interface ParsedStats {
   /** 其余未建模字段原样透传（stats_json 中的其他键） */
   [key: string]: unknown
 }
+
+/** 时间线复盘：经济差曲线单点（与后端 ReplayResponse.GoldDiffPoint 对齐，工单 #35） */
+export interface ReplayGoldDiffPoint {
+  /** 帧时间戳（毫秒，对局内时间） */
+  timestampMs: number
+  /** 双方经济差（正 = 我方领先） */
+  goldDiff: number
+}
+
+/** 时间线复盘：击杀事件标记（与后端 ReplayResponse.KillEvent 对齐） */
+export interface ReplayKillEvent {
+  /** 事件时间戳（毫秒，对局内时间） */
+  timestampMs: number
+  /** 击杀者召唤师名 */
+  killerName: string
+  /** 击杀者英雄中文名 */
+  killerChampion: string
+  /** 被击杀者召唤师名 */
+  victimName: string
+  /** 被击杀者英雄中文名 */
+  victimChampion: string
+  /** 击杀者是否属于我方（标记颜色区分敌我） */
+  killerIsPerspective: boolean
+}
+
+/** 时间线复盘：转折点涉及成员（与后端 ReplayResponse.InvolvedPlayer 对齐） */
+export interface ReplayInvolvedPlayer {
+  /** 召唤师名 */
+  name: string
+  /** 英雄中文名 */
+  championName: string
+  /** 是否属于我方 */
+  perspective: boolean
+}
+
+/** 时间线复盘：关键转折点（与后端 ReplayResponse.TurningPoint 对齐） */
+export interface ReplayTurningPoint {
+  /** 转折点类型（FIRST_BLOOD/TEAM_WIPE/BARON/GOLD_DIFF_EXTREME/GOLD_LEAD_CHANGE） */
+  type: string
+  /** 事件时间戳（毫秒，对局内时间） */
+  timestampMs: number
+  /** 事件时刻的双方经济差 */
+  goldDiff: number
+  /** 转折点标题（中文短语，如"一血"、"团灭"） */
+  title: string
+  /** 人类可读描述（含涉及成员与敌我视角） */
+  detail: string
+  /** 涉及成员 */
+  involved: ReplayInvolvedPlayer[]
+}
+
+/** 时间线复盘响应（与后端 ReplayResponse 对齐，工单 #35 / spec #29）：
+ * available=false 表示无时间线数据（历史回填的局普遍缺失），前端降级显示提示 */
+export interface MatchReplay {
+  /** 时间线数据是否可用 */
+  available: boolean
+  /** 视角队伍 ID（"我方"） */
+  perspectiveTeamId: number
+  /** 经济差序列（逐帧，正 = 我方领先） */
+  goldDiffSeries: ReplayGoldDiffPoint[]
+  /** 击杀事件标记 */
+  killEvents: ReplayKillEvent[]
+  /** 关键转折点列表（按时间排序，规则引擎确定性提取） */
+  turningPoints: ReplayTurningPoint[]
+}
