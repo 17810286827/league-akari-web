@@ -8,6 +8,8 @@
  *   卡片内箭头收起经 v-model 双向同步回父组件（expandedGameId 置空）
  */
 import MatchCard from '@/components/match-card/MatchCard.vue'
+import ReplayPanel from '@/views/match-detail/ReplayPanel.vue'
+import DiagnosePanel from '@/views/match-detail/DiagnosePanel.vue'
 import MatchCardOverview from '@/components/match-card/MatchCardOverview.vue'
 import { provideMatchCard } from '@/components/match-card/context'
 import { computed } from 'vue'
@@ -106,6 +108,16 @@ const expandedModel = computed({
       @analyze="emit('analyze')"
       @update:reasoning-collapsed="emit('update:reasoningCollapsed', $event)"
     />
+
+    <!-- 展开态附加面板：时间线复盘 + 对局诊断（工单 #35/#36，与详情页同款）——
+         独立加载独立降级，面板挂载不影响卡片本体渲染 -->
+    <div v-if="expanded && game.detail" class="mt-4 space-y-4">
+      <ReplayPanel
+        :game-id="game.summary.gameId"
+        :duration-seconds="game.summary.gameDuration"
+      />
+      <DiagnosePanel :game-id="game.summary.gameId" />
+    </div>
   </article>
 </template>
 

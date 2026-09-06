@@ -135,6 +135,7 @@ onMounted(loadRoster)
     <nav class="home-team-nav">
       <RouterLink class="home-team-link" to="/weekly">车队周报</RouterLink>
       <RouterLink class="home-team-link" to="/leaderboards">榜单中心</RouterLink>
+      <RouterLink class="home-team-link" to="/season-report">赛季报告</RouterLink>
     </nav>
   </div>
 </template>

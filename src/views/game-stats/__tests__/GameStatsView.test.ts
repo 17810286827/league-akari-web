@@ -13,7 +13,7 @@ import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { h, reactive } from 'vue'
 
-import { analyzeMatch, getMatchDetail, listMatches, searchRiotAccount } from '@/api/matches'
+import { analyzeMatch, getMatchDetail, getMatchDiagnosis, getMatchReplay, listMatches, searchRiotAccount } from '@/api/matches'
 import type { AnalyzeStreamHandlers } from '@/api/matches'
 import type { MatchDetail, MatchParticipantLight, MatchSummary, PageResponse } from '@/api/types'
 import MatchCard from '@/components/match-card/MatchCard.vue'
@@ -32,7 +32,12 @@ vi.mock('@/api/matches', () => ({
   listMatches: vi.fn(),
   getMatchDetail: vi.fn(),
   searchRiotAccount: vi.fn(),
-  analyzeMatch: vi.fn()
+  analyzeMatch: vi.fn(),
+  // 复盘/诊断面板（卡片展开态挂载，工单 #35/#36）：默认返回不可用/空
+  getMatchReplay: vi.fn().mockResolvedValue({
+    available: false, perspectiveTeamId: 100, goldDiffSeries: [], killEvents: [], turningPoints: []
+  }),
+  getMatchDiagnosis: vi.fn().mockResolvedValue({ win: false, perspectiveTeamId: 100, players: [] })
 }))
 
 // mock 路由：使用 reactive 对象模拟真实同一页面实例上的路由参数变化；
@@ -533,4 +538,23 @@ describe('GameStatsView', () => {
     await flushPromises()
     expect(wrapper.find('.ai-analysis-result').text()).toBe('第一段第二段')
   })
-})
+
+  /** 用例（回归：面板脱挂 bug）：卡片展开态渲染时间线复盘与对局诊断面板 */
+  it('卡片展开态渲染复盘与诊断面板（主路径可见）', async () => {
+    vi.mocked(listMatches).mockResolvedValue(summaryPageFixture())
+    vi.mocked(getMatchDetail).mockResolvedValue(detailFixture())
+
+    const wrapper = mountView()
+    await flushPromises()
+    // 点击折叠卡展开（懒加载详情）
+    await wrapper.find('[data-testid="game-card"]').trigger('click')
+    await flushPromises()
+
+    // 两个面板在卡片下方渲染（此前只挂在无入口的 /matches/:gameId 孤岛路由）
+    expect(wrapper.find('[data-testid="replay-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="diagnose-panel"]').exists()).toBe(true)
+    // 面板请求打到正确的 gameId
+    expect(vi.mocked(getMatchReplay)).toHaveBeenCalled()
+    expect(vi.mocked(getMatchDiagnosis)).toHaveBeenCalled()
+  })
+}
