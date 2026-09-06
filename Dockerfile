@@ -17,8 +17,11 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /var/cache/nginx/cdn && chown -R nginx:nginx /var/cache/nginx
 # 配置语法闸：nginx 指令拼错/参数无效在镜像构建期即失败，
 # 不会推到生产容器启动崩溃进重启循环（实例：http_5xx 通配不被
-# proxy_cache_use_stale 支持，曾致部署健康检查超时回滚）
-RUN nginx -t
+# proxy_cache_use_stale 支持，曾致部署健康检查超时回滚）。
+# 注意：/api 反代的 host.docker.internal 是 compose 运行期 extra_hosts 注入的，
+# 构建容器内无此主机名——校验前先写一条 hosts 占位让配置可解析，
+# 运行时被真实映射覆盖（占位 IP 永不会被真正使用）
+RUN echo "203.0.113.1 host.docker.internal" >> /etc/hosts && nginx -t
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
   CMD wget -q --spider http://127.0.0.1/ || exit 1
