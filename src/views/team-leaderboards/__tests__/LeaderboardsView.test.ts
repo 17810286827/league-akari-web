@@ -223,3 +223,4 @@ describe('LeaderboardsView', () => {
     expect(cell.classes()).toContain('opacity-40')
   })
 }
+})
