@@ -10,6 +10,7 @@ import { NEmpty, NSpin } from 'naive-ui'
 
 import { getMatchDiagnosis } from '@/api/matches'
 import type { DiagnosisPlayer, MatchDiagnosis } from '@/api/types'
+import { championIconUrl } from '@/utils/icon-url'
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('DiagnosePanel')
@@ -117,7 +118,17 @@ onMounted(async () => {
               class="border-b border-gray-300/15"
             >
               <td class="py-2 pr-4">
-                <div class="font-medium">{{ player.name }}</div>
+                <div class="flex items-center gap-1.5 font-medium">
+                  <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退下方文字 -->
+                  <img
+                    v-if="player.championId != null"
+                    :src="championIconUrl(player.championId)"
+                    :alt="player.championName"
+                    :data-testid="`champion-avatar-${player.name}`"
+                    class="h-5 w-5 shrink-0 rounded-md object-cover"
+                  />
+                  <span>{{ player.name }}</span>
+                </div>
                 <div class="text-xs opacity-60">{{ player.championName }}</div>
               </td>
               <td

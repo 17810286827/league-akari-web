@@ -237,6 +237,67 @@ describe('LeaderboardsView', () => {
     expect(wrapper.find('[data-testid="lineups"]').text()).toContain('A + B')
   })
 
+  /** 用例（spec #44）：绝活榜英雄分组标题渲染英雄头像 */
+  it('绝活榜分组标题带头像（championId 透传渲染）', async () => {
+    vi.mocked(getTeamLeaderboard).mockResolvedValue(signatureFixture())
+
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="dim-signature"]').trigger('click')
+    await flushPromises()
+
+    // 分组标题头像（卡莎=1、河流之王=2）
+    expect(wrapper.find('[data-testid="champion-avatar-卡莎"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="champion-avatar-卡莎"]').attributes('src')).toContain('/1.png')
+    expect(wrapper.find('[data-testid="champion-avatar-河流之王"]').exists()).toBe(true)
+  })
+
+  /** 用例（spec #44）：常用阵容成员名旁渲染其常用英雄头像 */
+  it('常用阵容成员渲染常用英雄头像（memberChampions）', async () => {
+    vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())
+    vi.mocked(getMemberCard).mockResolvedValue(memberCardFixture())
+    vi.mocked(getDuoMatrix).mockResolvedValue({
+      members: ['A#tw2', 'B#tw2'],
+      matrix: [
+        [
+          { games: 4, wins: 3, losses: 1, winRate: 0.75 },
+          { games: 2, wins: 3, losses: 1, winRate: 0.75 }
+        ],
+        [
+          { games: 2, wins: 3, losses: 1, winRate: 0.75 },
+          { games: 0, wins: 0, losses: 0, winRate: null }
+        ]
+      ]
+    })
+    vi.mocked(getDuoExtended).mockResolvedValue({
+      timeSlots: [],
+      lineups: [
+        {
+          members: ['A#tw2', 'B#tw2'],
+          games: 3,
+          wins: 4,
+          losses: 2,
+          winRate: 2 / 3,
+          memberChampions: [
+            { riotId: 'A#tw2', championId: 103, championName: '阿狸', games: 2 },
+            { riotId: 'B#tw2', championId: 64, championName: '盲僧', games: 3 }
+          ]
+        }
+      ]
+    })
+
+    const wrapper = mount(LeaderboardsView)
+    await flushPromises()
+    const duoButton = wrapper.findAll('[data-testid="dimension-tabs"] button')
+      .find((b) => b.text().includes('组合'))
+    await duoButton!.trigger('click')
+    await flushPromises()
+
+    // 成员名旁渲染其常用英雄头像（阿狸=103、盲僧=64）
+    expect(wrapper.find('[data-testid="champion-avatar-A#tw2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="champion-avatar-A#tw2"]').attributes('src')).toContain('103')
+    expect(wrapper.find('[data-testid="champion-avatar-B#tw2"]').exists()).toBe(true)
+  })
+
   /** 用例（工单 #38）：版本筛选——选择主版本后请求携带 version 参数 */
   it('版本筛选：选择 16.15 后请求携带 version', async () => {
     vi.mocked(getTeamLeaderboard).mockResolvedValue(leaderboardFixture())

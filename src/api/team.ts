@@ -143,6 +143,14 @@ export interface TimeSlotStats {
   winRate: number | null
 }
 
+/** 阵容成员与其常用英雄（众数；头像渲染依据，spec #44） */
+export interface LineupMemberChampion {
+  riotId: string
+  championId: number
+  championName: string
+  games: number
+}
+
 /** 常用阵容（与后端 DuoExtendedResponse.LineupStats 对齐，工单 #41） */
 export interface LineupStats {
   /** 阵容成员（riotId） */
@@ -152,6 +160,8 @@ export interface LineupStats {
   losses: number
   /** 胜率（0-1） */
   winRate: number
+  /** 成员×常用英雄（spec #44；旧数据可能缺失） */
+  memberChampions?: LineupMemberChampion[]
 }
 
 /** 组合扩展统计响应（与后端 DuoExtendedResponse 对齐，工单 #41 / spec #31） */
@@ -328,6 +338,8 @@ export interface SeasonVersionStat {
 /** 英雄使用次数（与后端 SeasonReportResponse.ChampionCount 对齐） */
 export interface SeasonChampionCount {
   champion: string
+  /** 英雄 ID（头像渲染依据，spec #44；旧数据可能缺失） */
+  championId?: number
   games: number
 }
 

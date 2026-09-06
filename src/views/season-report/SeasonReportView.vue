@@ -21,6 +21,7 @@ import {
 import { Line } from 'vue-chartjs'
 
 import { apiErrorMessage, getSeasonReport } from '@/api/team'
+import { championIconUrl } from '@/utils/icon-url'
 import type { SeasonReport } from '@/api/team'
 
 import GoldText from '@/components/hex/GoldText.vue'
@@ -203,8 +204,25 @@ const chartOptions = {
               <div class="mt-1 flex flex-wrap gap-2">
                 <div v-for="v in drift.versions" :key="v.version" class="border border-hex-line/50 px-3 py-1.5 text-sm">
                   <span class="font-semibold text-hex-teal">{{ v.version }}</span>
-                  <span class="ml-2 text-slate-300">
-                    {{ v.champions.map((c) => `${c.champion}×${c.games}`).join(' · ') || '未出战' }}
+                  <span class="ml-2 flex flex-wrap items-center gap-1 text-slate-300">
+                    <template v-if="v.champions.length">
+                      <span
+                        v-for="c in v.champions"
+                        :key="c.champion"
+                        class="inline-flex items-center gap-1"
+                      >
+                        <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退文字 -->
+                        <img
+                          v-if="c.championId != null"
+                          :src="championIconUrl(c.championId)"
+                          :alt="c.champion"
+                          :data-testid="`champion-avatar-${c.champion}`"
+                          class="h-4 w-4 rounded object-cover"
+                        />
+                        <span>{{ c.champion }}×{{ c.games }}</span>
+                      </span>
+                    </template>
+                    <template v-else>未出战</template>
                   </span>
                 </div>
               </div>

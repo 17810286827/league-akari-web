@@ -44,8 +44,10 @@ function availableFixture(): MatchReplay {
         timestampMs: 65_000,
         killerName: '玩家一',
         killerChampion: '阿狸',
+        killerChampionId: 103,
         victimName: '玩家二',
         victimChampion: '锐雯',
+        victimChampionId: 92,
         killerIsPerspective: true
       },
       {
@@ -64,7 +66,10 @@ function availableFixture(): MatchReplay {
         goldDiff: 2000,
         title: '一血',
         detail: '我方 阿狸 击杀 玩家二',
-        involved: []
+        involved: [
+          { name: '玩家一', championName: '阿狸', championId: 103, perspective: true },
+          { name: '玩家二', championName: '锐雯', perspective: false }
+        ]
       },
       {
         type: 'GOLD_LEAD_CHANGE',
@@ -95,6 +100,20 @@ describe('ReplayPanel', () => {
     expect(points[0].text()).toContain('我方 阿狸 击杀 玩家二')
     expect(points[1].text()).toContain('经济反超')
     expect(points[1].text()).toContain('被反超')
+  })
+
+  it('转折点涉及成员渲染英雄头像，缺失 ID 回退文字', async () => {
+    vi.mocked(getMatchReplay).mockResolvedValue(availableFixture())
+
+    const wrapper = mount(ReplayPanel, { props: { gameId: 123 } })
+    await flushPromises()
+
+    // 一血 involved：玩家一带 championId → 头像；玩家二缺失 → 回退文字（中文名仍在）
+    expect(wrapper.find('[data-testid="champion-avatar-玩家一"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="champion-avatar-玩家一"]').attributes('src')).toContain('103')
+    expect(wrapper.find('[data-testid="champion-avatar-玩家二"]').exists()).toBe(false)
+    const firstBlood = wrapper.find('[data-testid="replay-turning-point-0"]')
+    expect(firstBlood.text()).toContain('玩家二')
   })
 
   it('无时间线降级：available=false 显示提示与时长简要信息，不渲染曲线', async () => {

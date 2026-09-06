@@ -25,6 +25,7 @@ function lossFixture(): MatchDiagnosis {
       {
         name: '玩家一',
         championName: '阿狸',
+        championId: 103,
         championClass: 'MAGE',
         teamId: 100,
         dimensions: [
@@ -112,6 +113,21 @@ describe('DiagnosePanel', () => {
 
     expect(wrapper.find('[data-testid="diagnose-panel"]').text()).toContain('胜局不做短板判定')
     expect(wrapper.find('[data-testid="dim-玩家一-vision"]').text()).not.toContain('⚠')
+  })
+
+  it('玩家行渲染英雄头像（championId 存在时），缺失时回退文字', async () => {
+    vi.mocked(getMatchDiagnosis).mockResolvedValue(lossFixture())
+
+    const wrapper = mount(DiagnosePanel, { props: { gameId: 123 } })
+    await flushPromises()
+
+    // 玩家一（championId=103）：渲染头像 img（Data Dragon URL 由 championIconUrl 生成）
+    const avatar = wrapper.find('[data-testid="champion-avatar-玩家一"]')
+    expect(avatar.exists()).toBe(true)
+    expect(avatar.attributes('src')).toContain('103')
+    // 玩家二（夹具无 championId）：回退文字，不渲染头像
+    expect(wrapper.find('[data-testid="champion-avatar-玩家二"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="diagnose-table"]').text()).toContain('盲僧')
   })
 
   it('加载失败：独立空态不影响面板框架', async () => {

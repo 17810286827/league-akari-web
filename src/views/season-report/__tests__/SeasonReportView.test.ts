@@ -50,7 +50,7 @@ function reportFixture(): SeasonReport {
       {
         riotId: 'A#tw2',
         versions: [
-          { version: '16.14', champions: [{ champion: '阿狸', games: 5 }] },
+          { version: '16.14', champions: [{ champion: '阿狸', championId: 103, games: 5 }] },
           { version: '16.15', champions: [{ champion: '锐雯', games: 7 }] }
         ]
       },
@@ -100,6 +100,20 @@ describe('SeasonReportView', () => {
     expect(wrapper.find('[data-testid="drift-A#tw2"]').text()).toContain('锐雯×7')
     expect(wrapper.find('[data-testid="drift-B#tw2"]').text()).toContain('盲僧×5')
     expect(wrapper.find('[data-testid="drift-B#tw2"]').text()).toContain('盲僧×7')
+  })
+
+  it('英雄池漂移渲染英雄头像，缺失 ID 回退文字', async () => {
+    vi.mocked(getSeasonReport).mockResolvedValue(reportFixture())
+
+    const wrapper = mount(SeasonReportView)
+    await wrapper.find('[data-testid="season-generate"]').trigger('click')
+    await flushPromises()
+
+    // 阿狸带 championId → 头像；锐雯缺失 → 回退文字（中文名仍渲染）
+    expect(wrapper.find('[data-testid="champion-avatar-阿狸"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="champion-avatar-阿狸"]').attributes('src')).toContain('103')
+    expect(wrapper.find('[data-testid="champion-avatar-锐雯"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="season-drift"]').text()).toContain('锐雯×7')
   })
 
   it('重新生成：回入口重新选日期', async () => {

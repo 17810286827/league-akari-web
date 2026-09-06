@@ -9,8 +9,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getDuoExtended, getDuoMatrix, getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
-import type { DuoExtended, DuoMatrix, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
+import type { DuoExtended, DuoMatrix, LineupStats, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
 import { format2, formatInt, formatStat } from '@/utils/format'
+import { championIconUrl } from '@/utils/icon-url'
 
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
@@ -87,6 +88,12 @@ const signatureGroups = computed<{ champion: string; items: TeamBoardEntry[] }[]
   }
   return [...groups.entries()].map(([champion, items]) => ({ champion, items }))
 })
+
+/** 阵容成员的常用英雄（spec #44）：memberChampions 按 riotId 查找，旧数据缺失返回 undefined */
+function lineupChampionOf(lineup: LineupStats, riotId: string) {
+  return lineup.memberChampions?.find((mc) => mc.riotId === riotId)
+}
+
 
 /** 加载当前筛选下的榜单，并自动选中榜首（右栏立即有内容） */
 async function load(): Promise<void> {
@@ -343,7 +350,19 @@ onMounted(load)
                 >
                   <RankBadge :rank="index + 1" />
                   <span class="min-w-0 flex-1 truncate text-lg font-semibold text-slate-100">
-                    {{ lineup.members.map((m) => m.split('#')[0]).join(' + ') }}
+                    <template v-for="(m, memberIndex) in lineup.members" :key="m">
+                      <!-- 成员间 " + " 分隔（既有展示契约） -->
+                      <span v-if="memberIndex > 0" class="opacity-60"> + </span>
+                      <!-- 成员常用英雄头像（spec #44）：memberChampions 缺失的旧数据不渲染 -->
+                      <img
+                        v-if="lineupChampionOf(lineup, m)?.championId != null"
+                        :src="championIconUrl(lineupChampionOf(lineup, m)!.championId!)"
+                        :alt="m.split('#')[0]"
+                        :data-testid="`champion-avatar-${m}`"
+                        class="mr-1 inline-block h-5 w-5 rounded-md object-cover align-text-bottom"
+                      />
+                      <span class="mr-1">{{ m.split('#')[0] }}</span>
+                    </template>
                   </span>
                   <span class="text-sm text-slate-400">{{ lineup.games }}局</span>
                   <span class="w-20 text-right text-xl font-bold tabular-nums">
@@ -363,6 +382,14 @@ onMounted(load)
             :data-testid="`champion-group-${group.champion}`"
           >
             <div class="p-5">
+              <!-- 分组标题头像（spec #44）：组内首条目的英雄 -->
+              <img
+                v-if="group.items[0]?.championId != null"
+                :src="championIconUrl(group.items[0]!.championId!)"
+                :alt="group.champion"
+                :data-testid="`champion-avatar-${group.champion}`"
+                class="mb-1 h-6 w-6 rounded-md object-cover"
+              />
               <SectionTitle :title="group.champion" :meta="`${group.items.length} 人使用`" symbol="⚔" />
               <button
                 v-for="(entry, index) in group.items"

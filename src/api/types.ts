@@ -385,10 +385,14 @@ export interface ReplayKillEvent {
   killerName: string
   /** 击杀者英雄中文名 */
   killerChampion: string
+  /** 击杀者英雄 ID（头像渲染依据，spec #44） */
+  killerChampionId?: number
   /** 被击杀者召唤师名 */
   victimName: string
   /** 被击杀者英雄中文名 */
   victimChampion: string
+  /** 被击杀者英雄 ID（头像渲染依据，spec #44） */
+  victimChampionId?: number
   /** 击杀者是否属于我方（标记颜色区分敌我） */
   killerIsPerspective: boolean
 }
@@ -399,6 +403,8 @@ export interface ReplayInvolvedPlayer {
   name: string
   /** 英雄中文名 */
   championName: string
+  /** 英雄 ID（头像渲染依据，spec #44） */
+  championId?: number
   /** 是否属于我方 */
   perspective: boolean
 }
@@ -454,6 +460,8 @@ export interface DiagnosisDimension {
 export interface DiagnosisPlayer {
   name: string
   championName: string
+  /** 英雄 ID（头像渲染依据，spec #44） */
+  championId?: number
   /** 英雄职业（SUPPORT 等六职业） */
   championClass: string
   teamId: number
