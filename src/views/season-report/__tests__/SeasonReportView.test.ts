@@ -95,11 +95,15 @@ describe('SeasonReportView', () => {
     // 版本曲线与高光
     expect(wrapper.find('[data-testid="season-versions"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="season-highlights"]').text()).toContain('18 杀')
-    // 英雄池漂移：A 换英雄、B 本命
-    expect(wrapper.find('[data-testid="drift-A#tw2"]').text()).toContain('阿狸×5')
-    expect(wrapper.find('[data-testid="drift-A#tw2"]').text()).toContain('锐雯×7')
-    expect(wrapper.find('[data-testid="drift-B#tw2"]').text()).toContain('盲僧×5')
-    expect(wrapper.find('[data-testid="drift-B#tw2"]').text()).toContain('盲僧×7')
+    // 英雄池漂移（原型定稿 B：时间轴网格）：行=版本、列=玩家
+    // A 在 16.14 玩阿狸、16.15 换锐雯；B 两版本都玩盲僧
+    expect(wrapper.find('[data-testid="drift-row-16.14"]').text()).toContain('阿狸×5')
+    expect(wrapper.find('[data-testid="drift-row-16.14"]').text()).toContain('盲僧×5')
+    expect(wrapper.find('[data-testid="drift-row-16.15"]').text()).toContain('锐雯×7')
+    expect(wrapper.find('[data-testid="drift-row-16.15"]').text()).toContain('盲僧×7')
+    // 表头：玩家列名 + 总局数（夹具每人 5+7=12 局；A 版本内按局数降序排列）
+    expect(wrapper.find('[data-testid="season-drift"]').text()).toContain('A')
+    expect(wrapper.find('[data-testid="season-drift"]').text()).toContain('12局')
   })
 
   it('英雄池漂移渲染英雄头像，缺失 ID 回退文字', async () => {

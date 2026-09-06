@@ -102,6 +102,41 @@ const chartData = computed(() => ({
   ]
 }))
 
+/** 英雄池漂移单成员视图模型：版本内英雄按局数降序 + 总局数（表头展示） */
+const driftMembers = computed(() =>
+  (report.value?.memberDrifts ?? []).map((drift) => ({
+    riotId: drift.riotId,
+    byVersion: drift.versions.map((v) => ({
+      version: v.version,
+      // 每版本英雄按局数降序（本命排前）
+      champions: [...v.champions].sort((a, b) => b.games - a.games)
+    })),
+    totalGames: drift.versions.reduce(
+      (sum, v) => sum + v.champions.reduce((x, c) => x + c.games, 0),
+      0
+    )
+  }))
+)
+
+/** 全部版本号升序（表格行轴；跨成员取并集） */
+const driftVersions = computed(() => {
+  const set = new Set<string>()
+  for (const m of driftMembers.value) {
+    for (const v of m.byVersion) {
+      set.add(v.version)
+    }
+  }
+  return [...set].sort()
+})
+
+/** 指定成员在某版本玩的英雄（无数据返回空数组 → 单元格显示 —） */
+function driftChampionsOf(
+  member: (typeof driftMembers.value)[number],
+  version: string
+): Array<{ champion: string; championId?: number; games: number }> {
+  return member.byVersion.find((v) => v.version === version)?.champions ?? []
+}
+
 const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -156,7 +191,7 @@ const chartOptions = {
     </div>
 
     <!-- 报告主体 -->
-    <HexPageShell v-else max-width="5xl">
+    <HexPageShell v-else max-width="full">
       <header class="mt-6 text-center">
         <div class="flex items-start justify-between text-[20px] font-semibold text-hex-gold/90">
           <button class="hover:text-hex-gold-2" data-testid="home-button" @click="goHome">❖ 主页</button>
@@ -194,22 +229,43 @@ const chartOptions = {
         </div>
       </HexPanel>
 
-      <!-- 英雄池漂移 -->
+      <!-- 英雄池漂移（原型评审定稿 B：时间轴网格——行=版本、列=玩家，
+           "谁每版换爹"纵向一眼可读；全宽页 + 大字号 17/19/21px） -->
       <HexPanel class="season-report-panel mt-5" data-testid="season-drift">
         <div class="p-5">
           <SectionTitle title="英雄池漂移" meta="谁一直玩本命，谁每版换爹" symbol="🧬" />
-          <div class="space-y-4">
-            <div v-for="drift in report.memberDrifts" :key="drift.riotId" :data-testid="`drift-${drift.riotId}`">
-              <div class="text-[19px] font-semibold text-slate-100">{{ drift.riotId }}</div>
-              <div class="mt-1 flex flex-wrap gap-2">
-                <div v-for="v in drift.versions" :key="v.version" class="border border-hex-line/50 px-3 py-1.5 text-[17px]">
-                  <span class="font-semibold text-hex-teal">{{ v.version }}</span>
-                  <span class="ml-2 flex flex-wrap items-center gap-1 text-slate-300">
-                    <template v-if="v.champions.length">
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-[17px]">
+              <thead>
+                <tr class="border-b-2 border-hex-gold/40">
+                  <th class="w-20 py-2 pr-3 text-left text-[17px] font-bold text-hex-gold">版本</th>
+                  <th
+                    v-for="m in driftMembers"
+                    :key="m.riotId"
+                    class="py-2 pr-3 text-left text-[19px] font-bold text-hex-teal"
+                  >
+                    {{ m.riotId.split('#')[0] }}
+                    <span class="ml-1 text-[15px] font-normal text-slate-400">{{ m.totalGames }}局</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="ver in driftVersions"
+                  :key="ver"
+                  class="border-b border-hex-line/40 hover:bg-hex-gold/[0.04]"
+                  :data-testid="`drift-row-${ver}`"
+                >
+                  <td class="py-2.5 pr-3 text-[17px] font-semibold text-hex-gold">{{ ver }}</td>
+                  <td v-for="m in driftMembers" :key="m.riotId" class="py-2.5 pr-3">
+                    <span
+                      v-if="driftChampionsOf(m, ver).length"
+                      class="flex flex-wrap items-center gap-x-2 gap-y-1"
+                    >
                       <span
-                        v-for="c in v.champions"
+                        v-for="c in driftChampionsOf(m, ver)"
                         :key="c.champion"
-                        class="inline-flex items-center gap-1"
+                        class="inline-flex items-center gap-1 text-slate-200"
                       >
                         <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退文字 -->
                         <img
@@ -217,17 +273,20 @@ const chartOptions = {
                           :src="championIconUrl(c.championId)"
                           :alt="c.champion"
                           :data-testid="`champion-avatar-${c.champion}`"
-                          class="h-[19px] w-[19px] rounded object-cover"
+                          class="h-[21px] w-[21px] rounded object-cover"
                         />
-                        <span>{{ c.champion }}×{{ c.games }}</span>
+                        <span class="text-[17px]">{{ c.champion }}<span class="text-slate-400">×{{ c.games }}</span></span>
                       </span>
-                    </template>
-                    <template v-else>未出战</template>
-                  </span>
-                </div>
-              </div>
-            </div>
+                    </span>
+                    <span v-else class="text-[15px] text-slate-600">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+          <p class="mt-3 text-[15px] tracking-wide text-slate-400">
+            行 = 版本，列 = 玩家：一列看下来就是"谁每版换爹"（本命铁人 vs 版本爹）。
+          </p>
         </div>
       </HexPanel>
     </HexPageShell>

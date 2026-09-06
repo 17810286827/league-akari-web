@@ -8,7 +8,7 @@ import RuneDivider from './RuneDivider.vue'
 withDefaults(
   defineProps<{
     /** 内容最大宽度（Tailwind 断点名） */
-    maxWidth?: '4xl' | '5xl' | '6xl'
+    maxWidth?: '4xl' | '5xl' | '6xl' | '7xl' | 'full'
   }>(),
   { maxWidth: '4xl' }
 )
@@ -16,7 +16,20 @@ withDefaults(
 
 <template>
   <div class="min-h-screen bg-hex-blue px-6 pb-24 pt-8 font-hex">
-    <div class="mx-auto" :class="maxWidth === '6xl' ? 'max-w-6xl' : maxWidth === '5xl' ? 'max-w-5xl' : 'max-w-4xl'">
+    <div
+      class="mx-auto"
+      :class="
+        maxWidth === 'full'
+          ? 'max-w-none'
+          : maxWidth === '7xl'
+            ? 'max-w-7xl'
+            : maxWidth === '6xl'
+              ? 'max-w-6xl'
+              : maxWidth === '5xl'
+                ? 'max-w-5xl'
+                : 'max-w-4xl'
+      "
+    >
       <RuneDivider />
       <slot />
       <RuneDivider class="mt-10" />
