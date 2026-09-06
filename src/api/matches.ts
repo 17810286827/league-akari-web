@@ -6,7 +6,7 @@
 import http from './http'
 import type { SseStreamHandlers } from './sse'
 import { consumeSseStream } from './sse'
-import type { ApiResult, MatchDetail, MatchReplay, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
+import type { ApiResult, MatchDetail, MatchDiagnosis, MatchReplay, MatchSummary, MatchTimelineFrame, PageResponse, RiotAccount } from './types'
 
 /** 对局列表查询参数：分页 + 可选的过滤条件 */
 export interface MatchQueryParams {
@@ -93,4 +93,14 @@ export async function getMatchReplay(gameId: number): Promise<MatchReplay> {
   // GET /api/matches/{gameId}/replay：统一信封 data 内为复盘数据，解包后返回
   const { data } = await http.get<ApiResult<MatchReplay>>(`/api/matches/${gameId}/replay`)
   return data.data as MatchReplay
+}
+
+/**
+ * 查询对局诊断（工单 #36 / spec #30）：闲置 stats 字段的结果归因——
+ * 每维度原始值 + 队内位次 + 短板标记（败局末位高亮）。纯数据不依赖 AI
+ */
+export async function getMatchDiagnosis(gameId: number): Promise<MatchDiagnosis> {
+  // GET /api/matches/{gameId}/diagnosis：统一信封 data 内为诊断数据，解包后返回
+  const { data } = await http.get<ApiResult<MatchDiagnosis>>(`/api/matches/${gameId}/diagnosis`)
+  return data.data as MatchDiagnosis
 }

@@ -18,6 +18,7 @@ import { createLogger } from '@/utils/logger'
 import { useMatchAnalysis } from '@/composables/useMatchAnalysis'
 import type { MatchAnalysisState } from '@/composables/useMatchAnalysis'
 import ReplayPanel from './ReplayPanel.vue'
+import DiagnosePanel from './DiagnosePanel.vue'
 
 const logger = createLogger('MatchDetail')
 const message = useMessage()
@@ -95,6 +96,9 @@ onMounted(async () => {
 
         <!-- 时间线复盘面板（工单 #35）：独立加载独立降级，无时间线对局显示提示 -->
         <ReplayPanel v-if="summary" :game-id="gameId" :duration-seconds="summary.gameDuration" />
+
+        <!-- 对局诊断面板（工单 #36）：闲置 stats 字段的结果归因，与复盘各自独立 -->
+        <DiagnosePanel v-if="summary" :game-id="gameId" />
       </n-spin>
     </main>
   </div>

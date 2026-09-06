@@ -433,3 +433,37 @@ export interface MatchReplay {
   /** 关键转折点列表（按时间排序，规则引擎确定性提取） */
   turningPoints: ReplayTurningPoint[]
 }
+
+/** 对局诊断：单维度（与后端 DiagnosisResponse.Dimension 对齐，工单 #36） */
+export interface DiagnosisDimension {
+  /** 维度键（vision/ccTime/damageConversion/objectiveDamage/goldShare） */
+  key: string
+  /** 维度中文名 */
+  label: string
+  /** 原始值 */
+  rawValue: number
+  /** 队内位次（1 = 本队最高） */
+  teamRank: number
+  /** 队内均值 */
+  teamAverage: number
+  /** 是否短板（败局 + 队内末位 + 显著低于队均） */
+  weak: boolean
+}
+
+/** 对局诊断：单玩家（与后端 DiagnosisResponse.PlayerDiagnosis 对齐） */
+export interface DiagnosisPlayer {
+  name: string
+  championName: string
+  /** 英雄职业（SUPPORT 等六职业） */
+  championClass: string
+  teamId: number
+  dimensions: DiagnosisDimension[]
+}
+
+/** 对局诊断响应（与后端 DiagnosisResponse 对齐，工单 #36 / spec #30） */
+export interface MatchDiagnosis {
+  /** 视角队伍是否获胜（败局才做短板高亮） */
+  win: boolean
+  perspectiveTeamId: number
+  players: DiagnosisPlayer[]
+}
