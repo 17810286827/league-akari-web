@@ -31,6 +31,7 @@ vi.mock('vue-chartjs', async () => {
         :data-turning-points="JSON.stringify(data.datasets[3].data)"
         :data-x-axis-type="options.scales.x.type"
         :data-x-axis-max="options.scales.x.max"
+        :data-datalabels-display="String(options.plugins.datalabels?.display)"
       />`
     })
   }
@@ -138,6 +139,8 @@ describe('ReplayPanel', () => {
     const turningPoints = JSON.parse(chart.attributes('data-turning-points')!)
     expect(turningPoints[0].x).toBe(65_000)
     expect(turningPoints[1].x).toBe(120_000)
+    // datalabels 在其他图表中是全局注册的，复盘图必须显式关闭，避免每个点绘制原始对象字段造成乱码
+    expect(chart.attributes('data-datalabels-display')).toBe('false')
   })
 
   it('转折点涉及成员渲染英雄头像，缺失 ID 回退文字', async () => {

@@ -194,6 +194,9 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     y: { title: { display: true, text: '经济差' } }
   },
   plugins: {
+    // datalabels 可能由其他图表全局注册；复盘散点含内部元数据，必须关闭
+    // 默认标签，否则会把 x/y/_info/_perspective 等字段直接绘制到画布上
+    datalabels: { display: false },
     tooltip: {
       callbacks: {
         // 标题行：显示时刻（mm:ss）——数据点 x 是毫秒时间戳，
