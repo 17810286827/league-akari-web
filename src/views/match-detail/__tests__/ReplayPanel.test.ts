@@ -30,6 +30,7 @@ vi.mock('vue-chartjs', async () => {
         :data-kill-points="JSON.stringify(data.datasets[1].data)"
         :data-turning-points="JSON.stringify(data.datasets[3].data)"
         :data-x-axis-type="options.scales.x.type"
+        :data-x-axis-max="options.scales.x.max"
       />`
     })
   }
@@ -121,6 +122,8 @@ describe('ReplayPanel', () => {
     const chart = wrapper.find('.line-stub')
     // x 轴类型：linear（时间毫秒数值轴）
     expect(chart.attributes('data-x-axis-type')).toBe('linear')
+    // 异步加载完成后，x 轴范围必须跟随末帧（不能在初始 replay=null 时固定为 0）
+    expect(chart.attributes('data-x-axis-max')).toBe('120000')
     // 折线数据点：{x: timestampMs, y: goldDiff}（不再是纯数字数组配分类标签）
     const linePoints = JSON.parse(chart.attributes('data-line-points')!)
     expect(linePoints).toEqual([

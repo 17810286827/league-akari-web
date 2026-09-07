@@ -170,8 +170,11 @@ const chartData = computed(() => ({
   ]
 }) as unknown as ChartData<'line'>)
 
-/** Chart.js 配置：linear 时间轴（mm:ss 刻度）+ tooltip 展示散点自定义信息 */
-const chartOptions: ChartOptions<'line'> = {
+/** Chart.js 配置：linear 时间轴（mm:ss 刻度）+ tooltip 展示散点自定义信息。
+ * 配置必须是 computed：replay 由异步接口加载，普通常量会在初始 maxX=0 时
+ * 固定 x 轴范围，后续数据点全落在可视范围外，表现为 y 轴 -1~1 的空图。
+ */
+const chartOptions = computed<ChartOptions<'line'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   animation: { duration: 300 },
@@ -214,7 +217,7 @@ const chartOptions: ChartOptions<'line'> = {
       }
     }
   }
-}
+}))
 
 /** AI 复盘叙述状态（工单 #40）：手动按钮触发，打字机流式 */
 const aiNarration = ref('')
