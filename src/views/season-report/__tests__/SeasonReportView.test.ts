@@ -130,4 +130,34 @@ describe('SeasonReportView', () => {
 
     expect(wrapper.find('[data-testid="season-entry"]').exists()).toBe(true)
   })
+
+  it('英雄池漂移版本降序：最新版本在顶上（2025 分段与数字补丁混排）', async () => {
+    // 混合格式夹具：25.S2 > 25.S1 > 25.4 > 16.15，验证漂移行按语义降序
+    const mixed: SeasonReport = {
+      totalGames: 4,
+      totalWinRate: 0.5,
+      versionStats: [],
+      memberDrifts: [
+        {
+          riotId: 'A#tw2',
+          versions: [
+            { version: '25.4', champions: [{ champion: '锐雯', games: 1 }] },
+            { version: '25.S1', champions: [{ champion: '阿狸', championId: 103, games: 1 }] },
+            { version: '16.15', champions: [{ champion: '盲僧', games: 1 }] },
+            { version: '25.S2', champions: [{ champion: '盖伦', games: 1 }] }
+          ]
+        }
+      ],
+      mostKills: null
+    }
+    vi.mocked(getSeasonReport).mockResolvedValue(mixed)
+
+    const wrapper = mount(SeasonReportView)
+    await wrapper.find('[data-testid="season-generate"]').trigger('click')
+    await flushPromises()
+
+    // 表格 tbody 行按 DOM 顺序即为展示顺序：最新版本在顶上
+    const rows = wrapper.findAll('tbody tr').map((tr) => tr.attributes('data-testid'))
+    expect(rows).toEqual(['drift-row-25.S2', 'drift-row-25.S1', 'drift-row-25.4', 'drift-row-16.15'])
+  })
 })

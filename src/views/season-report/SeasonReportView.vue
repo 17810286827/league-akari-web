@@ -22,6 +22,7 @@ import { Line } from 'vue-chartjs'
 
 import { apiErrorMessage, getSeasonReport } from '@/api/team'
 import { championIconUrl } from '@/utils/icon-url'
+import { sortVersionsDescending } from '@/utils/version'
 import type { SeasonReport } from '@/api/team'
 
 import GoldText from '@/components/hex/GoldText.vue'
@@ -118,7 +119,7 @@ const driftMembers = computed(() =>
   }))
 )
 
-/** 全部版本号升序（表格行轴；跨成员取并集） */
+/** 全部版本号降序（表格行轴；跨成员取并集，最新版本在顶上） */
 const driftVersions = computed(() => {
   const set = new Set<string>()
   for (const m of driftMembers.value) {
@@ -126,7 +127,7 @@ const driftVersions = computed(() => {
       set.add(v.version)
     }
   }
-  return [...set].sort()
+  return sortVersionsDescending(set)
 })
 
 /** 指定成员在某版本玩的英雄（无数据返回空数组 → 单元格显示 —） */
