@@ -4,7 +4,9 @@
  * - 图标：JSON 中的 iconPath（LCU 相对路径）→ CommunityDragon CDN URL（去前缀 + 小写化，照抄主仓库 resolve 逻辑）
  * - 描述：技能/物品 JSON 的 description 字段（与主仓库 SummonerSpellDisplay 展示一致）
  */
-import { createLogger } from '@/utils/logger'
+// 相对导入 logger（同目录）：本模块被同步脚本在 Docker 构建期加载，
+// 该环境无 vite.config 的 @ 别名，别名导入会模块缺失
+import { createLogger } from './logger'
 import {
   augmentIconLocalUrl,
   ensureDdDragonVersion,
@@ -13,7 +15,7 @@ import {
   perkIconLocalUrl,
   perkstyleIconLocalUrl,
   spellIconLocalUrl
-} from '@/utils/icon-url'
+} from './icon-url'
 
 const logger = createLogger('GameResource')
 

@@ -8,7 +8,9 @@
  * 本模块为纯函数（无网络、无文件 IO），是同步脚本的被测接缝；
  * 网络下载与目录写盘在 scripts/sync-icons.ts（边缘，不测）。
  */
-import { resolveAssetUrl, toIdMap } from '@/utils/game-resource'
+// 相对导入（不用 @ 别名）：脚本在 Docker 构建期独立层运行，该层只复制 scripts/
+// 与 src/utils 的三个文件，没有 vite.config.ts——别名解析不了
+import { resolveAssetUrl, toIdMap } from '../../src/utils/game-resource'
 import {
   augmentIconLocalUrl,
   championIconSources,
@@ -16,7 +18,7 @@ import {
   perkIconLocalUrl,
   perkstyleIconLocalUrl,
   spellIconLocalUrl
-} from '@/utils/icon-url'
+} from '../../src/utils/icon-url'
 
 /** 下载计划条目：远程 URL 下载后写入本地路径（站点相对路径，如 /icons/champion/103.png） */
 export interface SyncEntry {

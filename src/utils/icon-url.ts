@@ -5,7 +5,9 @@
 // - 主源：Data Dragon，版本号动态探测（写死版本会随官方新版本落后，导致新装备图标 404，
 //   实例：16.17.1 新增的 ARAM 装备 226668 终极九头蛇在写死 16.16.1 下无图标）
 // - 兜底：CommunityDragon 资源地址（由 game-resource 的 items iconPath 解析，见 ItemDisplayResource.fallbackIconUrl）
-import { createLogger } from '@/utils/logger'
+// 相对导入 logger（同目录）：本模块被同步脚本在 Docker 构建期加载，
+// 该环境无 vite.config 的 @ 别名，别名导入会模块缺失
+import { createLogger } from './logger'
 
 const logger = createLogger('IconUrl')
 
