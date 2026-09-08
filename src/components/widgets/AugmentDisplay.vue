@@ -3,7 +3,7 @@
   <NPopover v-if="augmentDisplay && augmentDisplay.name" :delay="50">
     <template #trigger>
       <CdnImage
-        :path="augmentDisplay.iconUrl"
+        :sources="augmentDisplay.iconSources"
         v-bind="$attrs"
         :style="{ width: `${size}px`, height: `${size}px` }"
         class="augment"
@@ -17,7 +17,7 @@
     </template>
 
     <div class="info max-w-45">
-      <CdnImage class="image" :path="augmentDisplay.iconUrl" />
+      <CdnImage class="image" :sources="augmentDisplay.iconSources" />
       <div class="right-side">{{ augmentDisplay.name }}</div>
     </div>
 

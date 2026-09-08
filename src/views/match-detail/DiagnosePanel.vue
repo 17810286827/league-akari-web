@@ -10,7 +10,8 @@ import { NEmpty, NSpin } from 'naive-ui'
 
 import { getMatchDiagnosis } from '@/api/matches'
 import type { DiagnosisPlayer, MatchDiagnosis } from '@/api/types'
-import { championIconUrl } from '@/utils/icon-url'
+import { championIconSources } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('DiagnosePanel')
@@ -119,10 +120,11 @@ onMounted(async () => {
             >
               <td class="py-2 pr-4">
                 <div class="flex items-center gap-1.5 font-medium">
-                  <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退下方文字 -->
-                  <img
+                  <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退下方文字；
+                       降级链：本地镜像 → CDragon（ADR 0004） -->
+                  <CdnImage
                     v-if="player.championId != null"
-                    :src="championIconUrl(player.championId)"
+                    :sources="championIconSources(player.championId)"
                     :alt="player.championName"
                     :data-testid="`champion-avatar-${player.name}`"
                     class="h-5 w-5 shrink-0 rounded-md object-cover"

@@ -8,7 +8,7 @@
   >
     <template #trigger>
       <CdnImage
-        :path="spellDisplay.iconUrl"
+        :sources="spellDisplay.iconSources"
         v-bind="$attrs"
         :style="{ width: `${size}px`, height: `${size}px` }"
         class="spell"

@@ -21,7 +21,8 @@ import {
 import { Line } from 'vue-chartjs'
 
 import { apiErrorMessage, getSeasonReport } from '@/api/team'
-import { championIconUrl } from '@/utils/icon-url'
+import { championIconSources } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 import { sortVersionsDescending } from '@/utils/version'
 import type { SeasonReport } from '@/api/team'
 
@@ -268,10 +269,11 @@ const chartOptions = {
                         :key="c.champion"
                         class="inline-flex items-center gap-1 text-slate-200"
                       >
-                        <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退文字 -->
-                        <img
+                        <!-- 英雄头像（spec #44）：缺失 ID 的旧数据不渲染，回退文字；
+                             降级链：本地镜像 → CDragon（ADR 0004） -->
+                        <CdnImage
                           v-if="c.championId != null"
-                          :src="championIconUrl(c.championId)"
+                          :sources="championIconSources(c.championId)"
                           :alt="c.champion"
                           :data-testid="`champion-avatar-${c.champion}`"
                           class="h-[21px] w-[21px] rounded object-cover"

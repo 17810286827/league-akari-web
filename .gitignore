@@ -12,3 +12,6 @@ dist-ssr
 .idea
 .worktrees/
 .superpowers/
+
+# 本地化图标（ADR 0004）：由 npm run sync:icons 同步生成，Docker 构建期下载注入，不进 git
+public/icons/

@@ -23,6 +23,7 @@ describe('AugmentDisplay', () => {
     vi.mocked(augmentDisplay).mockResolvedValue({
       name: '全凭身手',
       iconUrl: 'https://example.com/augment/30.png',
+      iconSources: ['/icons/augment/30.png', 'https://example.com/augment/30.png'],
       rarity: 'kGold',
       descriptionHtml: '<p>击杀后回复生命</p>'
     })

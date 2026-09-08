@@ -61,11 +61,17 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
     getChampionName: vi.fn(() => '菲奥娜'),
     augmentDisplay: vi
       .fn()
-      .mockResolvedValue({ name: '海克斯强化', iconUrl: '', rarity: 'kSilver' }),
+      .mockResolvedValue({
+        name: '海克斯强化',
+        iconUrl: '',
+        iconSources: [],
+        rarity: 'kSilver'
+      }),
     itemDisplay: vi.fn().mockResolvedValue({
       id: 1,
       name: '装备',
       iconUrl: '',
+      iconSources: ['/icons/item/1.png'],
       descriptionHtml: '',
       price: 0,
       totalPrice: 0

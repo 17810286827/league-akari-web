@@ -71,3 +71,36 @@ describe('icon-url Data Dragon 动态版本', () => {
     expect(mod.itemIconUrl(6653)).toContain('/16.16.1/')
   })
 })
+
+/**
+ * 本地化图标多源构造测试（ADR 0004 图标本地化）：
+ * 各构造函数返回「本地 → CDN」降级链数组，本地路径按类型 + ID 命名；
+ * CdnImage 以 sources 属性消费（逐级回退），本地缺图（未同步的新英雄）自动落 CDN。
+ */
+describe('icon-url 本地化多源构造', () => {
+  it('championIconSources：本地优先 + CDragon 兜底（英雄头像二级链）', async () => {
+    const mod = await import('../icon-url')
+    expect(mod.championIconSources(103)).toEqual([
+      '/icons/champion/103.png',
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/103.png'
+    ])
+  })
+
+  it('itemIconSources：本地 + DDragon 动态版本（版本跟随探测结果）', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok(['16.17.1'])))
+    const mod = await import('../icon-url')
+    await mod.ensureDdDragonVersion()
+    expect(mod.itemIconSources(226668)).toEqual([
+      '/icons/item/226668.png',
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/226668.png'
+    ])
+  })
+
+  it('本地化资源各类型的本地路径约定：spell/perk/perkstyle/augment 按 ID 命名', async () => {
+    const mod = await import('../icon-url')
+    expect(mod.spellIconLocalUrl(4)).toBe('/icons/spell/4.png')
+    expect(mod.perkIconLocalUrl(8112)).toBe('/icons/perk/8112.png')
+    expect(mod.perkstyleIconLocalUrl(8100)).toBe('/icons/perkstyle/8100.png')
+    expect(mod.augmentIconLocalUrl(30)).toBe('/icons/augment/30.png')
+  })
+})

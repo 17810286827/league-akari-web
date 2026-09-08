@@ -5,7 +5,15 @@
  * - 描述：技能/物品 JSON 的 description 字段（与主仓库 SummonerSpellDisplay 展示一致）
  */
 import { createLogger } from '@/utils/logger'
-import { ensureDdDragonVersion, itemIconUrl } from '@/utils/icon-url'
+import {
+  augmentIconLocalUrl,
+  ensureDdDragonVersion,
+  itemIconSources,
+  itemIconUrl,
+  perkIconLocalUrl,
+  perkstyleIconLocalUrl,
+  spellIconLocalUrl
+} from '@/utils/icon-url'
 
 const logger = createLogger('GameResource')
 
@@ -45,6 +53,8 @@ export interface SpellDisplayResource {
   name: string
   /** 转换后的 CDN 图标地址 */
   iconUrl: string
+  /** 降级链（本地 → CDragon，ADR 0004）：CdnImage 的 sources 属性消费 */
+  iconSources: string[]
   description: string
   cooldown: number
   summonerLevel: number
@@ -62,6 +72,11 @@ export interface ItemDisplayResource {
    * iconPath 缺失（CDragon 老数据）时为 undefined，消费方按无兜底处理
    */
   fallbackIconUrl?: string
+  /**
+   * 降级链（本地 → DDragon → CDragon，ADR 0004 本地化 + ADR 0003 双源叠加）；
+   * iconPath 缺失时链为二级（不虚构 CDragon 兜底）
+   */
+  iconSources: string[]
   /** 物品属性描述（HTML 文本） */
   descriptionHtml: string
   /** 合成费（CDragon items.json 的 price 字段） */
@@ -135,9 +150,10 @@ async function fetchJson<T>(url: string): Promise<T> {
  * 把 game-data JSON 归一化为 id → 记录 的 Map，兼容两种数据形状：
  * - 数组（CDragon 真实格式，记录自带 id 字段）
  * - 键值对象（{ data: { '30': {...} } }，键名即 id）
- * subKeys 用于从对象外壳中取出数据体（如 perkstyles.json 的 styles 字段）
+ * subKeys 用于从对象外壳中取出数据体（如 perkstyles.json 的 styles 字段）。
+ * 同步脚本（scripts/icon-sync/plan.ts）复用本函数解析各资源清单
  */
-function toIdMap<T extends object>(payload: unknown, ...subKeys: string[]): Map<number, T> {
+export function toIdMap<T extends object>(payload: unknown, ...subKeys: string[]): Map<number, T> {
   const map = new Map<number, T>()
   let source: unknown = payload
   // 对象外壳（如 { data: ... }、{ styles: ... }）取数据体
@@ -227,6 +243,10 @@ export async function spellDisplay(spellId: number): Promise<SpellDisplayResourc
       id: spell.id,
       name: spell.name,
       iconUrl: resolveAssetUrl(spell.iconPath) ?? '',
+      // 降级链：本地（按 spell/{id} 镜像）→ CDragon iconPath
+      iconSources: [spellIconLocalUrl(spell.id), resolveAssetUrl(spell.iconPath) ?? ''].filter(
+        Boolean
+      ),
       description: spell.description,
       cooldown: spell.cooldown,
       summonerLevel: spell.summonerLevel
@@ -239,8 +259,8 @@ export async function spellDisplay(spellId: number): Promise<SpellDisplayResourc
 /** 未知物品展示资源空壳（name 为空串，消费方据此判空） */
 function emptyItemDisplay(id: number): ItemDisplayResource {
   // 空壳判空约定：未知物品 name 为空串，消费方（如 ItemIcon.vue）据此隐藏价格与描述
-  // 价格字段置 0，避免模板在字段缺失时渲染出 "undefined 金币"
-  return { id, name: '', iconUrl: '', descriptionHtml: '', price: 0, totalPrice: 0 }
+  // 价格字段置 0，避免模板在字段缺失时渲染出 "undefined 金币"；降级链为空（不渲染图标）
+  return { id, name: '', iconUrl: '', iconSources: [], descriptionHtml: '', price: 0, totalPrice: 0 }
 }
 
 /**
@@ -263,6 +283,8 @@ export async function itemDisplay(itemId: number): Promise<ItemDisplayResource> 
       // 兜底源：LCU iconPath → CDragon 资源地址（主源 404 时由 CdnImage 换用；
       // iconPath 缺失的老数据解析结果为 null，归一为 undefined 表示无兜底）
       fallbackIconUrl: resolveAssetUrl(item.iconPath ?? '') ?? undefined,
+      // 降级链：本地 → DDragon → CDragon（本地化 + 双源叠加；iconPath 缺失时仅前两级）
+      iconSources: itemIconSources(item.id, item.iconPath),
       descriptionHtml: item.description ?? '',
       price: item.price,
       // 总价（priceTotal 字段名与 CDragon 对齐；totalPrice 保留给既有消费方）
@@ -304,6 +326,8 @@ function toComponents(items: Map<number, Item>, ids: unknown): ItemComponentReso
 export interface AugmentDisplayResource {
   name: string
   iconUrl: string
+  /** 降级链（本地 → CDragon/gtimg，ADR 0004） */
+  iconSources: string[]
   /** gtimg 稀有度：kBronze/kSilver/kGold/kPrismatic */
   rarity?: string
   /** 中文描述（gtimg，HTML 文本） */
@@ -458,15 +482,19 @@ export async function augmentDisplay(augmentId: number): Promise<AugmentDisplayR
     gtimgResult.status === 'fulfilled' ? gtimgResult.value.get(augmentId) : undefined
   if (!cdragonAugment && !gtimgAugment) {
     // 两个数据源均未命中：返回空壳（name 为空串），调用方据此渲染占位
-    return { name: '', iconUrl: '' }
+    return { name: '', iconUrl: '', iconSources: [] }
   }
+  // CDragon 命中时的 CDN 图标（小图标路径优先），缺失时退回 gtimg 图标直链
+  const cdragonIconUrl = cdragonAugment
+    ? (resolveAssetUrl(cdragonAugment.augmentSmallIconPath ?? cdragonAugment.iconPath ?? '') ?? '')
+    : ''
+  const primaryIconUrl = cdragonIconUrl || (gtimgAugment?.iconUrl ?? '')
   return {
     // 中文名优先 gtimg（中文兜底），其次 CDragon 翻译名
     name: gtimgAugment?.name || cdragonAugment?.nameTRA || cdragonAugment?.name || '',
-    // 图标优先 CDragon 小图标路径（CDN 解析），CDragon 缺失时退回 gtimg 图标直链
-    iconUrl: cdragonAugment
-      ? (resolveAssetUrl(cdragonAugment.augmentSmallIconPath ?? cdragonAugment.iconPath ?? '') ?? '')
-      : (gtimgAugment?.iconUrl ?? ''),
+    iconUrl: primaryIconUrl,
+    // 降级链：本地（按 augment/{id} 镜像）→ 命中的 CDN 图标（CDragon 或 gtimg 直链）
+    iconSources: [augmentIconLocalUrl(augmentId), primaryIconUrl].filter(Boolean),
     // 稀有度以 gtimg 的 level 为准，缺失时退回 CDragon 的 rarity 字段
     rarity: gtimgAugment?.rarity || cdragonAugment?.rarity,
     // 中文描述仅 gtimg 提供（desc 优先，tooltip 兜底，含 HTML 标签）
@@ -480,6 +508,8 @@ export async function augmentDisplay(augmentId: number): Promise<AugmentDisplayR
 export interface PerkDisplayResource {
   name: string
   iconUrl: string
+  /** 降级链（本地 → CDragon，ADR 0004） */
+  iconSources: string[]
   /** 符文描述（HTML 文本，优先 CDragon longDesc 填充后描述） */
   descriptionHtml?: string
   /**
@@ -493,6 +523,8 @@ export interface PerkDisplayResource {
 export interface PerkstyleDisplayResource {
   name: string
   iconUrl: string
+  /** 降级链（本地 → CDragon，ADR 0004） */
+  iconSources: string[]
   /** 样式说明文本（主仓库 perkStyles.display 亦返回 tooltip 字段） */
   tooltip?: string
 }
@@ -568,19 +600,23 @@ export async function perkDisplay(perkId: number): Promise<PerkDisplayResource> 
     const perk = perks.get(perkId)
     // 未命中或字段不完整（老数据）：返回空壳，消费方据此渲染占位
     if (!perk?.name || !perk.iconPath) {
-      return { name: '', iconUrl: '' }
+      return { name: '', iconUrl: '', iconSources: [] }
     }
     return {
       name: perk.name,
       // iconPath 缺失时 resolveAssetUrl 返回 null，最终兜底为空串
       iconUrl: resolveAssetUrl(perk.iconPath) ?? '',
+      // 降级链：本地（按 perk/{id} 镜像）→ CDragon iconPath
+      iconSources: [perkIconLocalUrl(perk.id), resolveAssetUrl(perk.iconPath) ?? ''].filter(
+        Boolean
+      ),
       // 描述优先取 longDesc（填充数值的 HTML），兼容 description/tooltip 字段形状
       descriptionHtml: perk.longDesc ?? perk.description ?? perk.tooltip,
       // 对局内统计描述原样透传（占位符由消费方按选手对局数据替换，缺失时为空数组）
       endOfGameStatDescriptions: perk.endOfGameStatDescs ?? []
     }
   } catch {
-    return { name: '', iconUrl: '' }
+    return { name: '', iconUrl: '', iconSources: [] }
   }
 }
 
@@ -591,17 +627,21 @@ export async function perkstyleDisplay(styleId: number): Promise<PerkstyleDispla
     const style = styles.get(styleId)
     // 未命中或字段不完整：返回空壳，消费方据此渲染占位
     if (!style?.name || !style.iconPath) {
-      return { name: '', iconUrl: '' }
+      return { name: '', iconUrl: '', iconSources: [] }
     }
     return {
       name: style.name,
       // 样式图标同样经 resolveAssetUrl 转为 CDN 地址（缺失时为空串）
       iconUrl: resolveAssetUrl(style.iconPath) ?? '',
+      // 降级链：本地（按 perkstyle/{id} 镜像）→ CDragon iconPath
+      iconSources: [perkstyleIconLocalUrl(style.id), resolveAssetUrl(style.iconPath) ?? ''].filter(
+        Boolean
+      ),
       // 样式说明透传（缺失时不展示该行）
       tooltip: style.tooltip
     }
   } catch {
-    return { name: '', iconUrl: '' }
+    return { name: '', iconUrl: '', iconSources: [] }
   }
 }
 

@@ -7,7 +7,8 @@
  * 数据经 getMatchReplay（GET /api/matches/{gameId}/replay），不依赖 AI。
  */
 import { computed, onMounted, ref } from 'vue'
-import { championIconUrl } from '@/utils/icon-url'
+import { championIconSources } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 import MarkdownIt from 'markdown-it'
 import { NEmpty, NSpin } from 'naive-ui'
 import {
@@ -362,11 +363,12 @@ onMounted(async () => {
             {{ metaOf(point).label }}
           </span>
           <span class="text-xs opacity-60 tabular-nums">{{ formatTime(point.timestampMs) }}</span>
-          <!-- 涉及成员头像（spec #44）：缺失 ID 不渲染，detail 文字兜底 -->
-          <img
+          <!-- 涉及成员头像（spec #44）：缺失 ID 不渲染，detail 文字兜底；
+               降级链：本地镜像 → CDragon（ADR 0004） -->
+          <CdnImage
             v-for="p in point.involved.filter((m) => m.championId != null)"
             :key="p.name"
-            :src="championIconUrl(p.championId!)"
+            :sources="championIconSources(p.championId!)"
             :alt="p.championName"
             :data-testid="`champion-avatar-${p.name}`"
             :title="`${p.name}（${p.championName}）`"

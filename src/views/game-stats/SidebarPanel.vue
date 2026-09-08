@@ -6,7 +6,8 @@
  */
 import { onMounted, ref, computed } from 'vue'
 
-import { championIconUrl } from '@/utils/icon-url'
+import { championIconSources } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 import { listChampionOptions, type ChampionOption } from '@/utils/game-resource'
 import { createLogger } from '@/utils/logger'
 
@@ -140,7 +141,12 @@ const overviewItems: {
             :title="`${option.title}（${option.label}）`"
             @click="toggleChampion(option)"
           >
-            <img :src="championIconUrl(option.id)" :alt="option.label" class="tile-icon" />
+            <!-- 降级链：本地镜像 → CDragon（ADR 0004），统一懒加载与占位符 -->
+            <CdnImage
+              :sources="championIconSources(option.id)"
+              :alt="option.label"
+              class="tile-icon"
+            />
             <span class="tile-label">{{ option.label }}</span>
           </button>
           <p v-if="filteredChampionOptions.length === 0" class="tile-empty">无匹配英雄</p>
@@ -169,10 +175,10 @@ const overviewItems: {
       </div>
       <!-- 阵容分布：常用英雄头像小网格（top5，无数据时不渲染） -->
       <div v-if="data.overview.lineupChampionIds.length > 0" class="lineup">
-        <img
+        <CdnImage
           v-for="championId in data.overview.lineupChampionIds"
           :key="championId"
-          :src="championIconUrl(championId)"
+          :sources="championIconSources(championId)"
           alt="常用英雄"
           class="lineup-icon"
         />
@@ -184,7 +190,11 @@ const overviewItems: {
       <h3 class="panel-title">最近队友</h3>
       <ul v-if="data.recentTeammates.length > 0" class="recent-list">
         <li v-for="player in data.recentTeammates" :key="player.puuid" class="recent-item">
-          <img :src="championIconUrl(player.championId)" :alt="player.name" class="recent-avatar" />
+          <CdnImage
+            :sources="championIconSources(player.championId)"
+            :alt="player.name"
+            class="recent-avatar"
+          />
           <div class="recent-info">
             <p class="recent-name">{{ player.name }} <span class="recent-tag">#{{ player.tagLine }}</span></p>
             <p class="recent-record">{{ player.wins }}胜{{ player.losses }}负</p>
@@ -199,7 +209,11 @@ const overviewItems: {
       <h3 class="panel-title">最近对手</h3>
       <ul v-if="data.recentOpponents.length > 0" class="recent-list">
         <li v-for="player in data.recentOpponents" :key="player.puuid" class="recent-item">
-          <img :src="championIconUrl(player.championId)" :alt="player.name" class="recent-avatar" />
+          <CdnImage
+            :sources="championIconSources(player.championId)"
+            :alt="player.name"
+            class="recent-avatar"
+          />
           <div class="recent-info">
             <p class="recent-name">{{ player.name }} <span class="recent-tag">#{{ player.tagLine }}</span></p>
             <p class="recent-record">{{ player.wins }}胜{{ player.losses }}负</p>

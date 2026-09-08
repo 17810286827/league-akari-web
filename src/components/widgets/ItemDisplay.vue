@@ -3,8 +3,7 @@
   <NPopover v-if="itemDisplay && itemDisplay.name" :delay="50" :scrollable="true" style="max-height: 50vh">
     <template #trigger>
       <CdnImage
-        :path="itemDisplay.iconUrl"
-        :fallback="itemDisplay.fallbackIconUrl"
+        :sources="itemDisplay.iconSources"
         :style="{ width: `${size}px`, height: `${size}px` }"
         class="item"
         :class="{ trinket: isTrinket, item: !isTrinket }"
@@ -13,7 +12,7 @@
 
     <div class="info item-display-popover">
       <!-- 弹窗大图与触发图标同源同兜底（主源 404 时两处一并切换兜底源） -->
-      <CdnImage class="image" :path="itemDisplay.iconUrl" :fallback="itemDisplay.fallbackIconUrl" />
+      <CdnImage class="image" :sources="itemDisplay.iconSources" />
       <div class="right-side">
         <div class="name">
           {{ itemDisplay.name }}

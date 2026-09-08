@@ -3,14 +3,14 @@
   <NPopover v-if="perkDisplay && perkDisplay.name" :delay="50">
     <template #trigger>
       <CdnImage
-        :path="perkDisplay.iconUrl"
+        :sources="perkDisplay.iconSources"
         v-bind="$attrs"
         :style="{ width: `${size}px`, height: `${size}px` }"
         class="perk"
       />
     </template>
     <div :style="{ 'max-width': `${maxWidth}px` }" class="info">
-      <CdnImage class="image" :path="perkDisplay.iconUrl" />
+      <CdnImage class="image" :sources="perkDisplay.iconSources" />
       <div class="right-side">{{ perkDisplay.name }}</div>
     </div>
     <div

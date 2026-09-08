@@ -243,6 +243,107 @@ describe('装备图标动态版本 + CDragon 兜底', () => {
 })
 
 /**
+ * 展示资源多源图标测试（ADR 0004 图标本地化）：
+ * 各 DisplayResource 携带 iconSources 降级链（本地 → CDN），
+ * CdnImage 以 sources 属性逐级回退；既有单 URL 字段保持不变（旧消费方零改动）。
+ */
+describe('展示资源多源图标（本地优先）', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ data: [] }))))
+
+  it('itemDisplay 的 iconSources 为三级链：本地 → DDragon → CDragon', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([
+        {
+          id: 226668,
+          name: '终极九头蛇',
+          description: '',
+          price: 0,
+          priceTotal: 2500,
+          iconPath: '/lol-game-data/assets/ASSETS/Items/Icons2D/Kiwi/ARAM_UltimateHydra_64.png'
+        }
+      ])
+    )
+    const display = await fresh.itemDisplay(226668)
+    // 三级链：本地（同步脚本镜像）→ DDragon 动态版本 → CDragon（LCU 原路径，由 CdnImage 渲染时经 resolveAssetUrl 解析）
+    expect(display.iconSources).toEqual([
+      '/icons/item/226668.png',
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/226668.png',
+      '/lol-game-data/assets/ASSETS/Items/Icons2D/Kiwi/ARAM_UltimateHydra_64.png'
+    ])
+  })
+
+  it('itemDisplay 的 iconPath 缺失时链为二级（本地 → DDragon，不虚构 CDragon 兜底）', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok(['16.17.1']))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok([{ id: 1001, name: '鞋子', description: '', price: 300, priceTotal: 300 }])
+    )
+    const display = await fresh.itemDisplay(1001)
+    expect(display.iconSources).toEqual([
+      '/icons/item/1001.png',
+      'https://ddragon.leagueoflegends.com/cdn/16.17.1/img/item/1001.png'
+    ])
+  })
+
+  it('spellDisplay 的 iconSources 为二级链：本地 → CDragon', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ data: { '4': { id: 4, name: '闪现', description: '', summonerLevel: 9, cooldown: 300, iconPath: '/lol-game-data/assets/ASSETS/Spell/Icons/SummonerFlash.png' } } })
+    )
+    // 未命中返回 null（数据层空值契约）：空值收窄后再断言链
+    const display = await fresh.spellDisplay(4)
+    expect(display).not.toBeNull()
+    expect(display!.iconSources).toEqual([
+      '/icons/spell/4.png',
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/spell/icons/summonerflash.png'
+    ])
+  })
+
+  it('perkDisplay / perkstyleDisplay 的 iconSources 为二级链（本地 → CDragon）', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ data: { '8112': { id: 8112, name: '电刑', iconPath: '/lol-game-data/assets/ASSETS/Perks/Styles/Domination/Electrocute/Electrocute.png' } } })
+    )
+    const perk = await fresh.perkDisplay(8112)
+    expect(perk.iconSources).toEqual([
+      '/icons/perk/8112.png',
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/perks/styles/domination/electrocute/electrocute.png'
+    ])
+  })
+
+  it('augmentDisplay 的 iconSources：CDragon 主源命中时为 本地 → CDragon 二级链', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ data: { '30': { name: '全凭身手', iconPath: '/lol-game-data/assets/v1/augments/30.png' } } })
+    )
+    vi.mocked(fetch).mockResolvedValueOnce(ok({ data: [] }))
+    const display = await fresh.augmentDisplay(30)
+    expect(display.iconSources).toEqual([
+      '/icons/augment/30.png',
+      'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/augments/30.png'
+    ])
+  })
+
+  it('augmentDisplay 的 CDragon 缺失、gtimg 兜底命中时：链为 本地 → gtimg 直链', async () => {
+    vi.resetModules()
+    const fresh = await import('../game-resource')
+    vi.mocked(fetch).mockResolvedValueOnce(ok({ data: {} }))
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ok({ data: { '30': { augmentID: 30, name_cn: '全凭身手', tooltip: '回复生命', level: 'kGold', large_Icon: 'https://game.gtimg.cn/aug/30.png' } } })
+    )
+    const display = await fresh.augmentDisplay(30)
+    expect(display.iconSources).toEqual(['/icons/augment/30.png', 'https://game.gtimg.cn/aug/30.png'])
+  })
+})
+
+/**
  * 英雄筛选选项数据源（按英雄过滤对局功能）：
  * champion-summary 的 name 为称号、description 为本名，选项双字段供称号/本名实时匹配；
  * 非英雄记录（id ≤ 0，如 -1 "无"）必须排除；

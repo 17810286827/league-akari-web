@@ -10,6 +10,20 @@ import { createLogger } from '@/utils/logger'
 const logger = createLogger('IconUrl')
 
 /**
+ * 本地化图标 URL 前缀（ADR 0004 图标本地化）：
+ * 同步脚本把图标下载到 public/icons/，构建后由 nginx 以 /icons/ 路径直出。
+ * 以本前缀开头的地址是站点相对路径，CdnImage 直接渲染、不转 CDN
+ */
+export const LOCAL_ICON_PREFIX = '/icons/'
+
+/**
+ * 判断地址是否为本地化图标（站点相对路径，直接渲染不走 CDN 转换）
+ */
+export function isLocalIconUrl(url: string): boolean {
+  return url.startsWith(LOCAL_ICON_PREFIX)
+}
+
+/**
  * 英雄头像 CDN：CommunityDragon 官方镜像（已验证可达）
  * @param championId 英雄 ID，如 1（安妮）
  * @returns 头像 PNG 完整地址
@@ -20,8 +34,9 @@ export function championIconUrl(championId: number): string {
 
 // ---- Data Dragon 版本动态探测 ----
 
-// 写死兜底版本：仅作探测失败时的回退值（探测成功后立即切换为最新版本）
-const FALLBACK_DD_DRAGON_VERSION = '16.16.1'
+// 写死兜底版本：仅作探测失败时的回退值（探测成功后立即切换为最新版本）；
+// 导出供同步脚本复用同一兜底语义
+export const FALLBACK_DD_DRAGON_VERSION = '16.16.1'
 // 版本列表数据源：首元素即最新版本（官方稳定接口，CORS 已放开）
 const DD_DRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json'
 
@@ -70,10 +85,11 @@ export function ensureDdDragonVersion(): Promise<string> {
 /**
  * 出装图标 CDN 地址（Data Dragon 主源，版本号为动态探测值）
  * @param itemId 物品 ID，如 6653
+ * @param version 可选显式版本（同步脚本探测后传入）；缺省用模块内当前生效版本
  * @returns 图标 PNG 完整地址
  */
-export function itemIconUrl(itemId: number): string {
-  return `https://ddragon.leagueoflegends.com/cdn/${ddDragonVersion}/img/item/${itemId}.png`
+export function itemIconUrl(itemId: number, version: string = ddDragonVersion): string {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${itemId}.png`
 }
 
 /**
@@ -86,4 +102,59 @@ export function profileIconUrl(profileIconId?: number | null): string {
     return ''
   }
   return `https://ddragon.leagueoflegends.com/cdn/${ddDragonVersion}/img/profileicon/${profileIconId}.png`
+}
+
+// ---- 本地化图标多源构造（ADR 0004 图标本地化）----
+//
+// 各构造函数返回「本地 → CDN」降级链：本地路径由同步脚本批量下载到 public/icons/
+//（按类型 + ID 命名），本地缺图（未同步的新英雄/新装备）时 CdnImage 自动回退 CDN。
+// 装备保持 DDragon → CDragon 双源语义（ADR 0003），前置本地后为三级链。
+
+/** 本地化图标类型（目录名，字面量联合防止拼写错位——脚本/运行时失配即永久缺图） */
+export type IconKind = 'champion' | 'item' | 'spell' | 'perk' | 'perkstyle' | 'augment'
+
+/** 按类型 + ID 拼本地化图标路径（同步脚本与运行时共用的命名约定） */
+function localIconUrl(kind: IconKind, id: number): string {
+  return `${LOCAL_ICON_PREFIX}${kind}/${id}.png`
+}
+
+/**
+ * 英雄头像降级链：本地 → CDragon（二级）
+ * @param championId 英雄 ID，如 103（阿狸）
+ */
+export function championIconSources(championId: number): string[] {
+  return [localIconUrl('champion', championId), championIconUrl(championId)]
+}
+
+/**
+ * 装备图标完整降级链：本地 → DDragon → CDragon（ADR 0004 本地化 + ADR 0003 双源叠加）
+ * @param itemId 物品 ID，如 6653
+ * @param cdragonIconPath 可选的 LCU iconPath（CDragon 兜底源）；缺失时链为前两级
+ */
+export function itemIconSources(itemId: number, cdragonIconPath?: string): string[] {
+  const chain = [localIconUrl('item', itemId), itemIconUrl(itemId)]
+  if (cdragonIconPath && cdragonIconPath.startsWith('/')) {
+    chain.push(cdragonIconPath)
+  }
+  return chain
+}
+
+/** 召唤师技能图标本地路径（CDragon iconPath 无 ID 规律可循，本地化按 spell/{id} 命名） */
+export function spellIconLocalUrl(spellId: number): string {
+  return localIconUrl('spell', spellId)
+}
+
+/** 符文图标本地路径 */
+export function perkIconLocalUrl(perkId: number): string {
+  return localIconUrl('perk', perkId)
+}
+
+/** 符文页样式图标本地路径 */
+export function perkstyleIconLocalUrl(styleId: number): string {
+  return localIconUrl('perkstyle', styleId)
+}
+
+/** 海克斯强化图标本地路径 */
+export function augmentIconLocalUrl(augmentId: number): string {
+  return localIconUrl('augment', augmentId)
 }

@@ -20,19 +20,48 @@ import MatchCardRunesTab from '../MatchCardRunesTab.vue'
  * 真实符文 ID + 含 @eogvarN@ 占位符的对局内统计描述，未命中返回空壳
  */
 const perkTable = vi.hoisted(() => {
-  const table: Record<number, { name: string; iconUrl: string; endOfGameStatDescriptions?: string[] }> = {
+  const table: Record<
+    number,
+    { name: string; iconUrl: string; iconSources: string[]; endOfGameStatDescriptions?: string[] }
+  > = {
     8005: {
       name: '强攻',
       iconUrl: '',
+      iconSources: ['/icons/perk/8005.png'],
       endOfGameStatDescriptions: ['伤害总和：@eogvar1@', '额外伤害：@eogvar2@']
     },
-    8009: { name: '致命节奏', iconUrl: '', endOfGameStatDescriptions: [] },
-    8010: { name: '征服者', iconUrl: '', endOfGameStatDescriptions: ['治疗效果：@eogvar1@'] },
-    8014: { name: '迅捷步法', iconUrl: '', endOfGameStatDescriptions: ['移动速度：@eogvar1@'] },
-    8304: { name: '神奇之鞋', iconUrl: '', endOfGameStatDescriptions: [] },
-    8347: { name: '小兵去质器', iconUrl: '', endOfGameStatDescriptions: ['补刀数：@eogvar1@'] },
-    5008: { name: '自适应之力', iconUrl: '' },
-    5005: { name: '攻击速度', iconUrl: '' }
+    8009: {
+      name: '致命节奏',
+      iconUrl: '',
+      iconSources: ['/icons/perk/8009.png'],
+      endOfGameStatDescriptions: []
+    },
+    8010: {
+      name: '征服者',
+      iconUrl: '',
+      iconSources: ['/icons/perk/8010.png'],
+      endOfGameStatDescriptions: ['治疗效果：@eogvar1@']
+    },
+    8014: {
+      name: '迅捷步法',
+      iconUrl: '',
+      iconSources: ['/icons/perk/8014.png'],
+      endOfGameStatDescriptions: ['移动速度：@eogvar1@']
+    },
+    8304: {
+      name: '神奇之鞋',
+      iconUrl: '',
+      iconSources: ['/icons/perk/8304.png'],
+      endOfGameStatDescriptions: []
+    },
+    8347: {
+      name: '小兵去质器',
+      iconUrl: '',
+      iconSources: ['/icons/perk/8347.png'],
+      endOfGameStatDescriptions: ['补刀数：@eogvar1@']
+    },
+    5008: { name: '自适应之力', iconUrl: '', iconSources: ['/icons/perk/5008.png'] },
+    5005: { name: '攻击速度', iconUrl: '', iconSources: ['/icons/perk/5005.png'] }
   }
   return table
 })
@@ -43,7 +72,9 @@ vi.mock('@/utils/game-resource', async (importOriginal) => {
   return {
     ...actual,
     getChampionName: vi.fn(() => '菲奥娜'),
-    perkDisplay: vi.fn(async (perkId: number) => perkTable[perkId] ?? { name: '', iconUrl: '' }),
+    perkDisplay: vi.fn(
+      async (perkId: number) => perkTable[perkId] ?? { name: '', iconUrl: '', iconSources: [] }
+    ),
     perkstyleDisplay: vi.fn().mockResolvedValue({ name: '', iconUrl: '' }),
     itemDisplay: vi.fn().mockResolvedValue({
       id: 1,

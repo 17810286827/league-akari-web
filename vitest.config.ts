@@ -8,8 +8,8 @@ export default mergeConfig(
     test: {
       // 测试环境：jsdom（模拟浏览器 DOM）
       environment: 'jsdom',
-      // 测试文件匹配规则：src 下的 *.test.ts
-      include: ['src/**/*.test.ts'],
+      // 测试文件匹配规则：src 与 scripts（同步脚本纯函数）下的 *.test.ts
+      include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
       // 每个用例前自动恢复 mock（清空 mock 实现与调用记录）
       restoreMocks: true
     }

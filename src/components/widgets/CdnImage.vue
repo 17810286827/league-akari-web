@@ -1,8 +1,9 @@
 <!-- CDN 图片组件：替换原版 LcuImage（akari:// 协议）
      path 与 LcuImage 的 src 语义一致——接受 LCU 资源路径（/lol-game-data/...，经 resolveAssetUrl 转 CDN URL），
      也接受已解析的完整 URL（如 game-resource 的 iconUrl / gtimg 直链，直接透传）；
-     图片加载失败的降级链路：可选 fallback（兜底源）重试一次 → 仍失败渲染灰色占位
-     （无 fallback 时保持旧行为：失败直接灰占位，对齐 LcuImage 的 placeholder） -->
+     图片加载失败的降级链路有两套接口（新接口优先）：
+     - sources（多级降级链，ADR 0004）：源数组逐级回退，全失败渲染灰色占位
+     - path + fallback（旧接口，装备双源 ADR 0003）：主源失败换兜底重试一次 → 仍失败灰占位 -->
 <script setup lang="ts">
 /**
  * 组件用途：替代原版 LcuImage（akari:// 协议），
@@ -11,59 +12,87 @@
 import { computed, ref, watch } from 'vue'
 
 import { resolveAssetUrl } from '@/utils/game-resource'
+import { isLocalIconUrl } from '@/utils/icon-url'
 
 /** class 接受与原生元素一致的形态（字符串/对象/数组，透传给 img） */
 type ClassValue = string | Record<string, boolean> | Array<string | Record<string, boolean>>
 
 const props = withDefaults(
   defineProps<{
-    /** 主源图片地址（LCU 路径或完整 URL） */
-    path: string
+    /** 主源图片地址（LCU 路径或完整 URL）——旧接口，sources 存在时被忽略 */
+    path?: string
     /** 兜底源地址（可选）：主源加载失败时换用重试一次，如装备图标的 CDragon 资源地址 */
     fallback?: string
+    /**
+     * 多级降级链（ADR 0004 图标本地化）：源数组按序逐级回退，如装备的
+     * 本地 → DDragon → CDragon；传本属性时忽略 path/fallback。
+     * 数组元素语义与 path 一致（LCU 路径或完整 URL）
+     */
+    sources?: string[]
     class?: ClassValue
     alt?: string
   }>(),
-  { fallback: undefined, class: undefined, alt: '' }
+  { path: undefined, fallback: undefined, sources: undefined, class: undefined, alt: '' }
 )
 
-// 非法路径（不以 / 开头）时 resolveAssetUrl 返回 null，回退原值（此时为已解析的完整 URL）
-const src = computed(() => resolveAssetUrl(props.path) ?? props.path)
+/** 新接口（sources）生效标志：未传时走旧接口（path + fallback），保持向后兼容 */
+const useSources = computed(() => Array.isArray(props.sources))
 
-// 主源加载失败标记（如 ddragon 版本交界期缺新装备图标）
-const failed = ref(false)
-// 兜底源加载失败标记：主源与兜底源均失败后才渲染灰占位
-const fallbackFailed = ref(false)
-// path 变化时重置两级失败标记，避免组件复用时残留旧的失败状态
+/**
+ * 归一化为多级降级链：
+ * - 新接口：sources 原样使用
+ * - 旧接口：path 为主源，fallback 存在时追加为次源（无 fallback 时仅主源，失败直接灰占位）
+ */
+const chain = computed<string[]>(() => {
+  if (useSources.value) {
+    return props.sources ?? []
+  }
+  const legacy: string[] = []
+  if (props.path !== undefined) {
+    legacy.push(props.path)
+  }
+  if (props.fallback !== undefined) {
+    legacy.push(props.fallback)
+  }
+  return legacy
+})
+
+// 当前源在链中的索引（@error 时递增；越界即链耗尽，渲染灰占位）
+const sourceIndex = ref(0)
+
+// 当前源的渲染地址：本地化图标直接透传；LCU 路径经 resolveAssetUrl 转 CDN URL；完整 URL 透传
+const src = computed(() => {
+  const current = chain.value[sourceIndex.value]
+  if (current === undefined) {
+    return ''
+  }
+  // 本地化图标（/icons/...）是站点相对路径，禁止拼接 CDN 前缀
+  if (isLocalIconUrl(current)) {
+    return current
+  }
+  // 非法路径（不以 / 开头）时 resolveAssetUrl 返回 null，回退原值（此时为已解析的完整 URL）
+  return resolveAssetUrl(current) ?? current
+})
+
+// 链变化时重置失败索引，避免组件复用时残留旧的降级状态（如列表虚拟滚动复用）
 watch(
-  () => props.path,
+  () => chain.value,
   () => {
-    failed.value = false
-    fallbackFailed.value = false
+    sourceIndex.value = 0
   }
 )
 </script>
 
 <template>
-  <!-- 第一级：主源 -->
+  <!-- 链未耗尽：渲染当前源，失败推进到下一级 -->
   <img
-    v-if="!failed"
+    v-if="sourceIndex < chain.length"
     :src="src"
     :class="props.class"
     :alt="props.alt"
     loading="lazy"
     @dragstart.prevent
-    @error="failed = true"
-  />
-  <!-- 第二级：兜底源（未配置 fallback 或兜底也已失败时跳过，直接灰占位） -->
-  <img
-    v-else-if="fallback && !fallbackFailed"
-    :src="fallback"
-    :class="props.class"
-    :alt="props.alt"
-    loading="lazy"
-    @dragstart.prevent
-    @error="fallbackFailed = true"
+    @error="sourceIndex += 1"
   />
   <!-- 最终占位：与 LcuImage 的 .lcu-image-placeholder 一致（灰底圆角，暗色模式加深） -->
   <div v-else class="cdn-image-placeholder" :class="props.class" />

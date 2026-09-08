@@ -11,7 +11,8 @@ import { useRouter } from 'vue-router'
 import { getDuoExtended, getDuoMatrix, getMemberCard, getTeamLeaderboard, apiErrorMessage, LEADERBOARD_DIMENSIONS } from '@/api/team'
 import type { DuoExtended, DuoMatrix, LineupStats, TeamBoardEntry, TeamLeaderboard, TeamMemberCard } from '@/api/team'
 import { format2, formatInt, formatStat } from '@/utils/format'
-import { championIconUrl } from '@/utils/icon-url'
+import { championIconSources } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
@@ -353,10 +354,11 @@ onMounted(load)
                     <template v-for="(m, memberIndex) in lineup.members" :key="m">
                       <!-- 成员间 " + " 分隔（既有展示契约） -->
                       <span v-if="memberIndex > 0" class="opacity-60"> + </span>
-                      <!-- 成员常用英雄头像（spec #44）：memberChampions 缺失的旧数据不渲染 -->
-                      <img
+                      <!-- 成员常用英雄头像（spec #44）：memberChampions 缺失的旧数据不渲染；
+                           降级链：本地镜像 → CDragon（ADR 0004） -->
+                      <CdnImage
                         v-if="lineupChampionOf(lineup, m)?.championId != null"
-                        :src="championIconUrl(lineupChampionOf(lineup, m)!.championId!)"
+                        :sources="championIconSources(lineupChampionOf(lineup, m)!.championId!)"
                         :alt="m.split('#')[0]"
                         :data-testid="`champion-avatar-${m}`"
                         class="mr-1 inline-block h-5 w-5 rounded-md object-cover align-text-bottom"
@@ -382,10 +384,11 @@ onMounted(load)
             :data-testid="`champion-group-${group.champion}`"
           >
             <div class="p-5">
-              <!-- 分组标题头像（spec #44）：组内首条目的英雄 -->
-              <img
+              <!-- 分组标题头像（spec #44）：组内首条目的英雄；
+                   降级链：本地镜像 → CDragon（ADR 0004） -->
+              <CdnImage
                 v-if="group.items[0]?.championId != null"
-                :src="championIconUrl(group.items[0]!.championId!)"
+                :sources="championIconSources(group.items[0]!.championId!)"
                 :alt="group.champion"
                 :data-testid="`champion-avatar-${group.champion}`"
                 class="mb-1 h-6 w-6 rounded-md object-cover"

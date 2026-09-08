@@ -31,6 +31,7 @@ describe('ItemDisplay 合成路径', () => {
       id: 3089,
       name: '灭世者的死亡之帽',
       iconUrl: '',
+      iconSources: ['/icons/item/3089.png', 'https://ddragon.example/img/item/3089.png'],
       descriptionHtml: '大幅提升法术强度',
       price: 1200,
       totalPrice: 3600,
@@ -70,6 +71,7 @@ describe('ItemDisplay 合成路径', () => {
       id: 1001,
       name: '鞋子',
       iconUrl: '',
+      iconSources: ['/icons/item/1001.png'],
       descriptionHtml: '移动速度',
       price: 300,
       totalPrice: 300,
@@ -90,14 +92,19 @@ describe('ItemDisplay 合成路径', () => {
     expect(document.body.querySelectorAll('.to')).toHaveLength(0)
   })
 
-  it('主源图标加载失败时换 fallbackIconUrl 兜底源重试（双源策略）', async () => {
-    // 新装备场景：写死版本下 ddragon 图标 404，数据层随资源返回 CDragon 兜底地址
+  it('本地镜像缺失时逐级回退：本地 → DDragon → CDragon（ADR 0004 三级链）', async () => {
+    // 新装备场景：本地未同步（新版本装备）+ ddragon 图标 404，逐级回退到 CDragon 兜底
     vi.mocked(itemDisplay).mockResolvedValueOnce({
       id: 226668,
       name: '终极九头蛇',
       iconUrl: 'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png',
       fallbackIconUrl:
         'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png',
+      iconSources: [
+        '/icons/item/226668.png',
+        'https://ddragon.leagueoflegends.com/cdn/16.16.1/img/item/226668.png',
+        'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/items/icons2d/kiwi/aram_ultimatehydra_64.png'
+      ],
       descriptionHtml: '',
       price: 0,
       totalPrice: 2500,
@@ -109,7 +116,10 @@ describe('ItemDisplay 合成路径', () => {
     )
     await flushPromises()
 
-    // 主源（Data Dragon）加载失败：img 仍在，src 切换为 CDragon 兜底地址
+    // 第一级（本地）失败：回退 DDragon
+    await wrapper.get('img').trigger('error')
+    expect(wrapper.get('img').attributes('src')).toContain('/16.16.1/img/item/226668.png')
+    // 第二级（DDragon）失败：回退 CDragon 兜底地址
     await wrapper.get('img').trigger('error')
     expect(wrapper.get('img').attributes('src')).toContain('aram_ultimatehydra_64.png')
   })

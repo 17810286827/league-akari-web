@@ -43,10 +43,83 @@ describe('CdnImage', () => {
 })
 
 /**
- * 兜底降级链路测试（装备图标双源策略）：
- * 主源（Data Dragon）404（如写死版本落后缺新装备图标）→ 换 fallback 重试一次 →
- * 兜底也失败才渲染灰占位。覆盖三级语义与 path 变化时的状态重置。
+ * 多级降级链测试（图标本地化，ADR 0004）：
+ * sources 属性接受任意长度的源数组，逐级回退直到全部失败才渲染灰占位；
+ * 与旧接口（path + fallback）互斥：传 sources 时忽略 path/fallback。
  */
+describe('CdnImage 多级降级链', () => {
+  /** 触发当前渲染的 img 的 @error 事件（模拟当前源加载失败） */
+  async function failCurrentImage(wrapper: ReturnType<typeof mount>) {
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(true)
+    await img.trigger('error')
+    await wrapper.vm.$nextTick()
+  }
+
+  it('sources 单源：成功渲染该源，失败直接灰占位（链长为 1 的边界）', () => {
+    const wrapper = mount(CdnImage, {
+      props: { sources: ['/icons/champion/103.png'] }
+    })
+    // 单源成功：img 的 src 即该源（以 / 开头的相对路径原样渲染，不走 resolveAssetUrl）
+    expect(wrapper.get('img').attributes('src')).toBe('/icons/champion/103.png')
+  })
+
+  it('sources 三级链（本地 → DDragon → CDragon）：逐级回退，第三级成功即停', async () => {
+    const wrapper = mount(CdnImage, {
+      props: {
+        sources: [
+          '/icons/item/6653.png',
+          'https://ddragon.example/cdn/16.17.1/img/item/6653.png',
+          'https://cdragon.example/assets/items/icons2d/6653.png'
+        ]
+      }
+    })
+    // 第一级（本地）失败 → 第二级（DDragon）
+    await failCurrentImage(wrapper)
+    expect(wrapper.get('img').attributes('src')).toBe(
+      'https://ddragon.example/cdn/16.17.1/img/item/6653.png'
+    )
+    // 第二级失败 → 第三级（CDragon）成功，不再回退
+    await failCurrentImage(wrapper)
+    expect(wrapper.get('img').attributes('src')).toBe(
+      'https://cdragon.example/assets/items/icons2d/6653.png'
+    )
+    expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(false)
+  })
+
+  it('sources 全部失败后渲染灰占位（链耗尽）', async () => {
+    const wrapper = mount(CdnImage, {
+      props: { sources: ['https://a.example/1.png', 'https://b.example/2.png'] }
+    })
+    await failCurrentImage(wrapper)
+    await failCurrentImage(wrapper)
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.find('.cdn-image-placeholder').exists()).toBe(true)
+  })
+
+  it('传 sources 时忽略 path/fallback（新接口优先，避免双接口叠加）', async () => {
+    const wrapper = mount(CdnImage, {
+      props: {
+        path: 'https://old.example/path.png',
+        fallback: 'https://old.example/fb.png',
+        sources: ['https://new.example/new.png']
+      }
+    })
+    expect(wrapper.get('img').attributes('src')).toBe('https://new.example/new.png')
+  })
+
+  it('sources 变化时重置失败索引：切回新链首源重新加载', async () => {
+    const wrapper = mount(CdnImage, {
+      props: { sources: ['https://a.example/1.png', 'https://a.example/1-fb.png'] }
+    })
+    await failCurrentImage(wrapper)
+    expect(wrapper.get('img').attributes('src')).toBe('https://a.example/1-fb.png')
+    // 链更新 → 失败索引重置，img 回到新链首源
+    await wrapper.setProps({ sources: ['https://b.example/2.png'] })
+    expect(wrapper.get('img').attributes('src')).toBe('https://b.example/2.png')
+  })
+})
+
 describe('CdnImage 兜底降级', () => {
   /** 触发当前渲染的 img 的 @error 事件（模拟主源/兜底源加载失败） */
   async function failCurrentImage(wrapper: ReturnType<typeof mount>) {

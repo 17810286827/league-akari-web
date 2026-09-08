@@ -2,11 +2,12 @@
   <!-- 英雄头像容器：round 时圆形裁剪；stretched 时去除黑边（图标放大 112%） -->
   <div class="champion-icon-container" :class="{ round: round }">
     <img class="plain-img" v-if="imageSource?.source === 'url'" :src="imageSource.iconPath" />
+    <!-- 降级链：本地（icons/champion/{id}）→ CDragon（ADR 0004 本地化） -->
     <CdnImage
       v-else
       class="champion-icon"
       :class="{ 'champion-icon-stretched': stretched }"
-      :path="imageSource?.iconPath"
+      :sources="imageSource?.sources"
     />
     <!-- ring 系列（历史遗留属性，后续逐步移除） -->
     <div
@@ -31,6 +32,7 @@ import { computed } from 'vue'
 
 import CdnImage from './CdnImage.vue'
 import braveryIcon from '@/assets/champions/bravery-circle.png'
+import { championIconSources } from '@/utils/icon-url'
 
 const { championId = -1, stretched = true } = defineProps<{
   championId?: number
@@ -43,15 +45,16 @@ const { championId = -1, stretched = true } = defineProps<{
   ringWidth?: number
 }>()
 
-/** 头像数据源：-3（随机/Bravery）用本地图标直链，其余按 CDragon 约定组装 LCU 路径 */
+/** 头像数据源：-3（随机/Bravery）用本地图标直链，其余按本地 → CDragon 降级链组装 */
 const imageSource = computed(() => {
   if (championId === -3) {
-    return { source: 'url', iconPath: braveryIcon }
+    return { source: 'url' as const, iconPath: braveryIcon }
   }
 
   return {
-    source: 'lcu',
-    iconPath: `/lol-game-data/assets/v1/champion-icons/${championId}.png`
+    source: 'lcu' as const,
+    // 降级链：本地镜像（/icons/champion/{id}）→ CDragon champion-icons（ADR 0004）
+    sources: championIconSources(championId)
   }
 })
 </script>

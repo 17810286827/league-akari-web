@@ -6,6 +6,7 @@
 import { useRouter } from 'vue-router'
 
 import { profileIconUrl } from '@/utils/icon-url'
+import CdnImage from '@/components/widgets/CdnImage.vue'
 
 import type { RankSection } from './types'
 
@@ -32,12 +33,12 @@ function goHome(): void {
     <!-- 左侧：查询玩家信息（召唤师头像 + 昵称 + 等级） -->
     <div class="player-info">
       <template v-if="player">
-        <img
+        <!-- 召唤师头像：数量大不做本地化（ADR 0004），DDragon 单源；收口 CdnImage 统一占位符 -->
+        <CdnImage
           v-if="profileIconUrl(player.profileIconId)"
-          :src="profileIconUrl(player.profileIconId)"
+          :path="profileIconUrl(player.profileIconId)"
           alt="玩家头像"
           class="player-avatar"
-          loading="lazy"
         />
         <div v-else class="player-avatar player-avatar-placeholder" />
         <div class="player-meta">
