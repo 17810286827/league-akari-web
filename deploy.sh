@@ -103,11 +103,22 @@ if [[ -n "${previous_image}" ]]; then
   export IMAGE_REPOSITORY="${previous_image%:*}"
   export IMAGE_TAG="${previous_image##*:}"
   compose up -d --no-build --force-recreate league-akari-web # ← 前端适配：compose 服务名
-  if is_healthy; then
+  # 回滚健康检查与主部署同口径：循环等待而非单次探测——
+  # compose up 返回时容器刚创建，nginx 尚未监听，立即探测必失败
+  # （2026-09-19 部署事故：回滚容器 5 秒后已 healthy，但脚本 0.4 秒就误判"仍失败"）
+  rollback_ok=0
+  for ((elapsed=0; elapsed<HEALTH_TIMEOUT_SECONDS; elapsed+=HEALTH_INTERVAL_SECONDS)); do
+    if is_healthy; then
+      rollback_ok=1
+      break
+    fi
+    sleep "${HEALTH_INTERVAL_SECONDS}"
+  done
+  if (( rollback_ok )); then
     printf '%s\n' "${previous_image}" > "${CURRENT_FILE}"
     log "回滚成功，前端已恢复上一版本" # ← 前端适配：无数据库迁移表述
   else
-    log "ERROR: 回滚后健康检查仍失败，请人工处理"
+    log "ERROR: 回滚后健康检查仍失败（已等待 ${HEALTH_TIMEOUT_SECONDS} 秒），请人工处理"
   fi
 else
   log "首次部署失败，不执行回滚；失败镜像已标记为 ${failed_image}"
