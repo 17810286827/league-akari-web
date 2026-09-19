@@ -7,7 +7,7 @@
  * 口径（ADR 0013/0014）：全库参与者行；胜率分母=持有局数；出场率分母=英雄对局数。
  * 视觉：海克斯魔典（ADR 0002），复用 hex 共享组件与 AugmentDisplay/ChampionIcon。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { apiErrorMessage, getSeasonArchive } from '@/api/team'
@@ -17,6 +17,7 @@ import ChampionIcon from '@/components/widgets/ChampionIcon.vue'
 import GoldText from '@/components/hex/GoldText.vue'
 import HexPageShell from '@/components/hex/HexPageShell.vue'
 import HexPanel from '@/components/hex/HexPanel.vue'
+import { augmentDisplay as fetchAugmentDisplay } from '@/utils/game-resource'
 
 const router = useRouter()
 
@@ -28,6 +29,38 @@ function goHome(): void {
 /** 跳转姊妹页：赛季报告（版本→胜率轴，与英雄×强化轴互补） */
 function goSeasonReport(): void {
   router.push('/season-report')
+}
+
+// ---- 海克斯强化名称缓存（augmentId → 中文名）----
+// 展示层异步加载（CDragon/gtimg 双源，见 game-resource.augmentDisplay）；
+// 未知强化名称空串 → 渲染回退 "#ID"。页面内所有强化条目共享此缓存，
+// 切版本/切英雄不重复请求。
+const augmentNames = ref<Record<number, string>>({})
+
+/** 缺失名称的强化条目批量补载（只补缓存里没有的 ID） */
+async function ensureAugmentNames(augmentIds: number[]): Promise<void> {
+  const missing = augmentIds.filter((id) => augmentNames.value[id] === undefined)
+  if (missing.length === 0) {
+    return
+  }
+  // 先占位空串防止并发重复请求，命中后覆写为中文名
+  for (const id of missing) {
+    augmentNames.value = { ...augmentNames.value, [id]: '' }
+  }
+  const results = await Promise.allSettled(missing.map((id) => fetchAugmentDisplay(id)))
+  const next = { ...augmentNames.value }
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value.name) {
+      next[missing[i]] = r.value.name
+    }
+  })
+  augmentNames.value = next
+}
+
+/** 强化显示名：中文名优先，未知回退 "#ID" */
+function augmentName(augmentId: number): string {
+  const name = augmentNames.value[augmentId]
+  return name ? name : `#${augmentId}`
 }
 
 // ---- 数据装载 ----
@@ -103,6 +136,16 @@ const sortedAugments = computed<SeasonAugmentEntry[]>(() => {
 
 /** 小样本门槛：局数 < 3 降透明度并沉底（CONTEXT 词条「强化小样本」） */
 const SMALL_SAMPLE_GAMES = 3
+
+// 名称缓存补载：选中英雄的强化条目变化时触发（含初次加载与切英雄/切版本）
+watch(
+  () => selectedChampion.value?.augments.map((a) => a.augmentId).join(','),
+  () => {
+    const ids = selectedChampion.value?.augments.map((a) => a.augmentId) ?? []
+    void ensureAugmentNames(ids)
+  },
+  { immediate: true }
+)
 
 /** 百分比展示（0-1 → "63%"；0 局显示 "—"） */
 function pct(rate: number, games: number): string {
@@ -365,7 +408,9 @@ onBeforeUnmount(() => {
               <td class="py-2 pl-1">
                 <span class="flex items-center gap-2">
                   <AugmentDisplay :augment-id="aug.augmentId" :size="28" />
-                  <span class="min-w-0">{{ aug.augmentId }}</span>
+                  <span class="min-w-0 truncate" :data-testid="`aug-name-${aug.augmentId}`">{{
+                    augmentName(aug.augmentId)
+                  }}</span>
                 </span>
               </td>
               <td class="py-2 tabular-nums">
@@ -394,7 +439,7 @@ onBeforeUnmount(() => {
       data-testid="trend-popover"
     >
       <div class="mb-1 text-xs text-hex-gold">
-        强化 #{{ hoverAugment.augmentId }} · 跨版本胜率走势
+        {{ augmentName(hoverAugment.augmentId) }} · 跨版本胜率走势
       </div>
       <!-- eslint-disable-next-line vue/no-v-html —— SVG 由本组件纯函数生成（无外部输入注入面） -->
       <div v-html="hoverSvg"></div>

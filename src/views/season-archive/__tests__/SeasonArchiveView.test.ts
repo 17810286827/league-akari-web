@@ -24,6 +24,18 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush })
 }))
 
+// mock 海克斯名称数据层（game-resource.augmentDisplay：777/888 有中文名，其余空壳）
+vi.mock('@/utils/game-resource', () => ({
+  augmentDisplay: (id: number) =>
+    Promise.resolve(
+      id === 777
+        ? { name: '连击宗师', iconUrl: '', iconSources: [] }
+        : id === 888
+          ? { name: '灵风突进', iconUrl: '', iconSources: [] }
+          : { name: '', iconUrl: '', iconSources: [] }
+    )
+}))
+
 // 资源组件 stub（外部依赖不进本测试面）
 vi.mock('@/components/widgets/AugmentDisplay.vue', () => ({
   default: { name: 'AugmentDisplay', props: ['augmentId', 'size'], template: '<span class="aug-stub" />' }
@@ -190,6 +202,29 @@ describe('SeasonArchiveView', () => {
     const rows = wrapper.findAll('[data-testid^="aug-row-"]')
     expect(rows[0].attributes('data-testid')).toBe('aug-row-777')
     expect(rows[1].attributes('data-testid')).toBe('aug-row-888')
+  })
+
+  it('强化名称：中文名优先展示，未知强化回退 #ID（走势卡标题同名）', async () => {
+    vi.mocked(getSeasonArchive).mockResolvedValue(fixture())
+    const wrapper = mount(SeasonArchiveView)
+    await flushPromises()
+
+    // 777 → 连击宗师（mock 数据层命中中文名）
+    expect(wrapper.find('[data-testid="aug-name-777"]').text()).toBe('连击宗师')
+
+    // 悬停 777 行：走势卡标题用中文名而非裸 ID
+    await wrapper.find('[data-testid="aug-row-777"]').trigger('mouseenter', {
+      clientX: 400,
+      clientY: 300
+    })
+    const popover = wrapper.find('[data-testid="trend-popover"]')
+    expect(popover.text()).toContain('连击宗师')
+    expect(popover.text()).not.toContain('强化 #777')
+
+    // 切到锐雯：999（mock 未命中）→ 回退 #999
+    await wrapper.find('[data-testid="champ-92"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="aug-name-999"]').text()).toBe('#999')
   })
 
   it('空数据：展示空态而非报错', async () => {
