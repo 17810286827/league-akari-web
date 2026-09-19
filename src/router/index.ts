@@ -6,6 +6,7 @@ import HomeView from '@/views/home/HomeView.vue'
 import GameStatsView from '@/views/game-stats/GameStatsView.vue'
 import WeeklyView from '@/views/team-weekly/WeeklyView.vue'
 import LeaderboardsView from '@/views/team-leaderboards/LeaderboardsView.vue'
+import SeasonArchiveView from '@/views/season-archive/SeasonArchiveView.vue'
 import SeasonReportView from '@/views/season-report/SeasonReportView.vue'
 
 // 【原型】响应式布局评审页：仅 dev 构建注册（一次性原型，选定方案后随组件一起移除）
@@ -29,6 +30,8 @@ const router = createRouter({
     // 榜单中心：维度/模式/时间筛选 + 成员卡
     { path: '/leaderboards', name: 'team-leaderboards', component: LeaderboardsView },
     { path: '/season-report', name: 'season-report', component: SeasonReportView },
+    // 赛季资料：英雄×海克斯强化按版本统计（工单 #53；与赛季报告互为姊妹页，页头互跳）
+    { path: '/season-archive', name: 'season-archive', component: SeasonArchiveView },
     // 原型路由展开（dev-only，见上方 prototypeRoutes）
     ...prototypeRoutes
   ]

@@ -197,6 +197,14 @@ const chartOptions = {
       <header class="mt-6 text-center">
         <div class="flex items-start justify-between text-[20px] font-semibold text-hex-gold/90">
           <button class="hover:text-hex-gold-2" data-testid="home-button" @click="goHome">❖ 主页</button>
+          <!-- 姊妹页互跳（工单 #53）：赛季报告（版本→胜率轴）↔ 赛季资料（英雄×强化轴） -->
+          <button
+            class="hover:text-hex-gold-2"
+            data-testid="go-season-archive"
+            @click="router.push('/season-archive')"
+          >
+            ❖ 赛季资料
+          </button>
           <button class="hover:text-hex-gold-2" data-testid="season-regenerate" @click="report = null">❖ 重新生成</button>
         </div>
         <div class="mt-3 text-[17px] font-semibold uppercase tracking-[0.35em] text-hex-teal">Season Chronicle</div>

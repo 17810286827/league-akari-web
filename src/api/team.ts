@@ -397,3 +397,60 @@ export async function triggerTeamBackfill(): Promise<boolean> {
   const { data } = await http.post<ApiResult<{ started: boolean }>>('/api/team/backfill')
   return (data.data as { started: boolean }).started
 }
+
+/** 赛季资料覆盖率计数（与后端 SeasonArchiveResponse.Coverage 对齐，工单 #53） */
+export interface SeasonArchiveCoverage {
+  /** 纳入样本的海克斯乱斗对局数（白名单队列且至少一行有强化） */
+  includedGames: number
+  /** 队列命中白名单、但整局无任何强化数据的局数（同步链路缺 playerAugment 的信号） */
+  kiwiNoAugmentGames: number
+  /** 队列不在白名单、但参与者行带强化的行数（白名单选错/新队列号的信号） */
+  outsideQueueAugmentRows: number
+}
+
+/** 强化条目（与后端 SeasonArchiveResponse.AugmentEntry 对齐）：所选版本截面 + 全版本序列 */
+export interface SeasonAugmentEntry {
+  augmentId: number
+  /** 所选版本：持有局数（胜率分母） */
+  games: number
+  /** 所选版本：持有胜场 */
+  wins: number
+  /** 所选版本：胜率 = wins/games（0-1） */
+  winRate: number
+  /** 所选版本：出场率 = 持有局数 ÷ 该英雄对局数（0-1，同页之和远大于 1） */
+  appearanceRate: number
+  /** 全版本逐版本序列（走势卡数据）：版本 → [局数, 胜场]，无数据版本缺键 */
+  byVersion: Record<string, number[]>
+}
+
+/** 英雄条目（与后端 SeasonArchiveResponse.ChampionEntry 对齐，工单 #53） */
+export interface SeasonChampionEntry {
+  championId: number
+  championName: string
+  /** 该英雄在所选版本纳入的参与者行数（出场率分母） */
+  games: number
+  /** 强化条目（按所选版本出场次数降序） */
+  augments: SeasonAugmentEntry[]
+}
+
+/** 赛季资料响应（与后端 SeasonArchiveResponse 对齐，工单 #53） */
+export interface SeasonArchive {
+  /** 库里有数据的版本列表（归一主版本，升序）——版本筛选器选项，不硬编码 */
+  versions: string[]
+  /** 当前响应的版本截面；无数据时 null */
+  selectedVersion: string | null
+  coverage: SeasonArchiveCoverage
+  champions: SeasonChampionEntry[]
+}
+
+/**
+ * 查询赛季资料（工单 #53）：英雄×海克斯强化按版本统计（全库口径）。
+ * version 为归一主版本（如 "16.15"），缺省=最新有数据版本；一次返回完整截面
+ */
+export async function getSeasonArchive(version?: string): Promise<SeasonArchive> {
+  const { data } = await http.get<ApiResult<SeasonArchive>>('/api/team/season-archive', {
+    params: version ? { version } : {},
+    timeout: STATS_TIMEOUT_MS
+  })
+  return data.data as SeasonArchive
+}
